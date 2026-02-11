@@ -1,0 +1,46 @@
+# Node modules (will be installed during build)
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Git
+.git
+.github
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.pytest_cache
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in image)
+*.md
+docs/
+
+# Tests
+tests/
+*.test.js
+*.spec.js

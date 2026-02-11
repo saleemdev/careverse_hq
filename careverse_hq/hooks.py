@@ -5,6 +5,9 @@ app_description = "Careverse(formerly healthpro) management platform for organiz
 app_email = "salim@tiberbu.com"
 app_license = "mit"
 
+# Home page (landing page)
+home_page = "index"
+
 # Apps
 # ------------------
 
@@ -264,4 +267,7 @@ after_migrate = [
 	"careverse_hq.build.run_frontend_build"
 ]
 
-website_route_rules = [{'from_route': '/admin-central/<path:app_path>', 'to_route': 'admin-central'},]
+website_route_rules = [
+	{"from_route": "/login", "to_route": "login"},
+	{"from_route": "/admin-central/<path:app_path>", "to_route": "admin-central"},
+]
