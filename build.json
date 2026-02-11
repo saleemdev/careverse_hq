@@ -1,0 +1,11 @@
+{
+  "build_command": "python build_app.py",
+  "watch": [
+    "frontend/src/**/*.js",
+    "frontend/src/**/*.jsx",
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.tsx",
+    "frontend/src/**/*.css",
+    "frontend/public/**/*"
+  ]
+}

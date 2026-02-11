@@ -250,3 +250,18 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# Build hooks for frontend assets
+# --------------------------------
+build_hooks = {
+	"before_build": "careverse_hq.build.before_build",
+	"after_build": "careverse_hq.build.after_build"
+}
+
+# Migration hooks
+# ---------------
+# Run frontend build after migrations to ensure assets are always up-to-date
+after_migrate = [
+	"careverse_hq.build.run_frontend_build"
+]
+
+website_route_rules = [{'from_route': '/admin-central/<path:app_path>', 'to_route': 'admin-central'},]

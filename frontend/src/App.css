@@ -1,0 +1,331 @@
+/* F360 Central App-specific Styles */
+
+/* App Layout */
+#root {
+  min-height: 100vh;
+}
+
+/* Dashboard Specific Styles */
+.dashboard-container {
+  padding: var(--spacing-lg);
+  background-color: var(--bg-secondary);
+  min-height: calc(100vh - 64px);
+}
+
+/* KPI Card Styles */
+.kpi-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: none;
+  transition: all var(--transition-base);
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+}
+
+.kpi-card .kpi-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.kpi-card .kpi-value {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 8px;
+}
+
+.kpi-card .kpi-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+
+/* Section Header */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 32px 0 20px;
+}
+
+.section-header .section-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--gradient-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+}
+
+/* Approval Cards */
+.approval-card {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  text-align: center;
+  padding: 20px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.approval-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(102, 126, 234, 0.4);
+}
+
+.approval-card.purchase-orders {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+  border-color: rgba(102, 126, 234, 0.2);
+}
+
+.approval-card.expense-claims {
+  background: linear-gradient(135deg, rgba(240, 147, 251, 0.08) 0%, rgba(245, 87, 108, 0.08) 100%);
+  border-color: rgba(245, 87, 108, 0.2);
+}
+
+.approval-card.material-requests {
+  background: linear-gradient(135deg, rgba(79, 172, 254, 0.08) 0%, rgba(0, 242, 254, 0.08) 100%);
+  border-color: rgba(79, 172, 254, 0.2);
+}
+
+/* Budget Progress */
+.budget-progress {
+  margin-bottom: 16px;
+}
+
+.budget-progress .budget-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.budget-progress .budget-value {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+/* Attendance Grid */
+.attendance-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.attendance-item {
+  text-align: center;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.attendance-item.present {
+  background-color: #f6ffed;
+}
+
+.attendance-item.absent {
+  background-color: #fff1f0;
+}
+
+.attendance-item.on-leave {
+  background-color: #e6f7ff;
+}
+
+.attendance-item.late {
+  background-color: #fff7e6;
+}
+
+.attendance-item .count {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.attendance-item .label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+/* Account Balance Cards */
+.account-balance-card {
+  text-align: center;
+  border-radius: 8px;
+  padding: 12px 8px;
+}
+
+.account-balance-card.asset {
+  background-color: #e6f7ff;
+}
+
+.account-balance-card.liability {
+  background-color: #fff7e6;
+}
+
+.account-balance-card.income {
+  background-color: #f6ffed;
+}
+
+.account-balance-card.expense {
+  background-color: #fff1f0;
+}
+
+/* Quick Action Button */
+.quick-action-btn {
+  height: 44px;
+  text-align: left;
+  border-radius: var(--radius-md);
+}
+
+.quick-action-btn:hover {
+  background-color: var(--bg-tertiary);
+}
+
+/* Department Progress */
+.department-progress {
+  margin-bottom: 12px;
+}
+
+.department-progress:last-child {
+  margin-bottom: 0;
+}
+
+.department-progress .dept-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.department-progress .dept-name {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.department-progress .dept-value {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* Login Page */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: var(--gradient-secondary);
+}
+
+.login-card {
+  background: #fff;
+  padding: 48px;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+}
+
+.login-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: var(--gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+  color: #fff;
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.login-btn {
+  display: inline-block;
+  padding: 12px 48px;
+  background: var(--gradient-primary);
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 16px;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-primary);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: var(--spacing-md);
+  }
+
+  .kpi-card .kpi-value {
+    font-size: 28px;
+  }
+
+  .kpi-card .kpi-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+
+  .attendance-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .section-header {
+    margin: 24px 0 16px;
+  }
+}
+
+/* Dark Mode Overrides */
+[data-theme='dark'] .approval-card {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 100%);
+}
+
+[data-theme='dark'] .attendance-item.present {
+  background-color: rgba(82, 196, 26, 0.1);
+}
+
+[data-theme='dark'] .attendance-item.absent {
+  background-color: rgba(255, 77, 79, 0.1);
+}
+
+[data-theme='dark'] .attendance-item.on-leave {
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+[data-theme='dark'] .attendance-item.late {
+  background-color: rgba(250, 173, 20, 0.1);
+}
+
+[data-theme='dark'] .account-balance-card.asset {
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+[data-theme='dark'] .account-balance-card.liability {
+  background-color: rgba(250, 173, 20, 0.1);
+}
+
+[data-theme='dark'] .account-balance-card.income {
+  background-color: rgba(82, 196, 26, 0.1);
+}
+
+[data-theme='dark'] .account-balance-card.expense {
+  background-color: rgba(255, 77, 79, 0.1);
+}
