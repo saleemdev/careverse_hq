@@ -56,7 +56,8 @@ const useFinanceModuleStore = create<FinanceModuleState>((set, get) => ({
         try {
             const response = await financeApi.getPurchaseOrders(get().filters);
             if (response.success) {
-                set({ purchaseOrders: response.data || [] });
+                // API returns { items: [], total_count: N, page: N, page_size: N }
+                set({ purchaseOrders: response.data?.items || [] });
             }
         } finally {
             set((state) => ({ loading: { ...state.loading, po: false } }));
@@ -67,7 +68,8 @@ const useFinanceModuleStore = create<FinanceModuleState>((set, get) => ({
         try {
             const response = await financeApi.getExpenseClaims(get().filters);
             if (response.success) {
-                set({ expenseClaims: response.data || [] });
+                // API returns { items: [], total_count: N, page: N, page_size: N }
+                set({ expenseClaims: response.data?.items || [] });
             }
         } finally {
             set((state) => ({ loading: { ...state.loading, ec: false } }));
@@ -78,7 +80,8 @@ const useFinanceModuleStore = create<FinanceModuleState>((set, get) => ({
         try {
             const response = await financeApi.getMaterialRequests(get().filters);
             if (response.success) {
-                set({ materialRequests: response.data || [] });
+                // API returns { items: [], total_count: N, page: N, page_size: N }
+                set({ materialRequests: response.data?.items || [] });
             }
         } finally {
             set((state) => ({ loading: { ...state.loading, mr: false } }));

@@ -53,7 +53,7 @@ interface DashboardProps {
 
 const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
     const { token } = theme.useToken();
-    const { isMobile } = useResponsive();
+    const { isMobile, isTablet } = useResponsive();
     const [loading, setLoading] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
@@ -273,14 +273,14 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 transition: 'all 0.3s ease',
                 cursor: onClick ? 'pointer' : 'default',
             }}
-            bodyStyle={{ padding: isMobile ? '16px' : '20px' }}
+            bodyStyle={{ padding: isMobile ? '16px' : isTablet ? '18px' : '20px' }}
         >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ flex: 1 }}>
                     <Text type="secondary" style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                         {title}
                     </Text>
-                    <div style={{ fontSize: isMobile ? '28px' : '32px', fontWeight: 700, color, marginTop: '8px', lineHeight: 1.1 }}>
+                    <div style={{ fontSize: isMobile ? '28px' : isTablet ? '30px' : '32px', fontWeight: 700, color, marginTop: '8px', lineHeight: 1.1 }}>
                         {loading && !value ? <Spin size="small" /> : value}
                     </div>
                     {(subtitle || trend !== undefined) && (
@@ -559,7 +559,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             {/* Section 3: Central Approval Platform */}
             <SectionHeader title="Central Approval Platform" icon={<CheckCircleOutlined />} />
             <Row gutter={[16, 16]}>
-                <Col xs={24} lg={18}>
+                <Col xs={24} sm={24} md={16} lg={18}>
                     <Card
                         style={{
                             borderRadius: '12px',
@@ -663,7 +663,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                         </Row>
                     </Card>
                 </Col>
-                <Col xs={24} lg={6}>
+                <Col xs={24} sm={24} md={8} lg={6}>
                     <Card
                         style={{
                             borderRadius: '12px',

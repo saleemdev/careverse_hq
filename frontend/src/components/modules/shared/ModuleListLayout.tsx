@@ -23,7 +23,7 @@ const ModuleListLayout: React.FC<ModuleListLayoutProps> = ({
     children
 }) => {
     const { token } = theme.useToken();
-    const { isMobile } = useResponsive();
+    const { isMobile, isTablet } = useResponsive();
 
     const defaultBreadcrumbs = [
         { title: <HomeOutlined />, onClick: () => window.location.hash = '#dashboard' },
@@ -38,15 +38,32 @@ const ModuleListLayout: React.FC<ModuleListLayoutProps> = ({
                     <Breadcrumb items={defaultBreadcrumbs} style={{ marginBottom: '8px' }} />
                     <Title level={2} style={{ margin: 0 }}>{title}</Title>
                 </div>
-                <Space>
+                <Space
+                    size={isMobile ? 'small' : 'middle'}
+                    wrap={isTablet}
+                    style={{
+                        width: isMobile ? '100%' : 'auto',
+                        justifyContent: isMobile ? 'space-between' : 'flex-end'
+                    }}
+                >
                     {onExport && (
-                        <Button icon={<DownloadOutlined />} onClick={onExport}>
-                            Export
+                        <Button
+                            icon={<DownloadOutlined />}
+                            onClick={onExport}
+                            size={isMobile ? 'middle' : 'large'}
+                            block={isMobile}
+                        >
+                            {!isMobile && 'Export'}
                         </Button>
                     )}
                     {onRefresh && (
-                        <Button icon={<ReloadOutlined />} onClick={onRefresh}>
-                            Refresh
+                        <Button
+                            icon={<ReloadOutlined />}
+                            onClick={onRefresh}
+                            size={isMobile ? 'middle' : 'large'}
+                            block={isMobile}
+                        >
+                            {!isMobile && 'Refresh'}
                         </Button>
                     )}
                     {extra}

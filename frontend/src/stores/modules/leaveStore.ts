@@ -42,9 +42,10 @@ const useLeaveStore = create<LeaveStore>((set, get) => ({
                 facilities: facilityIds,
             });
             if (response.success) {
+                // API returns { items: [], total_count: N, page: N, page_size: N }
                 set({
-                    leaves: response.data || [],
-                    total: response.data?.length || 0
+                    leaves: response.data?.items || [],
+                    total: response.data?.total_count || 0
                 });
             }
         } catch (error) {

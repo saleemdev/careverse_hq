@@ -24,12 +24,13 @@ import useFinanceModuleStore from '../../../stores/modules/financeStore';
 import { TableSkeleton } from '../../shared/Skeleton/Skeleton';
 import EmptyState from '../../shared/EmptyState/EmptyState';
 import { useResponsive } from '../../../hooks/useResponsive';
+import { COMPONENT_WIDTHS } from '../../../styles/tokens';
 
 const { Text, Title } = Typography;
 
 const ExpenseClaimsListView: React.FC = () => {
     const { token } = theme.useToken();
-    const { isMobile } = useResponsive();
+    const { isMobile, getResponsiveValue } = useResponsive();
 
     const {
         expenseClaims,
@@ -166,7 +167,11 @@ const ExpenseClaimsListView: React.FC = () => {
                             <Input
                                 placeholder="Search claimant or ID..."
                                 prefix={<SearchOutlined style={{ color: token.colorTextPlaceholder }} />}
-                                style={{ width: 250, borderRadius: 8 }}
+                                style={{
+                                    width: getResponsiveValue(COMPONENT_WIDTHS.searchInput),
+                                    minWidth: isMobile ? '120px' : 'auto',
+                                    borderRadius: 8
+                                }}
                                 allowClear
                             />
                             <Button icon={<ReloadOutlined />} onClick={handleRefresh} />

@@ -42,8 +42,8 @@ const useAffiliationsModuleStore = create<AffiliationsModuleStore>((set, get) =>
             });
             if (response.success) {
                 set({
-                    affiliations: response.data || [],
-                    total: response.data?.length || 0
+                    affiliations: response.data?.items || [],
+                    total: response.data?.total_count || 0
                 });
             }
         } catch (error) {

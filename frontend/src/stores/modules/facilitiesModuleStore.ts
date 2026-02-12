@@ -37,8 +37,8 @@ const useFacilitiesModuleStore = create<FacilitiesModuleStore>((set, get) => ({
             const response = await facilitiesApi.getFacilities(filters);
             if (response.success) {
                 set({
-                    facilities: response.data || [],
-                    total: response.data?.length || 0
+                    facilities: response.data?.items || [],
+                    total: response.data?.total_count || 0
                 });
             }
         } catch (error) {

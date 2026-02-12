@@ -30,12 +30,56 @@ import useFacilityStore from '../../../stores/facilityStore';
 import { TableSkeleton } from '../../shared/Skeleton/Skeleton';
 import EmptyState from '../../shared/EmptyState/EmptyState';
 import { useResponsive } from '../../../hooks/useResponsive';
+import MobileCardView from '../../shared/MobileCardView/MobileCardView';
+import { COMPONENT_WIDTHS } from '../../../styles/tokens';
 
 const { Text, Title } = Typography;
 
+// Mobile Card Component for Employee
+const EmployeeCard: React.FC<{ data: any; token: any }> = ({ data, token }) => (
+  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+    <Space>
+      <Avatar size="large" src={data.image} icon={<TeamOutlined />} />
+      <div>
+        <Text strong style={{ display: 'block', fontSize: '14px' }}>
+          {data.employee_name}
+        </Text>
+        <Text type="secondary" style={{ fontSize: '11px' }}>{data.name}</Text>
+      </div>
+    </Space>
+
+    {data.custom_is_licensed_practitioner === 1 && (
+      <Tag color="blue" icon={<SafetyCertificateOutlined />} style={{ fontSize: '10px' }}>
+        Licensed Practitioner
+      </Tag>
+    )}
+
+    <div style={{ marginTop: '8px' }}>
+      <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
+        {data.designation || 'N/A'} • {data.department || 'N/A'}
+      </Text>
+      <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: '4px' }}>
+        <MailOutlined style={{ marginRight: 4 }} />
+        {data.company_email || 'No Email'}
+      </Text>
+      <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
+        <PhoneOutlined style={{ marginRight: 4 }} />
+        {data.cell_number || 'No Phone'}
+      </Text>
+    </div>
+
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+      <Tag color="geekblue" style={{ fontSize: '11px' }}>
+        {data.custom_facility_name || 'Floating'}
+      </Tag>
+      <Badge status={data.status === 'Active' ? 'success' : 'default'} text={data.status} />
+    </div>
+  </Space>
+);
+
 const EmployeesListView: React.FC = () => {
     const { token } = theme.useToken();
-    const { isMobile, isTablet, isDesktop } = useResponsive();
+    const { isMobile, isTablet, isDesktop, getResponsiveValue } = useResponsive();
     const { selectedFacilityIds } = useFacilityStore();
     const facilityIds = selectedFacilityIds;
 
@@ -210,7 +254,11 @@ const EmployeesListView: React.FC = () => {
                             <Input
                                 placeholder={isMobile ? "Search..." : "Search employees..."}
                                 prefix={<SearchOutlined style={{ color: token.colorTextPlaceholder }} />}
-                                style={{ width: isMobile ? '100%' : 250, minWidth: '120px', borderRadius: 8 }}
+                                style={{
+                                    width: getResponsiveValue(COMPONENT_WIDTHS.searchInput),
+                                    minWidth: isMobile ? '120px' : 'auto',
+                                    borderRadius: 8
+                                }}
                                 value={filters.search}
                                 onChange={e => setFilters({ search: e.target.value })}
                                 allowClear
@@ -223,21 +271,35 @@ const EmployeesListView: React.FC = () => {
                 {loading ? (
                     <TableSkeleton rows={filters.pageSize} />
                 ) : employees.length > 0 ? (
-                    <Table
-                        dataSource={employees}
-                        columns={columns}
-                        rowKey="name"
-                        pagination={{
-                            current: filters.page,
-                            pageSize: filters.pageSize,
-                            total: total,
-                            showSizeChanger: !isMobile,
-                            pageSizeOptions: isMobile ? ['5', '10'] : ['10', '20', '50'],
-                            onChange: (page, pageSize) => setFilters({ page, pageSize })
-                        }}
-                        scroll={{ x: isMobile ? 320 : 'max-content' }}
-                        size={isMobile ? 'small' : 'middle'}
-                    />
+                    isMobile ? (
+                        <MobileCardView
+                            data={employees}
+                            renderCard={(employee) => <EmployeeCard data={employee} token={token} />}
+                            loading={loading}
+                            pagination={{
+                                current: filters.page,
+                                pageSize: filters.pageSize,
+                                total: total,
+                                onChange: (page, pageSize) => setFilters({ page, pageSize }),
+                            }}
+                        />
+                    ) : (
+                        <Table
+                            dataSource={employees}
+                            columns={columns}
+                            rowKey="name"
+                            pagination={{
+                                current: filters.page,
+                                pageSize: filters.pageSize,
+                                total: total,
+                                showSizeChanger: !isMobile,
+                                pageSizeOptions: isMobile ? ['5', '10'] : ['10', '20', '50'],
+                                onChange: (page, pageSize) => setFilters({ page, pageSize })
+                            }}
+                            scroll={{ x: isMobile ? 320 : 'max-content' }}
+                            size={isMobile ? 'small' : 'middle'}
+                        />
+                    )
                 ) : (
                     <EmptyState type="no-data" />
                 )}

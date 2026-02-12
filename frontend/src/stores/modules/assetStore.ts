@@ -42,9 +42,10 @@ const useAssetStore = create<AssetStore>((set, get) => ({
                 facilities: facilityIds,
             });
             if (response.success) {
+                // API returns { items: [], total_count: N, page: N, page_size: N }
                 set({
-                    assets: response.data || [],
-                    total: response.data?.length || 0
+                    assets: response.data?.items || [],
+                    total: response.data?.total_count || 0
                 });
             }
         } catch (error) {

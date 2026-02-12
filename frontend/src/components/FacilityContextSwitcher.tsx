@@ -23,6 +23,7 @@ import {
 import { useResponsive } from '../hooks/useResponsive';
 import useFacilityStore from '../stores/facilityStore';
 import type { Facility } from '../stores/facilityStore';
+import { COMPONENT_WIDTHS } from '../styles/tokens';
 
 const { Text } = Typography;
 
@@ -36,7 +37,7 @@ const FacilityContextSwitcher: React.FC<FacilityContextSwitcherProps> = ({
 	showLabel = true,
 }) => {
 	const { token } = theme.useToken();
-	const { isMobile } = useResponsive();
+	const { isMobile, getResponsiveValue } = useResponsive();
 
 	const {
 		company,
@@ -75,7 +76,7 @@ const FacilityContextSwitcher: React.FC<FacilityContextSwitcherProps> = ({
 				placeholder="All Facilities"
 				allowClear
 				loading={loading}
-				style={{ width: isMobile ? 180 : 240 }}
+				style={{ width: getResponsiveValue(COMPONENT_WIDTHS.facilitySelector) }}
 				size={isMobile ? 'small' : 'middle'}
 				maxTagCount="responsive"
 			>
@@ -107,7 +108,7 @@ const FacilityContextSwitcher: React.FC<FacilityContextSwitcherProps> = ({
 					placeholder="All Facilities"
 					allowClear
 					loading={loading}
-					style={{ width: isMobile ? 200 : 280 }}
+					style={{ width: getResponsiveValue(COMPONENT_WIDTHS.facilitySelector) }}
 					maxTagCount="responsive"
 					popupMatchSelectWidth={false}
 					notFoundContent={loading ? <Spin size="small" /> : 'No facilities found'}

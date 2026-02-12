@@ -72,7 +72,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     const [collapsed, setCollapsed] = useState(false);
     const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
     const { user, logout } = useAuthStore();
-    const { company } = useFacilityStore();
+    const { company, selectedFacilities } = useFacilityStore();
 
     // Auto-collapse on tablet
     useEffect(() => {
@@ -284,14 +284,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         </Sider>
     );
 
-    // Mobile drawer
+    // Mobile & Tablet drawer
     const renderMobileDrawer = () => (
         <Drawer
             placement="left"
             closable={false}
             onClose={() => setMobileMenuVisible(false)}
             open={mobileMenuVisible}
-            width={280}
+            width={isMobile ? 280 : 300}
             bodyStyle={{ padding: 0 }}
             headerStyle={{ display: 'none' }}
         >
@@ -311,16 +311,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            {/* Sidebar - Desktop */}
-            {!isMobile && renderSidebar()}
+            {/* Sidebar - Desktop only */}
+            {!isMobile && !isTablet && renderSidebar()}
 
-            {/* Mobile Drawer */}
-            {isMobile && renderMobileDrawer()}
+            {/* Mobile & Tablet Drawer */}
+            {(isMobile || isTablet) && renderMobileDrawer()}
 
             {/* Main Layout */}
             <Layout
                 style={{
-                    marginLeft: isMobile ? 0 : collapsed ? 80 : 260,
+                    marginLeft: (isMobile || isTablet) ? 0 : collapsed ? 80 : 260,
                     transition: 'margin-left 0.2s ease',
                 }}
             >
@@ -344,13 +344,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                         {/* Menu Toggle */}
                         <Button
                             type="text"
-                            icon={isMobile ? <MenuUnfoldOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                            onClick={() => (isMobile ? setMobileMenuVisible(true) : setCollapsed(!collapsed))}
+                            icon={(isMobile || isTablet) ? <MenuUnfoldOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                            onClick={() => ((isMobile || isTablet) ? setMobileMenuVisible(true) : setCollapsed(!collapsed))}
                             style={{ fontSize: '18px', width: '40px', height: '40px' }}
                         />
 
-                        {/* Prominent County Name Badge - Desktop */}
-                        {!isMobile && company && (
+                        {/* Prominent County Name Badge - Desktop only */}
+                        {!isMobile && !isTablet && company && (
                             <div
                                 style={{
                                     background: 'linear-gradient(135deg, #1890ff 0%, #722ed1 100%)',
@@ -389,6 +389,32 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                             </div>
                         )}
 
+                        {/* Compact County Badge - Tablet */}
+                        {!isMobile && isTablet && company && (
+                            <div
+                                style={{
+                                    background: 'linear-gradient(135deg, #1890ff 0%, #722ed1 100%)',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    boxShadow: '0 2px 8px rgba(24, 144, 255, 0.25)',
+                                }}
+                            >
+                                <BankOutlined style={{ color: '#fff', fontSize: '14px' }} />
+                                <Text
+                                    style={{
+                                        color: '#fff',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    {company.abbr || company.company_name}
+                                </Text>
+                            </div>
+                        )}
+
                         {/* Mobile County Name */}
                         {isMobile && company && (
                             <Text
@@ -403,7 +429,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                         )}
 
                         {/* Breadcrumb - Desktop only */}
-                        {!isMobile && (
+                        {!isMobile && !isTablet && (
                             <Breadcrumb
                                 items={[
                                     { title: <HomeOutlined />, onClick: () => onNavigate('dashboard') },
@@ -414,8 +440,41 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     </Space>
 
                     <Space size="middle">
-                        {/* Facility Context Switcher - Compact variant */}
-                        {!isMobile && (
+                        {/* Facility Context Switcher - All devices */}
+                        {isMobile ? (
+                            <Dropdown
+                                trigger={['click']}
+                                placement="bottomRight"
+                                dropdownRender={() => (
+                                    <div style={{
+                                        background: token.colorBgElevated,
+                                        borderRadius: '8px',
+                                        padding: '12px',
+                                        boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                                        minWidth: '280px',
+                                    }}>
+                                        <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginBottom: '8px' }}>
+                                            Filter by Facility
+                                        </Text>
+                                        <FacilityContextSwitcher variant="minimal" showLabel={false} />
+                                    </div>
+                                )}
+                            >
+                                <Tooltip title="Facility Filter">
+                                    <Badge
+                                        count={selectedFacilities.length > 0 ? selectedFacilities.length : 0}
+                                        size="small"
+                                        offset={[-2, 2]}
+                                    >
+                                        <Button
+                                            type="text"
+                                            icon={<MedicineBoxOutlined />}
+                                            style={{ width: '36px', height: '36px' }}
+                                        />
+                                    </Badge>
+                                </Tooltip>
+                            </Dropdown>
+                        ) : (
                             <FacilityContextSwitcher variant="compact" showLabel={false} />
                         )}
 

@@ -368,6 +368,120 @@ a:hover {
   }
 }
 
+/* ========================================
+   RESPONSIVE UTILITIES
+   ======================================== */
+
+/* Responsive Display */
+.hide-mobile { display: block; }
+.show-mobile { display: none; }
+
+@media (max-width: 767px) {
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: block !important; }
+  .p-responsive { padding: var(--spacing-sm); }
+  .text-responsive { font-size: 13px; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .hide-tablet { display: none !important; }
+  .show-tablet { display: block !important; }
+  .p-responsive { padding: var(--spacing-md); }
+}
+
+@media (min-width: 1024px) {
+  .hide-desktop { display: none !important; }
+  .show-desktop { display: block !important; }
+  .p-responsive { padding: var(--spacing-lg); }
+}
+
+/* Responsive Flex */
+.flex-responsive {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+@media (min-width: 768px) {
+  .flex-responsive {
+    flex-direction: row;
+    gap: var(--spacing-md);
+  }
+}
+
+/* Responsive Grid */
+.grid-responsive {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-sm);
+}
+
+@media (min-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-responsive {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-lg);
+  }
+}
+
+/* ========================================
+   RESPONSIVE FALLBACKS (No JS Required)
+   ======================================== */
+
+@media (max-width: 767px) {
+  .ant-table {
+    font-size: 12px;
+  }
+
+  .ant-table-thead > tr > th {
+    padding: 8px;
+    font-size: 11px;
+  }
+
+  .ant-table-tbody > tr > td {
+    padding: 8px;
+  }
+
+  .ant-card-body {
+    padding: 16px;
+  }
+
+  .ant-modal {
+    max-width: calc(100vw - 32px);
+  }
+
+  .ant-drawer-content-wrapper {
+    width: 90% !important;
+  }
+
+  .ant-btn {
+    padding: 4px 12px;
+  }
+
+  .ant-space-item {
+    margin-right: 8px !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .ant-table {
+    font-size: 13px;
+  }
+
+  .ant-card-body {
+    padding: 18px;
+  }
+
+  .ant-drawer-content-wrapper {
+    width: 80% !important;
+  }
+}
+
 /* Print Styles */
 @media print {
   body {
