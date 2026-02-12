@@ -196,7 +196,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                                 marginBottom: '12px'
                                             }}
                                         >
-                                            Security Gateway
+                                            County Executive Portal
                                         </Text>
                                         <Title
                                             level={1}
@@ -208,7 +208,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                                 lineHeight: 1.1
                                             }}
                                         >
-                                            Authentication Required
+                                            Sign In Required
                                         </Title>
                                         <Paragraph
                                             style={{
@@ -219,8 +219,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                                 marginBottom: 0
                                             }}
                                         >
-                                            Access to the Executive Dashboard is restricted to authorized personnel.
-                                            Please sign in to your accounts to continue.
+                                            Welcome to the County Healthcare Executive Dashboard. Please sign in with your authorized credentials to access the system.
                                         </Paragraph>
                                     </div>
 
@@ -248,15 +247,31 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                         style={{
                                             padding: '20px',
                                             borderRadius: '12px',
+                                            background: isDarkMode ? 'rgba(24, 144, 255, 0.1)' : 'rgba(239, 246, 255, 1)',
+                                            border: isDarkMode ? '1px solid rgba(24, 144, 255, 0.2)' : '1px solid rgba(191, 219, 254, 1)'
+                                        }}
+                                    >
+                                        <Title level={5} style={{ margin: '0 0 12px 0', fontSize: '14px', color: isDarkMode ? '#60a5fa' : '#1e40af' }}>
+                                            After You Sign In
+                                        </Title>
+                                        <Text style={{ fontSize: '13px', color: isDarkMode ? '#bfdbfe' : '#1e40af', lineHeight: '1.6' }}>
+                                            Once authenticated, you'll have access to the executive dashboard based on your assigned county permissions. If you don't have county access, contact your system administrator.
+                                        </Text>
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            padding: '20px',
+                                            borderRadius: '12px',
                                             background: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
                                             border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid rgba(0, 0, 0, 0.05)'
                                         }}
                                     >
                                         <Title level={5} style={{ margin: '0 0 8px 0', fontSize: '14px' }}>
-                                            Support Assistance
+                                            Need Help?
                                         </Title>
                                         <Text style={{ fontSize: '13px', color: token.colorTextTertiary }}>
-                                            Contact the ICT Support Desk if you encounter issues accessing your account or need new credentials.
+                                            Contact your system administrator or ICT Support Desk if you need credentials or encounter access issues.
                                         </Text>
                                     </div>
                                 </Space>

@@ -5,14 +5,15 @@
     <link rel="icon" type="image/svg+xml" href="/assets/careverse_hq/images/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CareVerse HQ - Admin Central</title>
-    <script type="module" crossorigin src="/assets/careverse_hq/admin-central/assets/index-0j0PXHqA.js"></script>
+    <script type="module" crossorigin src="/assets/careverse_hq/admin-central/assets/index-B4wdcjYE.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/careverse_hq/admin-central/assets/index-PJ9AA4Dk.css">
   </head>
   <body>
     <div id="root"></div>
 		<script>
-			window.csrf_token = '{{ frappe.session.csrf_token }}';
-			// TODO: load boot data here (context file is created in `www` directory)
+			window.csrf_token = '{{ csrf_token }}';
+			window.frappe = window.frappe || {};
+			window.frappe.boot = {{ boot | tojson }};
 		</script>
   </body>
 </html>

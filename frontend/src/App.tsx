@@ -20,6 +20,11 @@ import PurchaseOrdersListView from './components/modules/approvals/PurchaseOrder
 import ExpenseClaimsListView from './components/modules/approvals/ExpenseClaimsListView';
 import MaterialRequestsListView from './components/modules/approvals/MaterialRequestsListView';
 import EmptyState from './components/shared/EmptyState/EmptyState';
+import BulkUploadPage from './pages/affiliations/BulkUploadPage';
+import StatusDashboard from './pages/affiliations/StatusDashboard';
+import UserListPage from './pages/user-management/UserListPage';
+import CreateUserPage from './pages/user-management/CreateUserPage';
+import EditUserPage from './pages/user-management/EditUserPage';
 import './App.css';
 
 const { Content } = Layout;
@@ -275,7 +280,17 @@ function App() {
 
       // Affiliations route
       case 'affiliations':
-        return <AffiliationsListView />;
+        return <AffiliationsListView navigateToRoute={navigateToRoute} />;
+
+      // Bulk Upload routes
+      case 'bulk-upload':
+        return <BulkUploadPage navigateToRoute={navigateToRoute} />;
+
+      case 'bulk-upload-status':
+        if (currentDetailId) {
+          return <StatusDashboard jobId={currentDetailId} navigateToRoute={navigateToRoute} />;
+        }
+        return <AffiliationsListView navigateToRoute={navigateToRoute} />;
 
       // Licenses route
       case 'licenses':
@@ -292,6 +307,19 @@ function App() {
       // Leave route
       case 'leave-applications':
         return <LeaveApplicationsListView />;
+
+      // User Management routes
+      case 'user-management':
+        return <UserListPage navigateToRoute={navigateToRoute} />;
+
+      case 'create-user':
+        return <CreateUserPage navigateToRoute={navigateToRoute} />;
+
+      case 'edit-user':
+        if (currentDetailId) {
+          return <EditUserPage userId={currentDetailId} navigateToRoute={navigateToRoute} />;
+        }
+        return <UserListPage navigateToRoute={navigateToRoute} />;
 
       // Placeholder routes for modules under development
       case 'budget-overview':

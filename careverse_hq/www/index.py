@@ -18,11 +18,11 @@ def get_context(context):
 	context.no_cache = 1
 	context.no_header = True
 	context.no_breadcrumbs = True
-	context.title = _("Healthcare Compliance Platform - CareVerse HQ")
+	context.title = _("Healthcare Management Platform - F360 Central")
 
-	# Branding
-	context.app_name = frappe.get_website_settings("app_name") or "CareVerse HQ"
-	context.logo = get_app_logo() or "/assets/careverse_hq/images/logo.svg"
+	# Branding - F360 Central
+	context.app_name = "F360 Central"
+	context.logo = "/assets/careverse_hq/images/logo.svg"
 
 	# CTA configuration
 	context.cta_text = "Get Started"

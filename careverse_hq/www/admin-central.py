@@ -20,11 +20,24 @@ def get_context_for_dev():
 
 
 def get_boot():
+	"""Provide boot data including session info for React app authentication"""
 	return frappe._dict(
 		{
 			"frappe_version": "frappe.version",
 			"site_name": frappe.local.site,
 			"read_only_mode": frappe.flags.read_only,
 			"system_timezone": get_system_timezone(),
+			"session": {
+				"user": frappe.session.user,
+				"user_fullname": frappe.utils.get_fullname(frappe.session.user),
+				"user_image": frappe.db.get_value("User", frappe.session.user, "user_image"),
+			},
+			"user": {
+				"name": frappe.session.user,
+				"email": frappe.session.user,
+				"full_name": frappe.utils.get_fullname(frappe.session.user),
+				"user_image": frappe.db.get_value("User", frappe.session.user, "user_image"),
+				"roles": frappe.get_roles(frappe.session.user),
+			}
 		}
 	)

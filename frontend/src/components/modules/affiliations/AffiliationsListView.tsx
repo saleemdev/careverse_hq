@@ -20,7 +20,8 @@ import {
     SearchOutlined,
     ReloadOutlined,
     UserOutlined,
-    MedicineBoxOutlined
+    MedicineBoxOutlined,
+    CloudUploadOutlined
 } from '@ant-design/icons';
 import useAffiliationsModuleStore from '../../../stores/modules/affiliationsModuleStore';
 import useFacilityStore from '../../../stores/facilityStore';
@@ -30,7 +31,11 @@ import { useResponsive } from '../../../hooks/useResponsive';
 
 const { Text, Title } = Typography;
 
-const AffiliationsListView: React.FC = () => {
+interface AffiliationsListViewProps {
+    navigateToRoute?: (route: string, id?: string) => void;
+}
+
+const AffiliationsListView: React.FC<AffiliationsListViewProps> = ({ navigateToRoute }) => {
     const { token } = theme.useToken();
     const { isMobile } = useResponsive();
     const { selectedFacilityIds } = useFacilityStore();
@@ -191,6 +196,15 @@ const AffiliationsListView: React.FC = () => {
                                 style={{ width: 250, borderRadius: 8 }}
                                 allowClear
                             />
+                            {navigateToRoute && (
+                                <Button
+                                    type="primary"
+                                    icon={<CloudUploadOutlined />}
+                                    onClick={() => navigateToRoute('bulk-upload')}
+                                >
+                                    Bulk Upload
+                                </Button>
+                            )}
                             <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
                         </Space>
                     </div>

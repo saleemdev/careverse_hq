@@ -1,18 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
-  <!-- Shield background with gradient -->
+  <!-- Gradient definitions -->
   <defs>
-    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="f360Gradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#1890ff;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#096dd9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#722ed1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="circleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#40a9ff;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#9254de;stop-opacity:0.3" />
     </linearGradient>
   </defs>
 
-  <!-- Shield shape -->
-  <path d="M24 3L6 10V21C6 31.5 12 41 24 45C36 41 42 31.5 42 21V10L24 3Z" fill="url(#shieldGradient)"/>
+  <!-- Outer circle -->
+  <circle cx="24" cy="24" r="20" fill="url(#f360Gradient)"/>
 
-  <!-- Inner shield border -->
-  <path d="M24 6L9 12V21C9 30 14 38 24 42C34 38 39 30 39 21V12L24 6Z" fill="none" stroke="white" stroke-width="1" opacity="0.3"/>
+  <!-- Inner circle ring -->
+  <circle cx="24" cy="24" r="16" fill="none" stroke="url(#circleGradient)" stroke-width="2"/>
 
-  <!-- Checkmark -->
-  <path d="M20 30L13 23L15.5 20.5L20 25L32.5 12.5L35 15L20 30Z" fill="white" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- F360 Text -->
+  <g transform="translate(24, 24)">
+    <!-- F letter -->
+    <path d="M -10 -6 L -10 6 M -10 -6 L -4 -6 M -10 0 L -6 0"
+          stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+    <!-- 360 numbers -->
+    <text x="-1" y="2" font-family="Arial, sans-serif" font-size="9" font-weight="700" fill="white" text-anchor="start">360</text>
+  </g>
+
+  <!-- Decorative arc -->
+  <path d="M 12 8 A 16 16 0 0 1 36 8" stroke="white" stroke-width="1.5" fill="none" opacity="0.5" stroke-linecap="round"/>
 </svg>

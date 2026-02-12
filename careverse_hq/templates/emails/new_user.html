@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to {{ app_name }}</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f3f4f6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .email-wrapper {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        .email-header {
+            background: linear-gradient(135deg, #1890ff 0%, #8b5cf6 50%, #ec4899 100%);
+            padding: 48px 32px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .email-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        }
+        .email-logo {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        .email-header-title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0 0 8px 0;
+            letter-spacing: -0.02em;
+            position: relative;
+            z-index: 1;
+        }
+        .email-header-subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 16px;
+            margin: 0;
+            position: relative;
+            z-index: 1;
+        }
+        .email-body {
+            padding: 48px 32px;
+        }
+        .email-greeting {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0 0 24px 0;
+        }
+        .email-text {
+            font-size: 15px;
+            line-height: 1.7;
+            color: #4b5563;
+            margin: 0 0 20px 0;
+        }
+        .email-highlight-box {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-left: 4px solid #22c55e;
+            padding: 24px;
+            border-radius: 12px;
+            margin: 32px 0;
+        }
+        .email-highlight-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #15803d;
+            margin: 0 0 12px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .email-credentials {
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 12px 0 0 0;
+        }
+        .email-credential-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .email-credential-row:last-child {
+            border-bottom: none;
+        }
+        .email-credential-label {
+            font-size: 13px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .email-credential-value {
+            font-size: 14px;
+            color: #1f2937;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+        .email-button-wrapper {
+            text-align: center;
+            margin: 40px 0;
+        }
+        .email-button {
+            display: inline-block;
+            padding: 16px 48px;
+            background: linear-gradient(135deg, #1890ff 0%, #0369a1 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 16px;
+            box-shadow: 0 10px 30px rgba(24, 144, 255, 0.35);
+            transition: all 0.2s;
+        }
+        .email-button:hover {
+            box-shadow: 0 15px 40px rgba(24, 144, 255, 0.45);
+            transform: translateY(-3px);
+        }
+        .email-features {
+            margin: 32px 0;
+        }
+        .email-feature {
+            display: flex;
+            align-items: flex-start;
+            margin: 16px 0;
+        }
+        .email-feature-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-right: 16px;
+        }
+        .email-feature-content {
+            flex: 1;
+        }
+        .email-feature-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0 0 4px 0;
+        }
+        .email-feature-text {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 0;
+        }
+        .email-divider {
+            margin: 32px 0;
+            border: 0;
+            border-top: 1px solid #e5e7eb;
+        }
+        .email-security-note {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 24px 0;
+        }
+        .email-security-note-text {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #92400e;
+            margin: 0;
+        }
+        .email-footer {
+            background-color: #f9fafb;
+            padding: 32px;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+        }
+        .email-footer-text {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 0 0 16px 0;
+        }
+        .email-footer-links {
+            margin: 16px 0;
+        }
+        .email-footer-link {
+            color: #1890ff;
+            text-decoration: none;
+            font-size: 13px;
+            margin: 0 12px;
+        }
+        .email-footer-link:hover {
+            text-decoration: underline;
+        }
+        @media only screen and (max-width: 600px) {
+            .email-header {
+                padding: 40px 24px;
+            }
+            .email-body {
+                padding: 32px 24px;
+            }
+            .email-footer {
+                padding: 24px;
+            }
+            .email-button {
+                padding: 14px 36px;
+                font-size: 15px;
+            }
+            .email-header-title {
+                font-size: 24px;
+            }
+            .email-credential-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .email-credential-value {
+                margin-top: 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f3f4f6; padding: 32px 16px;">
+        <tr>
+            <td align="center">
+                <div class="email-wrapper">
+                    <!-- Header -->
+                    <div class="email-header">
+                        {% if logo %}
+                        <img src="{{ logo }}" alt="{{ app_name }}" class="email-logo" style="display: block; margin: 0 auto 20px;">
+                        {% endif %}
+                        <h1 class="email-header-title">Welcome to {{ app_name or "CareVerse HQ" }}</h1>
+                        <p class="email-header-subtitle">Your account has been created</p>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="email-body">
+                        <p class="email-greeting">Hello {{ first_name or "there" }},</p>
+
+                        <p class="email-text">
+                            Welcome to the {{ app_name or "CareVerse HQ" }} County Healthcare Executive Portal! Your account has been created and you now have access to our comprehensive healthcare management platform.
+                        </p>
+
+                        <!-- Credentials Box -->
+                        {% if link %}
+                        <div class="email-highlight-box">
+                            <p class="email-highlight-title">✓ Get Started</p>
+                            <p class="email-text" style="margin: 0 0 16px 0;">
+                                Click the button below to set your password and access your account:
+                            </p>
+                            <div class="email-button-wrapper" style="margin: 0;">
+                                <a href="{{ link }}" class="email-button">Set Up My Account</a>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="email-highlight-box">
+                            <p class="email-highlight-title">✓ Your Login Credentials</p>
+                            <div class="email-credentials">
+                                <div class="email-credential-row">
+                                    <span class="email-credential-label">Username:</span>
+                                    <span class="email-credential-value">{{ username or email }}</span>
+                                </div>
+                                {% if password %}
+                                <div class="email-credential-row">
+                                    <span class="email-credential-label">Temporary Password:</span>
+                                    <span class="email-credential-value">{{ password }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <hr class="email-divider">
+
+                        <!-- Features -->
+                        <div class="email-features">
+                            <p class="email-text" style="font-weight: 600; margin-bottom: 20px;">What you can do with your account:</p>
+
+                            <div class="email-feature">
+                                <div class="email-feature-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                                        <path d="M9 11l3 3L22 4"></path>
+                                        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
+                                    </svg>
+                                </div>
+                                <div class="email-feature-content">
+                                    <p class="email-feature-title">Executive Dashboard Access</p>
+                                    <p class="email-feature-text">Real-time oversight of county-wide health operations and resource allocation</p>
+                                </div>
+                            </div>
+
+                            <div class="email-feature">
+                                <div class="email-feature-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path>
+                                        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"></path>
+                                    </svg>
+                                </div>
+                                <div class="email-feature-content">
+                                    <p class="email-feature-title">Centralized Approvals</p>
+                                    <p class="email-feature-text">Streamlined workflow for processing claims and purchase orders</p>
+                                </div>
+                            </div>
+
+                            <div class="email-feature">
+                                <div class="email-feature-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0110 0v4"></path>
+                                    </svg>
+                                </div>
+                                <div class="email-feature-content">
+                                    <p class="email-feature-title">Unified Registry</p>
+                                    <p class="email-feature-text">Single source of truth for health professionals and facility affiliations</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="email-divider">
+
+                        <!-- Security Note -->
+                        <div class="email-security-note">
+                            <p class="email-security-note-text">
+                                <strong>⚠️ Important:</strong> {% if password %}Please change your temporary password immediately after your first login.{% else %}This invitation link will expire in 7 days for security reasons.{% endif %} If you encounter any issues, contact your system administrator.
+                            </p>
+                        </div>
+
+                        {% if not link %}
+                        <div class="email-button-wrapper">
+                            <a href="{{ site_url }}/login" class="email-button">Sign In Now</a>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="email-footer">
+                        <p class="email-footer-text">
+                            © {{ frappe.utils.now().year }} {{ app_name or "CareVerse HQ" }}. All rights reserved.
+                        </p>
+                        <p class="email-footer-text">
+                            County Healthcare Executive Portal
+                        </p>
+                        <div class="email-footer-links">
+                            <a href="{{ site_url }}/admin-central" class="email-footer-link">Dashboard</a>
+                            <a href="{{ site_url }}" class="email-footer-link">Help Center</a>
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

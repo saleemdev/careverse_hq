@@ -149,6 +149,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                 },
             ],
         },
+        {
+            key: 'administration',
+            icon: <SettingOutlined />,
+            label: 'Administration',
+            children: [
+                {
+                    key: 'user-management',
+                    icon: <TeamOutlined />,
+                    label: 'User Management',
+                },
+            ],
+        },
     ];
 
     // User dropdown menu
@@ -197,12 +209,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             assets: 'Assets',
             facilities: 'Facilities',
             affiliations: 'Affiliations',
+            'bulk-upload': 'Bulk Upload',
+            'bulk-upload-status': 'Upload Status',
             licenses: 'Licenses',
             'purchase-orders': 'Purchase Orders',
             'expense-claims': 'Expense Claims',
             'material-requests': 'Material Requests',
             'leave-applications': 'Leave Applications',
             attendance: 'Attendance',
+            'user-management': 'User Management',
+            'create-user': 'Create User',
+            'edit-user': 'Edit User',
         };
         return routes[currentRoute] || 'Dashboard';
     };
