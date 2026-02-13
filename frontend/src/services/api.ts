@@ -337,7 +337,6 @@ export const assetsApi = {
 // Facilities API
 export const facilitiesApi = {
     getFacilities: async (params: {
-        company?: string;
         page?: number;
         pageSize?: number;
     }): Promise<ApiResponse> => {

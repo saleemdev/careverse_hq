@@ -43,6 +43,7 @@ import {
     InboxOutlined,
     DollarOutlined,
     SafetyCertificateOutlined,
+    CloudUploadOutlined,
 } from '@ant-design/icons';
 import { useResponsive } from '../hooks/useResponsive';
 import useAuthStore from '../stores/authStore';
@@ -116,6 +117,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     key: 'affiliations',
                     icon: <LinkOutlined />,
                     label: 'Facility Affiliations',
+                },
+                {
+                    key: 'bulk-upload',
+                    icon: <CloudUploadOutlined />,
+                    label: 'Bulk Upload',
                 },
                 {
                     key: 'licenses',
@@ -210,7 +216,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             facilities: 'Facilities',
             affiliations: 'Affiliations',
             'bulk-upload': 'Bulk Upload',
-            'bulk-upload-status': 'Upload Status',
+            'bulk-upload/new': 'New Upload',
+            'bulk-upload/status': 'Upload Status',
             licenses: 'Licenses',
             'purchase-orders': 'Purchase Orders',
             'expense-claims': 'Expense Claims',

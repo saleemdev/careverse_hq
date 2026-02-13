@@ -20,6 +20,7 @@ import PurchaseOrdersListView from './components/modules/approvals/PurchaseOrder
 import ExpenseClaimsListView from './components/modules/approvals/ExpenseClaimsListView';
 import MaterialRequestsListView from './components/modules/approvals/MaterialRequestsListView';
 import EmptyState from './components/shared/EmptyState/EmptyState';
+import BulkUploadListPage from './pages/affiliations/BulkUploadListPage';
 import BulkUploadPage from './pages/affiliations/BulkUploadPage';
 import StatusDashboard from './pages/affiliations/StatusDashboard';
 import UserListPage from './pages/user-management/UserListPage';
@@ -280,17 +281,34 @@ function App() {
 
       // Affiliations route
       case 'affiliations':
-        return <AffiliationsListView navigateToRoute={navigateToRoute} />;
+        return <AffiliationsListView />;
 
       // Bulk Upload routes
       case 'bulk-upload':
+        // Check for nested routes
+        if (currentDetailId === 'new') {
+          // #bulk-upload/new - Create new upload wizard
+          return <BulkUploadPage navigateToRoute={navigateToRoute} />;
+        } else if (currentDetailId === 'status') {
+          // This shouldn't happen as status needs a job ID
+          // Fallback to list page
+          return <BulkUploadListPage navigateToRoute={navigateToRoute} />;
+        } else {
+          // #bulk-upload - List all upload jobs
+          return <BulkUploadListPage navigateToRoute={navigateToRoute} />;
+        }
+
+      case 'bulk-upload/new':
+        // #bulk-upload/new - Create new upload wizard
         return <BulkUploadPage navigateToRoute={navigateToRoute} />;
 
-      case 'bulk-upload-status':
+      case 'bulk-upload/status':
+        // #bulk-upload/status/{jobId} - View job status
         if (currentDetailId) {
           return <StatusDashboard jobId={currentDetailId} navigateToRoute={navigateToRoute} />;
         }
-        return <AffiliationsListView navigateToRoute={navigateToRoute} />;
+        // No job ID provided, redirect to list
+        return <BulkUploadListPage navigateToRoute={navigateToRoute} />;
 
       // Licenses route
       case 'licenses':

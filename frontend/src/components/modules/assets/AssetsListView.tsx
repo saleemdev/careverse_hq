@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
     Table,
     Card,
@@ -11,7 +11,9 @@ import {
     Typography,
     Badge,
     Button,
-    theme
+    theme,
+    Select,
+    Spin
 } from 'antd';
 import {
     LaptopOutlined,
@@ -21,7 +23,8 @@ import {
     SearchOutlined,
     ReloadOutlined,
     EnvironmentOutlined,
-    BarcodeOutlined
+    BarcodeOutlined,
+    MedicineBoxOutlined
 } from '@ant-design/icons';
 import useAssetStore from '../../../stores/modules/assetStore';
 import useFacilityStore from '../../../stores/facilityStore';
@@ -35,24 +38,41 @@ const { Text, Title } = Typography;
 const AssetsListView: React.FC = () => {
     const { token } = theme.useToken();
     const { isMobile, getResponsiveValue } = useResponsive();
-    const { selectedFacilityIds } = useFacilityStore();
-    const facilityIds = selectedFacilityIds;
+    const { availableFacilities, loading: facilitiesLoading } = useFacilityStore();
+
+    // Local state for facility filter
+    const [selectedFacilityFilter, setSelectedFacilityFilter] = useState<string[]>([]);
 
     const {
         assets,
         loading,
+        total,
         filters,
         fetchAssets,
         setFilters
     } = useAssetStore();
 
+    // Determine which facility IDs to use for fetching
+    const getFacilityIdsForFetch = useCallback(() => {
+        if (selectedFacilityFilter.length > 0) {
+            return selectedFacilityFilter;
+        }
+        // Default to all available facilities
+        return availableFacilities.map(f => f.hie_id);
+    }, [selectedFacilityFilter, availableFacilities]);
+
     const handleRefresh = useCallback(() => {
+        const facilityIds = getFacilityIdsForFetch();
         fetchAssets(facilityIds);
-    }, [fetchAssets, facilityIds]);
+    }, [fetchAssets, getFacilityIdsForFetch]);
 
     useEffect(() => {
         handleRefresh();
-    }, [handleRefresh, filters.status, filters.page, filters.pageSize]);
+    }, [handleRefresh, filters.status, filters.page, filters.pageSize, selectedFacilityFilter]);
+
+    const handleFacilityFilterChange = (selectedIds: string[]) => {
+        setSelectedFacilityFilter(selectedIds);
+    };
 
     const getStatusColor = (status: string) => {
         switch (status?.toLowerCase()) {
@@ -184,6 +204,36 @@ const AssetsListView: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '16px 24px' }}>
                         <Title level={4} style={{ margin: 0 }}>Asset Inventory</Title>
                         <Space wrap>
+                            <Select
+                                mode="multiple"
+                                value={selectedFacilityFilter}
+                                onChange={handleFacilityFilterChange}
+                                placeholder="All Facilities"
+                                allowClear
+                                loading={facilitiesLoading}
+                                style={{
+                                    width: getResponsiveValue(COMPONENT_WIDTHS.facilitySelector),
+                                    minWidth: isMobile ? '140px' : '200px'
+                                }}
+                                maxTagCount="responsive"
+                                popupMatchSelectWidth={false}
+                                notFoundContent={facilitiesLoading ? <Spin size="small" /> : 'No facilities found'}
+                                suffixIcon={<EnvironmentOutlined />}
+                            >
+                                {availableFacilities.map((facility) => (
+                                    <Select.Option key={facility.hie_id} value={facility.hie_id}>
+                                        <Space>
+                                            <MedicineBoxOutlined style={{ fontSize: '12px' }} />
+                                            <span>{facility.facility_name}</span>
+                                            {facility.facility_mfl && (
+                                                <Tag style={{ fontSize: '10px', margin: 0 }}>
+                                                    {facility.facility_mfl}
+                                                </Tag>
+                                            )}
+                                        </Space>
+                                    </Select.Option>
+                                ))}
+                            </Select>
                             <Input
                                 placeholder="Search by ID or Name..."
                                 prefix={<SearchOutlined style={{ color: token.colorTextPlaceholder }} />}
@@ -209,7 +259,7 @@ const AssetsListView: React.FC = () => {
                         pagination={{
                             current: filters.page,
                             pageSize: filters.pageSize,
-                            total: assets.length,
+                            total: total,
                             showSizeChanger: true,
                             onChange: (page, pageSize) => setFilters({ page, pageSize })
                         }}

@@ -42,7 +42,6 @@ import { dashboardApi, hrApi } from '../services/api';
 import { useResponsive } from '../hooks/useResponsive';
 import useFacilityStore from '../stores/facilityStore';
 import useDashboardRealtime from '../hooks/useDashboardRealtime';
-import FacilityContextSwitcher from './FacilityContextSwitcher';
 // AccountTypesMetrics removed as per requirement
 
 const { Title, Text } = Typography;
@@ -57,12 +56,9 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
     const [loading, setLoading] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-    // Facility context for filtering
+    // Facility context - only for company info, no filtering
     const {
         company,
-        selectedFacilities,
-        selectedFacilityIds,
-        isAllFacilities,
         hasCompanyPermission,
         loading: facilityLoading,
     } = useFacilityStore();
@@ -135,22 +131,21 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         enabled: hasCompanyPermission && !facilityLoading, // Only enable after facility context is ready
     });
 
-    // Fetch data when facility selection changes - ONLY after facility context is ready
+    // Fetch data when company is loaded - ONLY after facility context is ready
     useEffect(() => {
         // CRITICAL: Only fetch if facility context is ready
         if (hasCompanyPermission && !facilityLoading && company) {
             fetchDashboardData();
         }
-    }, [hasCompanyPermission, facilityLoading, company, selectedFacilities]);
+    }, [hasCompanyPermission, facilityLoading, company]);
 
     const fetchDashboardData = async () => {
         setLoading(true);
         setError(null);
-        const facilityIds = selectedFacilityIds;
 
         try {
-            // Fetch company overview
-            const overviewResponse = await dashboardApi.getCompanyOverview(facilityIds);
+            // Fetch company overview - no facility filtering, show entire company
+            const overviewResponse = await dashboardApi.getCompanyOverview();
 
             if (overviewResponse.success && overviewResponse.data) {
                 setCompanyData({
@@ -167,8 +162,8 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 });
             }
 
-            // Fetch financial overview (includes approvals)
-            const financialResponse = await dashboardApi.getFinancialOverview(facilityIds);
+            // Fetch financial overview (includes approvals) - no facility filtering
+            const financialResponse = await dashboardApi.getFinancialOverview();
 
             if (financialResponse.success && financialResponse.data) {
                 setApprovalData({
@@ -190,8 +185,8 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 });
             }
 
-            // Fetch license compliance
-            const licenseResponse = await dashboardApi.getLicenseComplianceOverview(facilityIds);
+            // Fetch license compliance - no facility filtering
+            const licenseResponse = await dashboardApi.getLicenseComplianceOverview();
             if (licenseResponse.success && licenseResponse.data) {
                 setLicenseData(licenseResponse.data);
             } else {
@@ -207,8 +202,8 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 });
             }
 
-            // Fetch attendance summary
-            const attendanceResponse = await hrApi.getAttendanceSummary(facilityIds);
+            // Fetch attendance summary - no facility filtering
+            const attendanceResponse = await hrApi.getAttendanceSummary();
             if (attendanceResponse.success && attendanceResponse.data) {
                 setAttendanceData(attendanceResponse.data);
             }
@@ -348,14 +343,6 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 minHeight: 'calc(100vh - 64px)',
             }}
         >
-            {/* Facility Context Switcher */}
-            <div style={{ marginBottom: '20px' }}>
-                <FacilityContextSwitcher
-                    variant="default"
-                    showLabel={true}
-                />
-            </div>
-
             {/* Header */}
             <div style={{
                 marginBottom: '24px',
@@ -377,7 +364,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                         )}
                     </div>
                     <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '14px' }}>
-                        Viewing {isAllFacilities() ? 'all facilities' : `${selectedFacilities.length}`} in {company?.abbr || company?.company_name}
+                        Company-wide overview for {company?.abbr || company?.company_name}
                     </Text>
                 </div>
                 <Space style={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>

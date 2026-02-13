@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
     Table,
     Card,
@@ -12,7 +12,9 @@ import {
     Typography,
     Badge,
     Button,
-    theme
+    theme,
+    Select,
+    Tooltip
 } from 'antd';
 import {
     TeamOutlined,
@@ -24,6 +26,8 @@ import {
     MailOutlined,
     PhoneOutlined,
     SafetyCertificateOutlined,
+    MedicineBoxOutlined,
+    EnvironmentOutlined
 } from '@ant-design/icons';
 import useEmployeeStore from '../../../stores/modules/employeeStore';
 import useFacilityStore from '../../../stores/facilityStore';
@@ -80,8 +84,10 @@ const EmployeeCard: React.FC<{ data: any; token: any }> = ({ data, token }) => (
 const EmployeesListView: React.FC = () => {
     const { token } = theme.useToken();
     const { isMobile, isTablet, isDesktop, getResponsiveValue } = useResponsive();
-    const { selectedFacilityIds } = useFacilityStore();
-    const facilityIds = selectedFacilityIds;
+    const { availableFacilities, loading: facilitiesLoading } = useFacilityStore();
+
+    // Local facility filter state (independent of global facility context)
+    const [selectedFacilityFilter, setSelectedFacilityFilter] = useState<string[]>([]);
 
     const {
         employees,
@@ -93,12 +99,18 @@ const EmployeesListView: React.FC = () => {
     } = useEmployeeStore();
 
     const handleRefresh = useCallback(() => {
+        // If no facilities selected, pass empty array to show ALL employees
+        const facilityIds = selectedFacilityFilter.length > 0 ? selectedFacilityFilter : undefined;
         fetchEmployees(facilityIds);
-    }, [fetchEmployees, facilityIds]);
+    }, [fetchEmployees, selectedFacilityFilter]);
 
     useEffect(() => {
         handleRefresh();
-    }, [handleRefresh, filters.search, filters.page, filters.pageSize]);
+    }, [handleRefresh, filters.search, filters.page, filters.pageSize, selectedFacilityFilter]);
+
+    const handleFacilityFilterChange = (selectedIds: string[]) => {
+        setSelectedFacilityFilter(selectedIds);
+    };
 
     // Responsive column definitions
     const baseColumns = [
@@ -251,6 +263,33 @@ const EmployeesListView: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: isMobile ? 8 : 12, padding: isMobile ? '12px 16px' : '16px 24px' }}>
                         <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>Employee Directory</Title>
                         <Space wrap size={isMobile ? 'small' : 'middle'}>
+                            {/* Facility Filter Dropdown */}
+                            <Tooltip title="Filter by facility">
+                                <Select
+                                    mode="multiple"
+                                    value={selectedFacilityFilter}
+                                    onChange={handleFacilityFilterChange}
+                                    placeholder={isMobile ? "All Facilities" : "Filter by Facility"}
+                                    allowClear
+                                    loading={facilitiesLoading}
+                                    style={{
+                                        width: getResponsiveValue({ mobile: 140, tablet: 200, desktop: 250 }),
+                                        minWidth: isMobile ? '140px' : 'auto',
+                                    }}
+                                    size={isMobile ? 'small' : 'middle'}
+                                    maxTagCount="responsive"
+                                    suffixIcon={<EnvironmentOutlined style={{ color: token.colorTextPlaceholder }} />}
+                                >
+                                    {availableFacilities.map((facility) => (
+                                        <Select.Option key={facility.hie_id} value={facility.hie_id}>
+                                            <Space size="small">
+                                                <MedicineBoxOutlined style={{ fontSize: '12px', color: token.colorPrimary }} />
+                                                <span>{facility.facility_name}</span>
+                                            </Space>
+                                        </Select.Option>
+                                    ))}
+                                </Select>
+                            </Tooltip>
                             <Input
                                 placeholder={isMobile ? "Search..." : "Search employees..."}
                                 prefix={<SearchOutlined style={{ color: token.colorTextPlaceholder }} />}

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
     Table,
     Card,
@@ -10,6 +10,7 @@ import {
     Space,
     Typography,
     Button,
+    Select,
     theme
 } from 'antd';
 import {
@@ -20,8 +21,7 @@ import {
     SearchOutlined,
     ReloadOutlined,
     UserOutlined,
-    MedicineBoxOutlined,
-    CloudUploadOutlined
+    MedicineBoxOutlined
 } from '@ant-design/icons';
 import useAffiliationsModuleStore from '../../../stores/modules/affiliationsModuleStore';
 import useFacilityStore from '../../../stores/facilityStore';
@@ -31,27 +31,36 @@ import { useResponsive } from '../../../hooks/useResponsive';
 
 const { Text, Title } = Typography;
 
-interface AffiliationsListViewProps {
-    navigateToRoute?: (route: string, id?: string) => void;
-}
-
-const AffiliationsListView: React.FC<AffiliationsListViewProps> = ({ navigateToRoute }) => {
+const AffiliationsListView: React.FC = () => {
     const { token } = theme.useToken();
     const { isMobile } = useResponsive();
-    const { selectedFacilityIds } = useFacilityStore();
-    const facilityIds = selectedFacilityIds;
+    const { availableFacilities, selectedFacilityIds } = useFacilityStore();
+
+    // Local facility filter state (independent of global facility context)
+    const [localFacilityFilter, setLocalFacilityFilter] = useState<string[]>([]);
 
     const {
         affiliations,
         loading,
+        total,
         filters,
         fetchAffiliations,
         setFilters
     } = useAffiliationsModuleStore();
 
+    // Determine which facility IDs to use for the API call
+    // If local filter is set, use it; otherwise use global selected facilities
+    const effectiveFacilityIds = localFacilityFilter.length > 0
+        ? localFacilityFilter
+        : selectedFacilityIds;
+
     const handleRefresh = useCallback(() => {
-        fetchAffiliations(facilityIds);
-    }, [fetchAffiliations, facilityIds]);
+        fetchAffiliations(effectiveFacilityIds);
+    }, [fetchAffiliations, effectiveFacilityIds]);
+
+    const handleFacilityFilterChange = (selectedIds: string[]) => {
+        setLocalFacilityFilter(selectedIds);
+    };
 
     useEffect(() => {
         handleRefresh();
@@ -190,21 +199,26 @@ const AffiliationsListView: React.FC<AffiliationsListViewProps> = ({ navigateToR
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '16px 24px' }}>
                         <Title level={4} style={{ margin: 0 }}>Affiliation Requests</Title>
                         <Space wrap>
+                            <Select
+                                mode="multiple"
+                                placeholder="All Facilities"
+                                value={localFacilityFilter}
+                                onChange={handleFacilityFilterChange}
+                                style={{ minWidth: isMobile ? 180 : 250, borderRadius: 8 }}
+                                maxTagCount="responsive"
+                                allowClear
+                                suffixIcon={<MedicineBoxOutlined style={{ color: token.colorTextPlaceholder }} />}
+                                options={availableFacilities.map(facility => ({
+                                    label: facility.facility_name,
+                                    value: facility.hie_id
+                                }))}
+                            />
                             <Input
                                 placeholder="Search professional..."
                                 prefix={<SearchOutlined style={{ color: token.colorTextPlaceholder }} />}
-                                style={{ width: 250, borderRadius: 8 }}
+                                style={{ width: isMobile ? 180 : 250, borderRadius: 8 }}
                                 allowClear
                             />
-                            {navigateToRoute && (
-                                <Button
-                                    type="primary"
-                                    icon={<CloudUploadOutlined />}
-                                    onClick={() => navigateToRoute('bulk-upload')}
-                                >
-                                    Bulk Upload
-                                </Button>
-                            )}
                             <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
                         </Space>
                     </div>
@@ -220,7 +234,7 @@ const AffiliationsListView: React.FC<AffiliationsListViewProps> = ({ navigateToR
                         pagination={{
                             current: filters.page,
                             pageSize: filters.pageSize,
-                            total: affiliations.length,
+                            total: total,
                             showSizeChanger: true,
                             onChange: (page, pageSize) => setFilters({ page, pageSize })
                         }}

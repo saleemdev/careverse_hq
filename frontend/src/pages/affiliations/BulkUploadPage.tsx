@@ -89,7 +89,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
             '12345678',
             'A12345',
             'NCK',
-            'Full-time',
+            'Full-time Employee',
             'Nurse',
             '2025-03-01',
             '2026-03-01'
@@ -238,7 +238,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
 
             // Navigate to status dashboard
             setTimeout(() => {
-                navigateToRoute('bulk-upload-status', jobId);
+                navigateToRoute('bulk-upload/status', jobId);
             }, 1000);
 
         } catch (error: any) {
@@ -503,13 +503,12 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                     <HomeOutlined />
                 </Breadcrumb.Item>
                 <Breadcrumb.Item>
-                    <a onClick={() => navigateToRoute('affiliations')}>
-                        <LinkOutlined /> Affiliations
+                    <a onClick={() => navigateToRoute('bulk-upload')}>
+                        <CloudUploadOutlined /> Bulk Upload
                     </a>
                 </Breadcrumb.Item>
-                <Breadcrumb.Item>Bulk Upload</Breadcrumb.Item>
+                <Breadcrumb.Item>New Upload</Breadcrumb.Item>
             </Breadcrumb>
-
             {/* Main Card */}
             <Card
                 style={{
@@ -553,11 +552,11 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             if (currentStep > 0) {
                                 setCurrentStep(currentStep - 1);
                             } else {
-                                navigateToRoute('affiliations');
+                                navigateToRoute('bulk-upload');
                             }
                         }}
                     >
-                        {currentStep === 0 ? 'Back to Affiliations' : 'Previous'}
+                        {currentStep === 0 ? 'Back to Upload List' : 'Previous'}
                     </Button>
 
                     {currentStep === 0 && (

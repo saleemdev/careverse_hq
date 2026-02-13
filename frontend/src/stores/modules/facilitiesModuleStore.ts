@@ -4,7 +4,7 @@ import { facilitiesApi } from '../../services/api';
 interface HealthFacilityRecord {
     name: string;
     facility_name: string;
-    facility_level: string;
+    kephl_level: string;
     hie_id: string;
     operational_status: string;
     county: string;

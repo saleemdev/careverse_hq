@@ -38,8 +38,10 @@ def get_employees(
         if not frappe.db.exists("User Permission", {"user": user, "allow": "Company", "for_value": company}):
             return api_response(success=False, message="Permission denied", status_code=403)
 
-        filters = {"company": company, "status": "Active"}
-        
+        # Base filter: company only
+        filters = {"company": company}
+
+        # Apply additional filters only if provided by user
         if department:
             filters["department"] = department
             
@@ -112,7 +114,8 @@ def get_assets(
         if not frappe.db.exists("User Permission", {"user": user, "allow": "Company", "for_value": company}):
             return api_response(success=False, message="Permission denied", status_code=403)
 
-        filters = {"company": company}
+        # FIX: Use 'county' field (not 'company') to match HAD schema
+        filters = {"county": company}
         if status:
             filters["status"] = status
 
@@ -397,31 +400,21 @@ def get_material_requests(
 
 @frappe.whitelist()
 def get_facilities(
-    company: Optional[str] = None,
     page: int = 1,
     page_size: int = 50
 ):
     """Get list of Health Facilities
 
     Args:
-        company: Company name (optional, defaults to user's company)
         page: Page number for pagination (default: 1)
         page_size: Number of records per page (default: 50)
 
     Returns:
-        List of health facilities for the specified company
+        List of all health facilities
     """
     try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
-
-        # Permission check
-        if not frappe.db.exists("User Permission", {"user": user, "allow": "Company", "for_value": company}):
-            return api_response(success=False, message="Permission denied", status_code=403)
-
-        # FIXED: Use organization_company field instead of company
-        filters = {"organization_company": company}
+        # No filters - return ALL facilities
+        filters = {}
         offset = (int(page) - 1) * int(page_size)
 
         # Get total count for pagination
@@ -430,7 +423,7 @@ def get_facilities(
         facilities = frappe.get_all(
             "Health Facility",
             filters=filters,
-            fields=["name", "facility_name", "facility_level", "hie_id", "operational_status", "county"],
+            fields=["name", "facility_name", "kephl_level", "hie_id", "operational_status", "county"],
             limit_start=offset,
             limit_page_length=int(page_size)
         )
@@ -447,26 +440,26 @@ def get_facilities(
 
 
 @frappe.whitelist()
-def get_company_overview(company: Optional[str] = None, facilities: Optional[str] = None):
+def get_company_overview(company: Optional[str] = None):
     """
-    Get company overview statistics.
-    
+    Get company overview statistics for the entire company.
+
     Args:
         company: Company name (optional, defaults to user's company)
-        facilities: Comma-separated facility hie_ids (optional)
-    
+
     Returns:
         {
             "total_employees": int,
             "total_departments": int,
             "total_facilities": int,
+            "total_assets": int,
             "active_affiliations": int,
             "pending_affiliations": int
         }
     """
     try:
         user = frappe.session.user
-        
+
         # Get user's company
         if not company:
             company = get_user_company(user)
@@ -476,7 +469,7 @@ def get_company_overview(company: Optional[str] = None, facilities: Optional[str
                     message="No company assigned to user",
                     status_code=403
                 )
-        
+
         # Verify permission
         has_permission = frappe.db.exists("User Permission", {
             "user": user,
@@ -489,76 +482,31 @@ def get_company_overview(company: Optional[str] = None, facilities: Optional[str
                 message="Permission denied",
                 status_code=403
             )
-        
-        # Parse and validate facility IDs if provided
-        valid_facility_ids = []
-        if facilities:
-            facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facility_ids = validate_user_facilities(user, company, facility_ids)
 
-        # Get all company facilities for fallback
+        # Get all company facilities for affiliation filtering
         all_company_facility_ids = frappe.get_all(
             "Health Facility",
             filters={"organization_company": company},
             pluck="hie_id"
         )
 
-        # Determine which facilities to use for filtering
-        facility_ids_to_use = valid_facility_ids if valid_facility_ids else all_company_facility_ids
+        # Get total employees for the entire company
+        total_employees = frappe.db.count("Employee", filters={"company": company})
 
-        # Get total employees (from Employee DocType)
-        # Employees are linked to company directly
-        employee_filters = {"company": company}
-        if valid_facility_ids:
-            # Employees linked to facilities via custom_facility_id
-            employee_filters["custom_facility_id"] = ["in", valid_facility_ids]
+        # Get total assets for the entire company
+        # FIX: Use 'county' field directly (verified in HAD schema)
+        total_assets = frappe.db.count("Health Automation Device", filters={"county": company})
 
-        total_employees = frappe.db.count("Employee", filters=employee_filters)
+        # Get total departments for the entire company
+        total_departments = frappe.db.count("Department", filters={"company": company})
 
-        # Get total assets (Health Automation Device)
-        total_assets = 0
-        try:
-            asset_filters = {}
-            # Check if Health Automation Device has county or company field
-            # County often represents the Company in this context
-            if frappe.db.has_column("Health Automation Device", "county"):
-                asset_filters["county"] = company
-            
-            if valid_facility_ids and frappe.db.has_column("Health Automation Device", "health_facility"):
-                asset_filters["health_facility"] = ["in", valid_facility_ids]
-            
-            if asset_filters:
-                total_assets = frappe.db.count("Health Automation Device", filters=asset_filters)
-        except Exception:
-            total_assets = 0
+        # Get total facilities (all facilities, no company filter)
+        total_facilities = frappe.db.count("Health Facility", filters={})
 
-        # Get total departments
-        dept_filters = {"company": company}
-        if valid_facility_ids:
-            facility_departments = frappe.get_all(
-                "Health Facility",
-                filters={"hie_id": ["in", valid_facility_ids], "organization_company": company},
-                pluck="department"
-            )
-            if facility_departments:
-                # Filter out None/Empty
-                facility_departments = [d for d in facility_departments if d]
-                if facility_departments:
-                    dept_filters["name"] = ["in", facility_departments]
-
-        total_departments = frappe.db.count("Department", filters=dept_filters)
-
-        # Get total facilities - FIXED: Use consistent dict-based filter format
-        facility_count_filters = {"organization_company": company}
-        if valid_facility_ids:
-            facility_count_filters["hie_id"] = ["in", valid_facility_ids]
-        total_facilities = frappe.db.count("Health Facility", filters=facility_count_filters)
-
-        # Get active affiliations (from Facility Affiliation)
-        # FIXED: Use consistent dict-based filter format
+        # Get affiliations for all company facilities
         affiliation_base_filters = {}
-        if facility_ids_to_use:
-            affiliation_base_filters["health_facility"] = ["in", facility_ids_to_use]
+        if all_company_facility_ids:
+            affiliation_base_filters["health_facility"] = ["in", all_company_facility_ids]
 
         active_affiliations = frappe.db.count(
             "Facility Affiliation",
@@ -569,7 +517,7 @@ def get_company_overview(company: Optional[str] = None, facilities: Optional[str
             "Facility Affiliation",
             filters={**{"affiliation_status": "Pending"}, **affiliation_base_filters}
         )
-        
+
         return api_response(
             success=True,
             data={
@@ -581,7 +529,7 @@ def get_company_overview(company: Optional[str] = None, facilities: Optional[str
                 "pending_affiliations": pending_affiliations
             }
         )
-    
+
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Dashboard API Error")
         return api_response(

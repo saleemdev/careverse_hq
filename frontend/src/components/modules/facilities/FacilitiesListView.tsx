@@ -40,6 +40,7 @@ const FacilitiesListView: React.FC = () => {
     const {
         facilities,
         loading,
+        total,
         filters,
         fetchFacilities,
         setFilters
@@ -91,7 +92,7 @@ const FacilitiesListView: React.FC = () => {
         },
         {
             title: 'Level',
-            dataIndex: 'facility_level',
+            dataIndex: 'kephl_level',
             key: 'level',
             width: 120,
             render: (level: string) => (
@@ -160,7 +161,7 @@ const FacilitiesListView: React.FC = () => {
                     <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>LEVEL 4-6</Text>}
-                            value={facilities.filter(f => f.facility_level?.match(/L[4-6]/)).length}
+                            value={facilities.filter(f => f.kephl_level?.match(/L[4-6]/)).length}
                             prefix={<MedicineBoxOutlined style={{ color: '#722ed1', marginRight: 8 }} />}
                             valueStyle={{ fontSize: 20, fontWeight: 700 }}
                         />
@@ -211,7 +212,7 @@ const FacilitiesListView: React.FC = () => {
                         pagination={{
                             current: filters.page,
                             pageSize: filters.pageSize,
-                            total: facilities.length,
+                            total: total,
                             showSizeChanger: true,
                             onChange: (page, pageSize) => setFilters({ page, pageSize })
                         }}

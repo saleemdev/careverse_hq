@@ -24,7 +24,8 @@ import {
     HomeOutlined,
     LinkOutlined,
     FileTextOutlined,
-    SyncOutlined
+    SyncOutlined,
+    CloudUploadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -38,8 +39,8 @@ interface BulkUploadItem {
     designation: string;
     verification_status: string;
     verification_error?: string;
-    affiliation_status: string;
-    affiliation_error?: string;
+    onboarding_status: string;
+    onboarding_error?: string;
 }
 
 interface BulkUploadJob {
@@ -153,9 +154,9 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
         const total = items.length;
         const verified = items.filter(i => i.verification_status === 'Verified').length;
         const verificationFailed = items.filter(i => i.verification_status === 'Failed').length;
-        const created = items.filter(i => i.affiliation_status === 'Created').length;
-        const failed = items.filter(i => i.affiliation_status === 'Failed').length;
-        const pending = items.filter(i => i.verification_status === 'Pending' || i.affiliation_status === 'Pending').length;
+        const created = items.filter(i => i.onboarding_status === 'Success').length;
+        const failed = items.filter(i => i.onboarding_status === 'Failed').length;
+        const pending = items.filter(i => i.verification_status === 'Pending' || i.onboarding_status === 'Pending').length;
 
         const progress = total > 0 ? ((verified + verificationFailed) / total) * 100 : 0;
 
@@ -169,6 +170,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
         switch (status?.toLowerCase()) {
             case 'completed':
             case 'verified':
+            case 'success':
             case 'created':
             case 'active':
                 return 'success';
@@ -192,11 +194,11 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
             case 'verification-failed':
                 return items.filter(i => i.verification_status === 'Failed');
             case 'created':
-                return items.filter(i => i.affiliation_status === 'Created');
+                return items.filter(i => i.onboarding_status === 'Success');
             case 'failed':
-                return items.filter(i => i.affiliation_status === 'Failed');
+                return items.filter(i => i.onboarding_status === 'Failed');
             case 'pending':
-                return items.filter(i => i.verification_status === 'Pending' || i.affiliation_status === 'Pending');
+                return items.filter(i => i.verification_status === 'Pending' || i.onboarding_status === 'Pending');
             default:
                 return items;
         }
@@ -253,15 +255,15 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
             )
         },
         {
-            title: 'Affiliation',
-            dataIndex: 'affiliation_status',
-            key: 'affiliation',
+            title: 'Onboarding',
+            dataIndex: 'onboarding_status',
+            key: 'onboarding',
             width: 130,
             render: (status: string) => (
                 <Tag
                     color={getStatusColor(status)}
                     icon={
-                        status === 'Created' ? <CheckCircleOutlined /> :
+                        status === 'Success' ? <CheckCircleOutlined /> :
                         status === 'Failed' ? <CloseCircleOutlined /> :
                         <ClockCircleOutlined />
                     }
@@ -271,11 +273,11 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
             )
         },
         {
-            title: 'Error',
+            title: 'Error Message',
             key: 'error',
-            width: 250,
+            width: 300,
             render: (record: BulkUploadItem) => {
-                const error = record.verification_error || record.affiliation_error;
+                const error = record.verification_error || record.onboarding_error;
                 return error ? (
                     <Text type="danger" style={{ fontSize: 12 }}>{error}</Text>
                 ) : (
@@ -301,11 +303,11 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                     <HomeOutlined />
                 </Breadcrumb.Item>
                 <Breadcrumb.Item>
-                    <a onClick={() => navigateToRoute('affiliations')}>
-                        <LinkOutlined /> Affiliations
+                    <a onClick={() => navigateToRoute('bulk-upload')}>
+                        <CloudUploadOutlined /> Bulk Upload
                     </a>
                 </Breadcrumb.Item>
-                <Breadcrumb.Item>Bulk Upload Status</Breadcrumb.Item>
+                <Breadcrumb.Item>Job Details</Breadcrumb.Item>
             </Breadcrumb>
 
             {/* Job Details Card */}
