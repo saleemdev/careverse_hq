@@ -95,14 +95,7 @@ def _fetch_vendors(vendor_filters, start, page_size):
         return {"vendor_list": vendors, "total_vendors": 0}
     
     # Total count
-    vendor_total = frappe.get_list(
-        "Supplier",
-        filters=vendor_filters,
-        fields=[
-            "count(name) as total"
-        ]
-    )
-    vendor_count = vendor_total[0].total if vendor_total else 0
+    vendor_count = frappe.db.count("Supplier", filters=vendor_filters)
 
     return {
         "vendor_list": vendors,

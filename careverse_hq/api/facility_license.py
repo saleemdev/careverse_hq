@@ -1128,15 +1128,14 @@ def get_status_breakdown(filters):
     # Get actual counts
     licenses = frappe.get_all(
         "License Record",
-        fields=["status", "count(name) as count"],
+        fields=["status"],
         filters=filters,
-        group_by="status",
     )
 
     # Update with actual counts
     for row in licenses:
         if row.status:
-            status_counts[row.status] = row.count
+            status_counts[row.status] = status_counts.get(row.status, 0) + 1
 
     return status_counts
 
@@ -1149,12 +1148,16 @@ def get_license_type_breakdown(filters):
 
     licenses = frappe.get_all(
         "License Record",
-        fields=["license_type", "count(name) as count"],
+        fields=["license_type"],
         filters=type_filters,
-        group_by="license_type",
     )
 
-    return {row.license_type: row.count for row in licenses}
+    type_counts = {}
+    for row in licenses:
+        if row.license_type:
+            type_counts[row.license_type] = type_counts.get(row.license_type, 0) + 1
+
+    return type_counts
 
 
 def get_application_type_breakdown(filters):
@@ -1172,15 +1175,14 @@ def get_application_type_breakdown(filters):
     # Get actual counts
     licenses = frappe.get_all(
         "License Record",
-        fields=["application_type", "count(name) as count"],
+        fields=["application_type"],
         filters=app_filters,
-        group_by="application_type",
     )
 
     # Update with actual counts
     for row in licenses:
         if row.application_type:
-            app_type_counts[row.application_type] = row.count
+            app_type_counts[row.application_type] = app_type_counts.get(row.application_type, 0) + 1
 
     return app_type_counts
 

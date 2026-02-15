@@ -256,6 +256,10 @@ def get_affiliations(
             if value is None:
                 return None
 
+            # Handle dict/list objects that might come from JSON requests
+            if isinstance(value, (dict, list)):
+                return None
+
             normalized = str(value).strip()
             if not normalized or normalized.lower() in {"undefined", "null", "none"}:
                 return None
@@ -318,13 +322,7 @@ def get_affiliations(
         offset = (page - 1) * page_size
 
         # Get total count with permission-aware query
-        total_count_result = frappe.get_list(
-            "Facility Affiliation",
-            filters=filters,
-            fields=[{"COUNT": "name", "as": "total_count"}],
-            limit_page_length=1
-        )
-        total_count = int((total_count_result[0].get("total_count") if total_count_result else 0) or 0)
+        total_count = frappe.db.count("Facility Affiliation", filters=filters)
 
         # Fetch affiliations using frappe.get_list
         # Frappe automatically applies User Permissions here
@@ -389,11 +387,7 @@ def get_affiliations(
         status_rows = frappe.get_list(
             "Facility Affiliation",
             filters=aggregate_filters,
-            fields=[
-                "affiliation_status",
-                {"COUNT": "name", "as": "row_count"}
-            ],
-            group_by="affiliation_status",
+            fields=["affiliation_status"],
             limit_page_length=0
         )
 
@@ -402,7 +396,7 @@ def get_affiliations(
             current_status = (row.get("affiliation_status") or "").strip()
             if not current_status:
                 continue
-            status_counts[current_status] += int(row.get("row_count") or 0)
+            status_counts[current_status] += 1
 
         active_count = status_counts.get("Active", 0)
         confirmed_raw_count = status_counts.get("Confirmed", 0)

@@ -645,14 +645,7 @@ def _get_delivery_notes_list(filters, start, page_size):
         r["total_items"] = int(item_map.get(r["note_id"], 0))
 
     # Total count
-    count_result = frappe.get_list(
-        "Purchase Receipt",
-        filters=filters,
-        fields=[
-            "count(name) as total"
-        ]
-    )
-    total_count = count_result[0].total if count_result else 0
+    total_count = frappe.db.count("Purchase Receipt", filters=filters)
     
     return {
         "delivery_notes_list": receipts,

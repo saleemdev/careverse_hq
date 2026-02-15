@@ -208,14 +208,7 @@ def _fetch_departments(department_filters, start, page_size):
         return {"department_list": departments, "total_departments": 0}
     
     # Total count
-    department_total = frappe.get_list(
-        "Department",
-        filters=department_filters,
-        fields=[
-            "count(name) as total"
-        ]
-    )
-    department_count = department_total[0].total if department_total else 0
+    department_count = frappe.db.count("Department", filters=department_filters)
 
     return {
         "department_list": departments,

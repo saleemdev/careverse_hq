@@ -16,8 +16,10 @@ def _normalize_optional_string(value: Optional[str]) -> Optional[str]:
     """Normalize optional string query parameters from HTTP requests."""
     if value is None:
         return None
+
+    # Handle dict/list objects that might come from JSON requests
     if not isinstance(value, str):
-        return value
+        return None
 
     cleaned = value.strip()
     if not cleaned:
@@ -135,14 +137,16 @@ def get_employees(
             ]
 
         # Get total count with the same list API path to preserve permission behavior.
-        count_result = frappe.get_list(
+        # Frappe count aggregations are inconsistent across versions in strict mode.
+        # Use a permission-aware name-only query and count rows in Python.
+        count_rows = frappe.get_list(
             "Employee",
             filters=filters if filters else None,
             or_filters=or_filters,
-            fields=[{"COUNT": "name", "as": "total_count"}],
-            page_length=1
+            fields=["name"],
+            page_length=0
         )
-        total_count = int(count_result[0].total_count) if count_result else 0
+        total_count = len(count_rows)
 
         # Query Employee with fields
         employees = frappe.get_list(
@@ -222,7 +226,7 @@ def get_employees(
         })
 
     except Exception as e:
-        frappe.log_error(f"Error fetching employees: {str(e)}\n{frappe.get_traceback()}")
+        frappe.log_error(frappe.get_traceback(), "Get Employees API Error")
         return api_response(success=False, message=str(e), status_code=500)
 
 

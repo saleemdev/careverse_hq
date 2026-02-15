@@ -154,26 +154,12 @@ def _fetch_notifications(notifications_filters, start, page_size):
         }
     
     # Total count
-    notifications_total = frappe.get_list(
-        "WebApp Notification",
-        filters=notifications_filters,
-        fields=[
-            "count(name) as total_count"
-        ]
-    )
-    notifications_count = notifications_total[0].total_count if notifications_total else 0
+    notifications_count = frappe.db.count("WebApp Notification", filters=notifications_filters)
     
     # Unread count
     if notifications_filters.get("is_read") != 0:
         notifications_filters["is_read"] = 0
-        unread_notifications_total = frappe.get_list(
-            "WebApp Notification",
-            filters=notifications_filters,
-            fields=[
-                "count(name) as unread_count"
-            ]
-        )
-        unread_notifications_count = unread_notifications_total[0].unread_count if unread_notifications_total else 0
+        unread_notifications_count = frappe.db.count("WebApp Notification", filters=notifications_filters)
     else:
         unread_notifications_count = notifications_count
     
