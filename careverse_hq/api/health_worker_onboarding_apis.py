@@ -31,11 +31,20 @@ from careverse_hq.api.healthpro_mobile_app.jwt_auth_token_generation import (
     JWTDecorator,
 )
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required
-from .utils import *
+from .utils import api_response
+from healthpro_erp.api.utils import (
+    send_otp,
+    verify_otp,
+    mask_phone,
+    mask_email,
+    fetch_hwr_practitioner,
+    fetch_client_registry_user
+)
 import frappe
 from datetime import datetime, timedelta
 import requests
 from .hie_settings import HIE
+from .encryption import SecureTransportManager
 
 _cryptoService = SecureTransportManager()
 _hie = HIE()

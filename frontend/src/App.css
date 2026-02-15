@@ -329,3 +329,102 @@
 [data-theme='dark'] .account-balance-card.expense {
   background-color: rgba(255, 77, 79, 0.1);
 }
+
+/* ============================================================================
+   GLASSMORPHIC DESIGN SYSTEM
+   ============================================================================ */
+
+/* Glassmorphic Card System - Strong macOS-style blur */
+.glass-card-premium {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 40px rgba(31, 38, 135, 0.1);
+}
+
+.glass-card-standard {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.08);
+}
+
+.glass-card-subtle {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 20px rgba(31, 38, 135, 0.05);
+}
+
+/* Glass Table - Transparent with subtle blur */
+.glass-table .ant-table {
+  background: transparent !important;
+}
+
+.glass-table .ant-table-thead > tr > th {
+  background: rgba(255, 255, 255, 0.5) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.glass-table .ant-table-tbody > tr > td {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
+}
+
+.glass-table .ant-table-tbody > tr:hover > td {
+  background: rgba(24, 144, 255, 0.03) !important;
+}
+
+/* Admin Detail Text - Subtle, monospace for IDs */
+.admin-detail {
+  font-size: 11px;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  color: rgba(0, 0, 0, 0.45);
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+/* Dark Mode Support for Glassmorphic Cards */
+[data-theme='dark'] .glass-card-premium {
+  background: rgba(30, 30, 30, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .glass-card-standard {
+  background: rgba(30, 30, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='dark'] .glass-card-subtle {
+  background: rgba(30, 30, 30, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme='dark'] .glass-table .ant-table-thead > tr > th {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme='dark'] .glass-table .ant-table-tbody > tr > td {
+  border-bottom-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+[data-theme='dark'] .glass-table .ant-table-tbody > tr:hover > td {
+  background: rgba(24, 144, 255, 0.08) !important;
+}
+
+[data-theme='dark'] .admin-detail {
+  color: rgba(255, 255, 255, 0.45);
+}

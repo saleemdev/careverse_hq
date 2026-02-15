@@ -394,29 +394,26 @@ const useAuthStore = create<AuthState>()(
            * Logout user
            */
           logout: async () => {
-            set({ loading: true })
+            set({ loading: true, error: null })
+
+            // Clear client state immediately, then delegate session invalidation
+            // to Frappe's native logout route (GET /logout), which avoids CSRF failures.
+            set({
+              isAuthenticated: false,
+              user: null,
+              loading: false,
+              error: null,
+              permissions: {},
+              permissionsLoading: false
+            })
 
             try {
-              const response = await fetch('/api/method/logout', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Frappe-CSRF-Token': (window as any).csrf_token || ''
-                }
-              })
-              console.log('[AuthService] Logout API response:', response.status)
-            } catch (error) {
-              console.warn('[AuthService] Logout API call failed, proceeding with redirect:', error)
-            } finally {
-              set({
-                isAuthenticated: false,
-                user: null,
-                loading: false,
-                error: null,
-                permissions: {}
-              })
-              window.location.href = '/'
+              localStorage.removeItem('f360-central-auth-store')
+            } catch (e) {
+              console.warn('[AuthService] Could not clear localStorage:', e)
             }
+
+            window.location.assign('/logout')
           },
 
           /**

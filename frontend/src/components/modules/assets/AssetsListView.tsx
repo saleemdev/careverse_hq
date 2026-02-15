@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import {
     Table,
     Card,
@@ -51,6 +51,15 @@ const AssetsListView: React.FC = () => {
         fetchAssets,
         setFilters
     } = useAssetStore();
+
+    const facilityNameById = useMemo(() => {
+        return availableFacilities.reduce<Record<string, string>>((acc, facility) => {
+            if (facility.hie_id) {
+                acc[facility.hie_id] = facility.facility_name;
+            }
+            return acc;
+        }, {});
+    }, [availableFacilities]);
 
     // Determine which facility IDs to use for fetching
     const getFacilityIdsForFetch = useCallback(() => {
@@ -125,12 +134,29 @@ const AssetsListView: React.FC = () => {
             dataIndex: 'health_facility',
             key: 'facility',
             width: 200,
-            render: (facility: string) => (
-                <Space>
-                    <EnvironmentOutlined style={{ color: token.colorTextDescription }} />
-                    <Text style={{ fontSize: '13px' }}>{facility || 'Central Hub'}</Text>
-                </Space>
-            )
+            render: (facility: string, record: any) => {
+                const facilityName =
+                    record.facility_name ||
+                    record.health_facility_name ||
+                    (facility ? facilityNameById[facility] : '') ||
+                    facility ||
+                    'Unknown Facility';
+                const facilityId = record.facility_id || facility || '';
+
+                return (
+                    <Space align="start">
+                        <EnvironmentOutlined style={{ color: token.colorTextDescription, marginTop: 3 }} />
+                        <Space direction="vertical" size={0}>
+                            <Text strong style={{ fontSize: '13px' }}>{facilityName}</Text>
+                            {facilityId && (
+                                <Text type="secondary" style={{ fontSize: '11px' }}>
+                                    ID: {facilityId}
+                                </Text>
+                            )}
+                        </Space>
+                    </Space>
+                );
+            }
         },
         {
             title: 'Status',

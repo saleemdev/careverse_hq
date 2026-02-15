@@ -15,53 +15,59 @@ from .dashboard_utils import (
     get_user_company,
     validate_user_facilities,
     generate_monthly_trend,
-    get_period_dates
+    get_period_dates,
+    resolve_health_facility_reference,
 )
 
 
 @frappe.whitelist()
 def get_employees(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     search: Optional[str] = None,
-    department: Optional[str] = None
+    department: Optional[str] = None,
+    status: Optional[str] = None
 ):
-    """Get paginated list of employees with filtering"""
+    """
+    Get paginated list of employees.
+
+    NO default filters - Frappe User Permissions handle access.
+    All filters are user-driven.
+
+    Args:
+        facilities: Comma-separated facility hie_ids (optional, user input)
+        page: Page number for pagination
+        page_size: Items per page
+        search: Search by employee_name (optional, user input)
+        department: Filter by department (optional, user input)
+        status: Filter by status (optional, user input)
+    """
     try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
-        
-        # Permission check
-        if not frappe.db.exists("User Permission", {"user": user, "allow": "Company", "for_value": company}):
-            return api_response(success=False, message="Permission denied", status_code=403)
+        # Build filters - ONLY from user input
+        filters = {}
 
-        # Base filter: company only
-        filters = {"company": company}
-
-        # Apply additional filters only if provided by user
         if department:
             filters["department"] = department
-            
-        if facilities:
-            facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facility_ids = validate_user_facilities(user, company, facility_ids)
-            if valid_facility_ids:
-                filters["custom_facility_id"] = ["in", valid_facility_ids]
-            else:
-                return api_response(success=True, data=[])
+
+        if status:
+            filters["status"] = status
 
         if search:
             filters["employee_name"] = ["like", f"%{search}%"]
 
+        if facilities:
+            facility_list = [f.strip() for f in facilities.split(",") if f.strip()]
+            if facility_list:
+                filters["custom_facility_id"] = ["in", facility_list]
+
         offset = (int(page) - 1) * int(page_size)
 
-        # Get total count for pagination
+        # Get total count (Frappe automatically applies User Permissions)
         total_count = frappe.db.count("Employee", filters=filters)
 
-        employees = frappe.get_all(
+        # frappe.get_list automatically applies User Permissions
+        employees = frappe.get_list(
             "Employee",
             filters=filters,
             fields=[
@@ -74,11 +80,31 @@ def get_employees(
             limit_page_length=int(page_size)
         )
 
+        # Calculate metrics
+        metrics = {
+            "total_employees": total_count,
+            "active_employees": frappe.db.count(
+                "Employee",
+                filters={**filters, "status": "Active"}
+            ),
+            "licensed_practitioners": frappe.db.count(
+                "Employee",
+                filters={**filters, "custom_health_professional": ["is", "set"]}
+            ),
+            "departments_count": len(frappe.get_list(
+                "Employee",
+                filters=filters,
+                fields=["department"],
+                distinct=True
+            ))
+        }
+
         return api_response(success=True, data={
             "items": employees,
             "total_count": total_count,
             "page": int(page),
-            "page_size": int(page_size)
+            "page_size": int(page_size),
+            "metrics": metrics
         })
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Get Employees API Error")
@@ -123,8 +149,19 @@ def get_assets(
             facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
             valid_facility_ids = validate_user_facilities(user, company, facility_ids)
             if valid_facility_ids:
-                # Filter devices by facilities via health_facility field
-                filters["health_facility"] = ["in", valid_facility_ids]
+                # Support devices storing either Health Facility docname or facility ID.
+                facility_refs = set(valid_facility_ids)
+                for facility in frappe.get_all(
+                    "Health Facility",
+                    filters={"hie_id": ["in", valid_facility_ids]},
+                    fields=["name", "hie_id"]
+                ):
+                    if facility.get("name"):
+                        facility_refs.add(facility["name"])
+                    if facility.get("hie_id"):
+                        facility_refs.add(facility["hie_id"])
+
+                filters["health_facility"] = ["in", list(facility_refs)]
             else:
                 return api_response(success=True, data=[])
 
@@ -141,6 +178,42 @@ def get_assets(
             limit_page_length=int(page_size)
         )
 
+        # Enrich with facility_name + facility_id (HIE ID) for consistent list rendering.
+        facility_refs = list({a.get("health_facility") for a in assets if a.get("health_facility")})
+        facility_map = {}
+        if facility_refs:
+            facilities_data = frappe.get_all(
+                "Health Facility",
+                filters={"hie_id": ["in", facility_refs]},
+                fields=["name", "hie_id", "facility_name"]
+            )
+
+            # Some records may store Health Facility docname instead of HIE ID.
+            if len(facilities_data) < len(facility_refs):
+                by_name_data = frappe.get_all(
+                    "Health Facility",
+                    filters={"name": ["in", facility_refs]},
+                    fields=["name", "hie_id", "facility_name"]
+                )
+                facilities_data.extend(by_name_data)
+
+            for facility in facilities_data:
+                if facility.get("name"):
+                    facility_map[facility["name"]] = facility
+                if facility.get("hie_id"):
+                    facility_map[facility["hie_id"]] = facility
+
+        for asset in assets:
+            facility_ref = asset.get("health_facility")
+            facility = facility_map.get(facility_ref)
+            if facility:
+                asset["facility_name"] = facility.get("facility_name") or facility_ref or ""
+                asset["facility_id"] = facility.get("hie_id") or facility_ref or ""
+            else:
+                resolved = resolve_health_facility_reference(facility_ref)
+                asset["facility_name"] = resolved.get("facility_name") or facility_ref or ""
+                asset["facility_id"] = resolved.get("facility_id") or facility_ref or ""
+
         return api_response(success=True, data={
             "items": assets,
             "total_count": total_count,
@@ -154,65 +227,221 @@ def get_assets(
 
 @frappe.whitelist()
 def get_affiliations(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    professional_name: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
 ):
-    """Get list of facility affiliations"""
+    """
+    Get list of facility affiliations.
+
+    Simple GET endpoint - NO default filters.
+    Frappe User Permissions automatically restrict access.
+    All filters are user-driven from the frontend.
+
+    Args:
+        facilities: Comma-separated facility names (optional, user input)
+        page: Page number for pagination
+        page_size: Items per page
+        status: Filter by affiliation_status (optional, user input)
+        professional_name: Search by professional name (optional, user input)
+        date_from: Filter by requested_date >= date_from (optional)
+        date_to: Filter by requested_date <= date_to (optional)
+    """
     try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
+        def _normalize_optional_string(value: Optional[str]) -> Optional[str]:
+            if value is None:
+                return None
 
+            normalized = str(value).strip()
+            if not normalized or normalized.lower() in {"undefined", "null", "none"}:
+                return None
+
+            return normalized
+
+        status = _normalize_optional_string(status)
+        professional_name = _normalize_optional_string(professional_name)
+        date_from = _normalize_optional_string(date_from)
+        date_to = _normalize_optional_string(date_to)
+
+        # Build filters dictionary - ONLY from user input
         filters = {}
+
+        # Optional status filter
         if status:
-            filters["affiliation_status"] = status
+            status_lookup = status.lower()
 
-        if facilities:
-            facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facility_ids = validate_user_facilities(user, company, facility_ids)
-            if valid_facility_ids:
-                filters["health_facility"] = ["in", valid_facility_ids]
+            # "Confirmed" on UI represents approved affiliations in either Active or Confirmed state
+            if status_lookup == "confirmed":
+                filters["affiliation_status"] = ["in", ["Active", "Confirmed"]]
             else:
-                return api_response(success=True, data=[])
-        else:
-            # Fallback to company facilities
-            company_facilities = frappe.get_all(
-                "Health Facility",
-                filters={"organization_company": company},
-                pluck="hie_id"
-            )
-            if company_facilities:
-                filters["health_facility"] = ["in", company_facilities]
+                normalized_status_map = {
+                    "pending": "Pending",
+                    "active": "Active",
+                    "rejected": "Rejected",
+                    "expired": "Expired",
+                    "inactive": "Inactive",
+                }
+                filters["affiliation_status"] = normalized_status_map.get(status_lookup, status)
 
-        offset = (int(page) - 1) * int(page_size)
+        # Optional professional name search
+        if professional_name:
+            filters["health_professional_name"] = ["like", f"%{professional_name}%"]
 
-        # Get total count for pagination
-        total_count = frappe.db.count("Facility Affiliation", filters=filters)
+        # Optional facility filter (user-selected facilities)
+        if facilities:
+            facility_list = [f.strip() for f in facilities.split(",") if f.strip()]
+            if facility_list:
+                facility_refs = set(facility_list)
+                for facility_ref in facility_list:
+                    resolved = resolve_health_facility_reference(facility_ref)
+                    if resolved.get("facility_docname"):
+                        facility_refs.add(resolved["facility_docname"])
+                    if resolved.get("facility_id"):
+                        facility_refs.add(resolved["facility_id"])
+                filters["health_facility"] = ["in", list(facility_refs)]
 
-        affiliations = frappe.get_all(
+        # Optional date range filter
+        if date_from and date_to:
+            filters["requested_date"] = ["between", [date_from, date_to]]
+        elif date_from:
+            filters["requested_date"] = [">=", date_from]
+        elif date_to:
+            filters["requested_date"] = ["<=", date_to]
+
+        # Calculate offset for pagination
+        page = max(int(page), 1)
+        page_size = max(int(page_size), 1)
+        offset = (page - 1) * page_size
+
+        # Get total count with permission-aware query
+        total_count_result = frappe.get_list(
+            "Facility Affiliation",
+            filters=filters,
+            fields=[{"COUNT": "name", "as": "total_count"}],
+            limit_page_length=1
+        )
+        total_count = int((total_count_result[0].get("total_count") if total_count_result else 0) or 0)
+
+        # Fetch affiliations using frappe.get_list
+        # Frappe automatically applies User Permissions here
+        affiliations = frappe.get_list(
             "Facility Affiliation",
             filters=filters,
             fields=[
-                "name", "health_professional_name", "health_facility",
-                "affiliation_status", "employment_type", "requested_date"
+                "name",
+                "health_professional",
+                "health_professional_name",
+                "health_facility",
+                "affiliation_status",
+                "employment_type",
+                "requested_date"
             ],
             order_by="requested_date desc",
             limit_start=offset,
-            limit_page_length=int(page_size)
+            limit_page_length=page_size
         )
 
-        return api_response(success=True, data={
-            "items": affiliations,
-            "total_count": total_count,
-            "page": int(page),
-            "page_size": int(page_size)
-        })
+        # Enrich with facility details (batch query to avoid N+1)
+        facility_ids = [a.get("health_facility") for a in affiliations if a.get("health_facility")]
+        facility_map = {}
+
+        if facility_ids:
+            facilities_data = frappe.get_list(
+                "Health Facility",
+                filters={"name": ["in", facility_ids]},
+                fields=["name", "facility_name", "hie_id"]
+            )
+
+            if len(facilities_data) < len(facility_ids):
+                by_hie_id = frappe.get_list(
+                    "Health Facility",
+                    filters={"hie_id": ["in", facility_ids]},
+                    fields=["name", "facility_name", "hie_id"]
+                )
+                facilities_data.extend(by_hie_id)
+
+            for facility in facilities_data:
+                facility_map[facility["name"]] = facility
+                if facility.get("hie_id"):
+                    facility_map[facility["hie_id"]] = facility
+
+        # Add facility details to each affiliation
+        for aff in affiliations:
+            facility_id = aff.get("health_facility")
+            facility = facility_map.get(facility_id)
+            if facility:
+                aff["facility_name"] = facility.get("facility_name", "") or facility_id or ""
+                aff["facility_id"] = facility.get("hie_id", "") or facility_id or ""
+            else:
+                resolved = resolve_health_facility_reference(facility_id)
+                aff["facility_name"] = resolved.get("facility_name") or facility_id or ""
+                aff["facility_id"] = resolved.get("facility_id") or facility_id or ""
+
+        # Status aggregates for dashboard cards.
+        # Exclude explicit status filter so cards remain informative while other filters apply.
+        aggregate_filters = dict(filters)
+        aggregate_filters.pop("affiliation_status", None)
+
+        status_rows = frappe.get_list(
+            "Facility Affiliation",
+            filters=aggregate_filters,
+            fields=[
+                "affiliation_status",
+                {"COUNT": "name", "as": "row_count"}
+            ],
+            group_by="affiliation_status",
+            limit_page_length=0
+        )
+
+        status_counts = defaultdict(int)
+        for row in status_rows:
+            current_status = (row.get("affiliation_status") or "").strip()
+            if not current_status:
+                continue
+            status_counts[current_status] += int(row.get("row_count") or 0)
+
+        active_count = status_counts.get("Active", 0)
+        confirmed_raw_count = status_counts.get("Confirmed", 0)
+        confirmed_count = active_count + confirmed_raw_count
+        rejected_count = status_counts.get("Rejected", 0)
+        total_count_for_rate = sum(status_counts.values())
+
+        status_aggregates = {
+            "total": total_count_for_rate,
+            "pending": status_counts.get("Pending", 0),
+            "confirmed": confirmed_count,
+            "active": active_count,
+            "rejected": rejected_count,
+            "expired": status_counts.get("Expired", 0),
+            "inactive": status_counts.get("Inactive", 0),
+            "confirmation_rate": round((confirmed_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
+            "rejection_rate": round((rejected_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
+            # Backward compatibility for older frontend clients
+            "approval_rate": round((confirmed_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0
+        }
+
+        return api_response(
+            success=True,
+            data={
+                "items": affiliations,
+                "total_count": total_count,
+                "status_aggregates": status_aggregates,
+                "page": page,
+                "page_size": page_size
+            }
+        )
+
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Get Affiliations API Error")
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(
+            success=False,
+            message=str(e),
+            status_code=500
+        )
 
 
 @frappe.whitelist()
@@ -449,7 +678,7 @@ def get_company_overview(company: Optional[str] = None):
 
     Returns:
         {
-            "total_employees": int,
+            "active_employees": int,  # Employees with Active status
             "total_departments": int,
             "total_facilities": int,
             "total_assets": int,
@@ -490,8 +719,13 @@ def get_company_overview(company: Optional[str] = None):
             pluck="hie_id"
         )
 
-        # Get total employees for the entire company
-        total_employees = frappe.db.count("Employee", filters={"company": company})
+        # Get active health professionals (employees with Active status)
+        # Note: Not filtered by company - shows all active employees system-wide
+        # This is consistent with total_facilities metric which also doesn't filter
+        active_employees = frappe.db.count(
+            "Employee",
+            filters={"status": "Active"}
+        )
 
         # Get total assets for the entire company
         # FIX: Use 'county' field directly (verified in HAD schema)
@@ -521,7 +755,7 @@ def get_company_overview(company: Optional[str] = None):
         return api_response(
             success=True,
             data={
-                "total_employees": total_employees,
+                "active_employees": active_employees,
                 "total_departments": total_departments,
                 "total_facilities": total_facilities,
                 "total_assets": total_assets,

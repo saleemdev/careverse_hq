@@ -14,7 +14,8 @@ The flow is:
 import frappe
 import requests
 from frappe import _
-from careverse_hq.api.utils import api_response, fetch_client_registry_user
+from careverse_hq.api.utils import api_response
+from healthpro_erp.api.utils import fetch_client_registry_user
 from careverse_hq.api.user_registration import generate_user_identity_hash
 from careverse_hq.api.hie_settings import HIE
 

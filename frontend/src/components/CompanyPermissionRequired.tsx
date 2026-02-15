@@ -4,8 +4,8 @@
  * Light, friendly design with header - user is logged in!
  */
 
-import { Button, Typography, Space, Avatar, Dropdown } from 'antd';
-import { BankOutlined, ReloadOutlined, LogoutOutlined, MailOutlined, UserOutlined, SettingOutlined, BellOutlined } from '@ant-design/icons';
+import { Button, Typography, Space, Avatar, Dropdown, Modal, message } from 'antd';
+import { BankOutlined, ReloadOutlined, LogoutOutlined, MailOutlined, UserOutlined, SettingOutlined, BellOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import useAuthStore from '../stores/authStore';
 import { useResponsive } from '../hooks/useResponsive';
 
@@ -14,6 +14,26 @@ const { Title, Paragraph, Text } = Typography;
 const CompanyPermissionRequired: React.FC = () => {
 	const { user, logout } = useAuthStore();
 	const { isMobile, isTablet } = useResponsive();
+
+	const confirmLogout = () => {
+		Modal.confirm({
+			title: 'Log out of your session?',
+			icon: <ExclamationCircleOutlined />,
+			content: 'You will be signed out immediately and redirected to the login page.',
+			okText: 'Log Out',
+			cancelText: 'Stay Signed In',
+			centered: true,
+			okButtonProps: { danger: true },
+			onOk: async () => {
+				try {
+					await logout();
+				} catch (error: any) {
+					message.error(error.message || 'Logout failed. Please try again.');
+					throw error;
+				}
+			},
+		});
+	};
 
 	// Compact, responsive sizing
 	const cardMaxWidth = isMobile ? '100%' : isTablet ? '520px' : '580px';
@@ -149,12 +169,12 @@ const CompanyPermissionRequired: React.FC = () => {
 										danger: true,
 									},
 								],
-								onClick: ({ key }) => {
-									if (key === 'logout') {
-										logout();
-									}
-								},
-							}}
+									onClick: ({ key }) => {
+										if (key === 'logout') {
+											confirmLogout();
+										}
+									},
+								}}
 							placement="bottomRight"
 						>
 							<div
@@ -387,12 +407,12 @@ const CompanyPermissionRequired: React.FC = () => {
 						>
 							Refresh Page
 						</Button>
-						<Button
-							icon={<LogoutOutlined />}
-							size={isMobile ? 'middle' : 'large'}
-							onClick={logout}
-							block={isMobile}
-							style={{
+							<Button
+								icon={<LogoutOutlined />}
+								size={isMobile ? 'middle' : 'large'}
+								onClick={confirmLogout}
+								block={isMobile}
+								style={{
 								height: isMobile ? '40px' : '44px',
 								fontSize: isMobile ? '14px' : '15px',
 								fontWeight: 600,

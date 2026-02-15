@@ -12,6 +12,7 @@ from datetime import datetime
 import csv
 import io
 import json
+from .dashboard_utils import resolve_health_facility_reference
 
 
 @frappe.whitelist()
@@ -389,6 +390,304 @@ def get_bulk_records_by_job(**kwargs):
             success=False,
             message=f"Failed to fetch records: {str(e)}",
             status_code=500,
+        )
+
+
+@frappe.whitelist()
+def get_bulk_upload_jobs(**kwargs):
+    """
+    API 4: Get list of all bulk upload jobs with progress metrics
+
+    This endpoint provides an efficient way to list all bulk upload jobs
+    with aggregated item counts, avoiding N+1 query problems.
+    Permissions: Auto-filtered by User Permissions (Company-based).
+
+    Args:
+        status (str): Optional filter by job status (Queued, Processing, Completed, Failed)
+        page (int): Page number (default: 1)
+        per_page (int): Records per page (default: 100)
+
+    Returns:
+        List of jobs with:
+        - Basic job info (name, facility, uploaded_by, dates, status)
+        - Facility details (facility_name, facility_id)
+        - Progress metrics (total_records, verified, created, failed, pending)
+    """
+    try:
+        status = kwargs.get("status")
+        page = int(kwargs.get("page", 1))
+        per_page = int(kwargs.get("per_page", 100))
+
+        # Build filters - ONLY user-driven (no hardcoded facility filters)
+        filters = {}
+        if status and status.lower() != "all":
+            filters["status"] = status
+
+        # Calculate offset
+        offset = (page - 1) * per_page
+
+        # Get total count (frappe auto-applies User Permissions)
+        total_count = frappe.db.count("Bulk Health Worker Upload", filters=filters)
+
+        # Fetch jobs using frappe.get_list (auto-applies User Permissions)
+        jobs = frappe.get_list(
+            "Bulk Health Worker Upload",
+            filters=filters,
+            fields=[
+                "name",
+                "facility",
+                "uploaded_by",
+                "upload_date",
+                "status",
+                "started_at",
+                "completed_at"
+            ],
+            order_by="creation desc",
+            limit_start=offset,
+            limit_page_length=per_page
+        )
+
+        if not jobs:
+            return api_response(
+                success=True,
+                data={"jobs": [], "total_count": 0},
+                pagination={
+                    "current_page": page,
+                    "per_page": per_page,
+                    "total_count": 0
+                },
+                status_code=200
+            )
+
+        # Batch fetch facility details (avoid N+1)
+        facility_ids = [job.get("facility") for job in jobs if job.get("facility")]
+        facility_map = {}
+
+        if facility_ids:
+            facilities_data = frappe.get_list(
+                "Health Facility",
+                filters={"name": ["in", facility_ids]},
+                fields=["name", "facility_name", "hie_id"]
+            )
+
+            # Fallback: some rows may store HIE IDs in the facility field.
+            if len(facilities_data) < len(facility_ids):
+                facilities_by_hie = frappe.get_list(
+                    "Health Facility",
+                    filters={"hie_id": ["in", facility_ids]},
+                    fields=["name", "facility_name", "hie_id"]
+                )
+                facilities_data.extend(facilities_by_hie)
+
+            for facility in facilities_data:
+                if facility.get("name"):
+                    facility_map[facility["name"]] = facility
+                if facility.get("hie_id"):
+                    facility_map[facility["hie_id"]] = facility
+
+        # Enrich jobs with facility details and item counts
+        for job in jobs:
+            facility_id = job.get("facility")
+            facility = facility_map.get(facility_id)
+
+            # Add facility details
+            if facility:
+                job["facility_name"] = facility.get("facility_name", "") or facility_id or ""
+                job["facility_id"] = facility.get("hie_id", "") or facility_id or ""
+            else:
+                resolved = resolve_health_facility_reference(facility_id)
+                job["facility_name"] = resolved.get("facility_name") or facility_id or ""
+                job["facility_id"] = resolved.get("facility_id") or facility_id or ""
+
+            # Calculate item counts using SQL aggregation (single query per job)
+            # Pattern from dashboard.py lines 261-306
+            counts_query = """
+                SELECT
+                    COUNT(*) as total_records,
+                    SUM(CASE WHEN verification_status = 'Verified' THEN 1 ELSE 0 END) as verified,
+                    SUM(CASE WHEN onboarding_status = 'Success' THEN 1 ELSE 0 END) as created,
+                    SUM(CASE WHEN onboarding_status = 'Failed' THEN 1 ELSE 0 END) as failed,
+                    SUM(CASE WHEN onboarding_status = 'Pending' THEN 1 ELSE 0 END) as pending
+                FROM `tabBulk Health Worker Upload Item`
+                WHERE parent = %s
+            """
+
+            counts_result = frappe.db.sql(
+                counts_query,
+                (job["name"],),
+                as_dict=True
+            )
+
+            counts = counts_result[0] if counts_result else {
+                "total_records": 0,
+                "verified": 0,
+                "created": 0,
+                "failed": 0,
+                "pending": 0
+            }
+
+            # Add counts to job object
+            job["total_records"] = counts.get("total_records", 0)
+            job["verified"] = counts.get("verified", 0)
+            job["created"] = counts.get("created", 0)
+            job["failed"] = counts.get("failed", 0)
+            job["pending"] = counts.get("pending", 0)
+
+        return api_response(
+            success=True,
+            data={"jobs": jobs},
+            pagination={
+                "current_page": page,
+                "per_page": per_page,
+                "total_count": total_count
+            },
+            status_code=200
+        )
+
+    except Exception as e:
+        frappe.log_error("get_bulk_upload_jobs failed", frappe.get_traceback())
+        return api_response(
+            success=False,
+            message=f"Failed to fetch bulk upload jobs: {str(e)}",
+            status_code=500
+        )
+
+
+@frappe.whitelist()
+def get_bulk_upload_job_details(job_id):
+    """
+    Get detailed information about a specific bulk upload job including all child items.
+    Permissions: Auto-filtered by User Permissions (Company-based).
+
+    Args:
+        job_id (str): Bulk Health Worker Upload document name
+
+    Returns:
+        Job details with:
+        - Basic job info (name, facility, uploaded_by, dates, status)
+        - Facility details (facility_name, facility_id)
+        - All child items with their statuses
+        - Progress metrics (total, verified, created, failed, pending)
+    """
+    try:
+        # Fetch job document using frappe.get_doc (auto-applies User Permissions)
+        job = frappe.get_doc("Bulk Health Worker Upload", job_id)
+
+        # Check if user has permission (frappe.get_doc will throw exception if no permission)
+        if not job:
+            return api_response(
+                success=False,
+                message="Job not found or access denied",
+                status_code=404
+            )
+
+        # Get facility details
+        facility_name = ""
+        facility_id = ""
+        if job.facility:
+            resolved = resolve_health_facility_reference(job.facility)
+            facility_name = resolved.get("facility_name") or job.facility
+            facility_id = resolved.get("facility_id") or job.facility
+
+        # Get all child items efficiently
+        items = frappe.get_all(
+            "Bulk Health Worker Upload Item",
+            filters={"parent": job_id},
+            fields=[
+                "name",
+                "row_number",
+                "identification_type",
+                "identification_number",
+                "registration_number",
+                "regulator",
+                "employment_type",
+                "designation",
+                "verification_status",
+                "verification_error",
+                "onboarding_status",
+                "onboarding_error"
+            ],
+            order_by="idx asc",
+            limit_page_length=1000
+        )
+
+        # Calculate statistics using SQL aggregation for efficiency
+        stats_query = """
+            SELECT
+                COUNT(*) as total_records,
+                SUM(CASE WHEN verification_status = 'Verified' THEN 1 ELSE 0 END) as verified,
+                SUM(CASE WHEN verification_status = 'Failed' THEN 1 ELSE 0 END) as verification_failed,
+                SUM(CASE WHEN onboarding_status = 'Success' THEN 1 ELSE 0 END) as created,
+                SUM(CASE WHEN onboarding_status = 'Failed' THEN 1 ELSE 0 END) as failed,
+                SUM(CASE WHEN verification_status = 'Pending' OR onboarding_status = 'Pending' THEN 1 ELSE 0 END) as pending
+            FROM `tabBulk Health Worker Upload Item`
+            WHERE parent = %s
+        """
+
+        stats_result = frappe.db.sql(stats_query, (job_id,), as_dict=True)
+        stats = stats_result[0] if stats_result else {
+            "total_records": 0,
+            "verified": 0,
+            "verification_failed": 0,
+            "created": 0,
+            "failed": 0,
+            "pending": 0
+        }
+
+        # Calculate progress percentage
+        total = stats.get("total_records", 0)
+        verified = stats.get("verified", 0)
+        verification_failed = stats.get("verification_failed", 0)
+        progress = ((verified + verification_failed) / total * 100) if total > 0 else 0
+
+        # Build response
+        job_data = {
+            "name": job.name,
+            "facility": job.facility,
+            "facility_name": facility_name,
+            "facility_id": facility_id,
+            "uploaded_by": job.uploaded_by,
+            "upload_date": job.upload_date,
+            "status": job.status,
+            "creation": job.creation,
+            "started_at": job.started_at,
+            "completed_at": job.completed_at,
+            "items": items,
+            "stats": {
+                "total": stats.get("total_records", 0),
+                "verified": stats.get("verified", 0),
+                "verification_failed": stats.get("verification_failed", 0),
+                "created": stats.get("created", 0),
+                "failed": stats.get("failed", 0),
+                "pending": stats.get("pending", 0),
+                "progress": round(progress, 2)
+            }
+        }
+
+        return api_response(
+            success=True,
+            data=job_data,
+            status_code=200
+        )
+
+    except frappe.DoesNotExistError:
+        return api_response(
+            success=False,
+            message="Job not found",
+            status_code=404
+        )
+    except frappe.PermissionError:
+        return api_response(
+            success=False,
+            message="Access denied",
+            status_code=403
+        )
+    except Exception as e:
+        frappe.log_error("get_bulk_upload_job_details failed", frappe.get_traceback())
+        return api_response(
+            success=False,
+            message=f"Failed to fetch job details: {str(e)}",
+            status_code=500
         )
 
 

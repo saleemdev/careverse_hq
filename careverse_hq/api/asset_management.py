@@ -7,6 +7,7 @@ from careverse_hq.api.facilities import api_response
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required
 from datetime import datetime
 from typing import Dict, Optional, Any
+from .dashboard_utils import resolve_health_facility_reference
 
 
 @frappe.whitelist()
@@ -693,9 +694,12 @@ def _format_assets(assets):
     for asset in assets:
         assignment = _build_assignment(asset)
         supplier_doc = frappe.get_doc("Purchase Order", asset['order_number'])
-        health_facility_doc = load_doctype("Health Facility",asset['health_facility'], ["name", "facility_name"])
-        if health_facility_doc.get('success'):
-                asset['health_facility'] = health_facility_doc.get('data')
+        resolved_facility = resolve_health_facility_reference(asset.get('health_facility'))
+        facility_payload = {
+            "name": resolved_facility.get("facility_docname") or asset.get("health_facility"),
+            "facility_name": resolved_facility.get("facility_name") or asset.get("health_facility"),
+            "hie_id": resolved_facility.get("facility_id") or asset.get("health_facility"),
+        }
             
 
         item = {
@@ -703,7 +707,9 @@ def _format_assets(assets):
             "serial_number": asset['serial_number'],
             "asset_name": asset['device_name'],
             "category": asset['category'],
-            "health_facility": asset['health_facility'],
+            "health_facility": facility_payload,
+            "facility_name": resolved_facility.get("facility_name") or asset.get("health_facility"),
+            "facility_id": resolved_facility.get("facility_id") or asset.get("health_facility"),
             "status": asset['status'],
             "supplier": supplier_doc.get('supplier'),
             "assignment":assignment,

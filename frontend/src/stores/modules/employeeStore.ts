@@ -1,38 +1,35 @@
 import { create } from 'zustand';
-import { hrApi } from '../../services/api';
+import type { Employee } from '../../types/modules';
 
-interface Employee {
-    name: string;
-    employee_name: string;
-    designation: string;
-    department: string;
-    cell_number: string;
-    company_email: string;
-    image: string;
-    status: string;
-    custom_facility_name: string;
-    custom_is_licensed_practitioner: number;
+interface EmployeeFilters {
+    page: number;
+    pageSize: number;
+    search: string;
+    status?: string;
+    company?: string;
+    facility?: string;
+    department?: string;
+    cadre?: string;
+}
+
+interface EmployeeMetrics {
+    totalEmployees: number;
+    activeEmployees: number;
+    licensedPractitioners: number;
+    departmentsCount: number;
 }
 
 interface EmployeeStore {
     employees: Employee[];
     loading: boolean;
     total: number;
-    filters: {
-        page: number;
-        pageSize: number;
-        search: string;
-        department?: string;
-    };
-    metrics: {
-        totalActive: number;
-        licensedCount: number;
-        deptCount: number;
-        recentHires: number;
-    };
-    fetchEmployees: (facilityIds?: string[]) => Promise<void>;
-    setFilters: (filters: Partial<EmployeeStore['filters']>) => void;
+    filters: EmployeeFilters;
+    metrics: EmployeeMetrics;
+    fetchEmployees: () => Promise<void>;
+    setFilters: (filters: Partial<EmployeeFilters>) => void;
     resetFilters: () => void;
+    setPage: (page: number) => void;
+    setPageSize: (pageSize: number) => void;
 }
 
 const useEmployeeStore = create<EmployeeStore>((set, get) => ({
@@ -41,43 +38,92 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
     total: 0,
     filters: {
         page: 1,
-        pageSize: 10,
+        pageSize: 20,
         search: '',
+        // No default filters - Frappe RBAC handles permissions
     },
     metrics: {
-        totalActive: 0,
-        licensedCount: 0,
-        deptCount: 0,
-        recentHires: 0,
+        totalEmployees: 0,
+        activeEmployees: 0,
+        licensedPractitioners: 0,
+        departmentsCount: 0,
     },
-    fetchEmployees: async (facilityIds) => {
+
+    fetchEmployees: async () => {
         set({ loading: true });
         const { filters } = get();
         try {
-            const response = await hrApi.getEmployees({
-                ...filters,
-                facilities: facilityIds,
+            // Dynamic import to avoid circular dependencies
+            const { employeesApi } = await import('../../services/api');
+
+            const response = await employeesApi.getList({
+                page: filters.page,
+                page_size: filters.pageSize,
+                search: filters.search,
+                status: filters.status,
+                company: filters.company,
+                facility: filters.facility,
+                department: filters.department,
+                cadre: filters.cadre,
             });
+
             if (response.success) {
-                // API returns { items: [], total_count: N, page: N, page_size: N }
                 const items = response.data?.items || [];
                 const total = response.data?.total_count || 0;
+                const rawMetrics = response.data?.metrics || {};
+                const metrics = {
+                    totalEmployees: rawMetrics.total_employees ?? rawMetrics.totalEmployees ?? 0,
+                    activeEmployees: rawMetrics.active_employees ?? rawMetrics.activeEmployees ?? 0,
+                    licensedPractitioners: rawMetrics.licensed_practitioners ?? rawMetrics.licensedPractitioners ?? 0,
+                    departmentsCount: rawMetrics.departments_count ?? rawMetrics.departmentsCount ?? 0,
+                };
+
                 set({
                     employees: items,
-                    total: total
+                    total: total,
+                    metrics: metrics,
+                    loading: false,
                 });
+            } else {
+                set({ loading: false });
             }
         } catch (error) {
-            console.error('Failed to fetch employees', error);
-        } finally {
+            console.error('Failed to fetch employees:', error);
             set({ loading: false });
         }
     },
+
     setFilters: (newFilters) => {
-        set((state) => ({ filters: { ...state.filters, ...newFilters, page: 1 } }));
+        set((state) => ({
+            filters: { ...state.filters, ...newFilters, page: 1 }
+        }));
     },
+
     resetFilters: () => {
-        set({ filters: { page: 1, pageSize: 10, search: '' } });
+        set({
+            filters: {
+                page: 1,
+                pageSize: 20,
+                search: '',
+                status: undefined,
+                company: undefined,
+                facility: undefined,
+                department: undefined,
+                cadre: undefined,
+            }
+        });
+    },
+
+    setPage: (page) => {
+        set((state) => ({
+            filters: { ...state.filters, page }
+        }));
+    },
+
+    setPageSize: (pageSize) => {
+        set((state) => ({
+            filters: { ...state.filters, pageSize, page: 1 }
+        }));
     },
 }));
 

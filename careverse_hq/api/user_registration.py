@@ -4,7 +4,20 @@ import hashlib
 from urllib.parse import urljoin
 from .encryption import SecureTransportManager
 from .hie_settings import *
-from .utils import *
+from .utils import api_response
+from healthpro_erp.api.utils import (
+    verify_otp,
+    send_otp,
+    mask_phone,
+    mask_email,
+    mask_name,
+    fetch_client_registry_user,
+    get_cr_user_contacts,
+    fetch_hwr_practitioner,
+    decrypt_client_registry_user,
+    decrypt_request_data,
+    encrypt_response_data
+)
 from healthpro_erp.healthpro_erp.doctype.healthcare_organization.healthcare_organization import (
     HealthcareOrganization,
 )
@@ -66,7 +79,7 @@ def verify_user_id(**kwargs):
                 status_code=400,
             )
         masked_phone = mask_phone(contact_info.get("phone"))
-        masked_email = mask_phone(contact_info.get("email"))
+        masked_email = mask_email(contact_info.get("email"))
         response = {
             "phone": masked_phone,
             "email": masked_email,

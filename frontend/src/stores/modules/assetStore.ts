@@ -8,6 +8,9 @@ interface Asset {
     category: string;
     status: string;
     health_facility: string;
+    facility_name?: string;
+    facility_id?: string;
+    health_facility_name?: string;
 }
 
 interface AssetStore {

@@ -1,6 +1,15 @@
 import frappe
 from frappe import _
-from .utils import *
+from .utils import api_response
+from healthpro_erp.api.utils import (
+    send_otp,
+    verify_otp,
+    mask_phone,
+    mask_email,
+    fetch_client_registry_user,
+    decrypt_request_data,
+    encrypt_response_data
+)
 from .encryption import SecureTransportManager
 from .user_authentication_token_manager import WebAppAuthTokenManager
 from .hie_settings import HIE

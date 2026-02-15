@@ -36,17 +36,17 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
 
     const features = [
         {
-            icon: <BarChartOutlined style={{ fontSize: '24px', color: '#1890ff' }} />,
+            icon: <BarChartOutlined style={{ fontSize: '20px', color: '#1890ff' }} />,
             title: 'Executive Monitoring',
             description: 'Real-time oversight of county-wide health operations and resource allocation.'
         },
         {
-            icon: <FileSearchOutlined style={{ fontSize: '24px', color: '#1890ff' }} />,
+            icon: <FileSearchOutlined style={{ fontSize: '20px', color: '#1890ff' }} />,
             title: 'Centralized Approvals',
             description: 'Streamlined workflow for processing purchase orders and claims across all facilities.'
         },
         {
-            icon: <SafetyCertificateOutlined style={{ fontSize: '24px', color: '#1890ff' }} />,
+            icon: <SafetyCertificateOutlined style={{ fontSize: '20px', color: '#1890ff' }} />,
             title: 'Unified Registry',
             description: 'Single source of truth for health professionals and facility affiliations.'
         }
@@ -93,7 +93,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
                     borderBottom: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.06)',
-                    padding: '0 24px',
+                    padding: '0 20px',
                     position: 'sticky',
                     top: 0,
                     zIndex: 10,
@@ -126,7 +126,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                         >
                             H
                         </div>
-                        <Title level={4} style={{ margin: 0, fontWeight: 700, letterSpacing: '-0.02em' }}>
+                        <Title level={4} style={{ margin: 0, fontWeight: 600, letterSpacing: '-0.01em' }}>
                             HealthPro ERP
                         </Title>
                     </div>
@@ -147,40 +147,40 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '48px 24px',
+                    padding: '36px 20px',
                     zIndex: 1
                 }}
             >
                 <div style={{ maxWidth: '1100px', width: '100%' }}>
-                    <Row gutter={[64, 48]} align="middle">
+                    <Row gutter={[40, 28]} align="middle">
                         <Col xs={24} lg={11}>
                             <Card
                                 style={{
                                     background: isDarkMode ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.7)',
                                     backdropFilter: 'blur(30px)',
                                     WebkitBackdropFilter: 'blur(30px)',
-                                    borderRadius: '24px',
+                                    borderRadius: '20px',
                                     border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(255, 255, 255, 0.8)',
                                     boxShadow: isDarkMode
                                         ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
                                         : '0 25px 50px -12px rgba(0, 0, 0, 0.1)',
                                     overflow: 'hidden'
                                 }}
-                                bodyStyle={{ padding: isMobile ? '32px 24px' : '56px 48px' }}
+                                bodyStyle={{ padding: isMobile ? '24px 20px' : '40px 36px' }}
                             >
-                                <Space direction="vertical" size={32} style={{ width: '100%' }}>
+                                <Space direction="vertical" size={24} style={{ width: '100%' }}>
                                     <div
                                         style={{
-                                            width: '64px',
-                                            height: '64px',
-                                            borderRadius: '16px',
+                                            width: '56px',
+                                            height: '56px',
+                                            borderRadius: '14px',
                                             background: 'rgba(24, 144, 255, 0.1)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center'
                                         }}
                                     >
-                                        <LockOutlined style={{ fontSize: '32px', color: '#1890ff' }} />
+                                        <LockOutlined style={{ fontSize: '28px', color: '#1890ff' }} />
                                     </div>
 
                                     <div>
@@ -188,12 +188,12 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                             type="secondary"
                                             style={{
                                                 fontSize: '12px',
-                                                fontWeight: '600',
+                                                fontWeight: '500',
                                                 textTransform: 'uppercase',
                                                 letterSpacing: '1px',
                                                 color: '#8c8c8c',
                                                 display: 'block',
-                                                marginBottom: '12px'
+                                                marginBottom: '10px'
                                             }}
                                         >
                                             County Executive Portal
@@ -202,20 +202,20 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                             level={1}
                                             style={{
                                                 margin: 0,
-                                                fontWeight: '800',
-                                                fontSize: isMobile ? '28px' : '36px',
-                                                letterSpacing: '-0.03em',
-                                                lineHeight: 1.1
+                                                fontWeight: '700',
+                                                fontSize: isMobile ? '24px' : '30px',
+                                                letterSpacing: '-0.02em',
+                                                lineHeight: 1.15
                                             }}
                                         >
                                             Sign In Required
                                         </Title>
                                         <Paragraph
                                             style={{
-                                                fontSize: '16px',
-                                                lineHeight: '1.6',
+                                                fontSize: '14px',
+                                                lineHeight: '1.5',
                                                 color: token.colorTextSecondary,
-                                                marginTop: '16px',
+                                                marginTop: '12px',
                                                 marginBottom: 0
                                             }}
                                         >
@@ -230,9 +230,9 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                         onClick={handleLogin}
                                         block
                                         style={{
-                                            height: '56px',
-                                            fontSize: '16px',
-                                            fontWeight: '700',
+                                            height: '48px',
+                                            fontSize: '14px',
+                                            fontWeight: '600',
                                             borderRadius: '12px',
                                             background: 'linear-gradient(135deg, #1890ff 0%, #722ed1 100%)',
                                             border: 'none',
@@ -245,7 +245,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
 
                                     <div
                                         style={{
-                                            padding: '20px',
+                                            padding: '16px',
                                             borderRadius: '12px',
                                             background: isDarkMode ? 'rgba(24, 144, 255, 0.1)' : 'rgba(239, 246, 255, 1)',
                                             border: isDarkMode ? '1px solid rgba(24, 144, 255, 0.2)' : '1px solid rgba(191, 219, 254, 1)'
@@ -254,14 +254,14 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                         <Title level={5} style={{ margin: '0 0 12px 0', fontSize: '14px', color: isDarkMode ? '#60a5fa' : '#1e40af' }}>
                                             After You Sign In
                                         </Title>
-                                        <Text style={{ fontSize: '13px', color: isDarkMode ? '#bfdbfe' : '#1e40af', lineHeight: '1.6' }}>
+                                        <Text style={{ fontSize: '12px', color: isDarkMode ? '#bfdbfe' : '#1e40af', lineHeight: '1.5' }}>
                                             Once authenticated, you'll have access to the executive dashboard based on your assigned county permissions. If you don't have county access, contact your system administrator.
                                         </Text>
                                     </div>
 
                                     <div
                                         style={{
-                                            padding: '20px',
+                                            padding: '16px',
                                             borderRadius: '12px',
                                             background: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
                                             border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid rgba(0, 0, 0, 0.05)'
@@ -270,7 +270,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                         <Title level={5} style={{ margin: '0 0 8px 0', fontSize: '14px' }}>
                                             Need Help?
                                         </Title>
-                                        <Text style={{ fontSize: '13px', color: token.colorTextTertiary }}>
+                                        <Text style={{ fontSize: '12px', color: token.colorTextTertiary }}>
                                             Contact your system administrator or ICT Support Desk if you need credentials or encounter access issues.
                                         </Text>
                                     </div>
@@ -279,13 +279,13 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                         </Col>
 
                         <Col xs={24} lg={13}>
-                            <Space direction="vertical" size={40} style={{ width: '100%', padding: '0 20px' }}>
+                            <Space direction="vertical" size={28} style={{ width: '100%', padding: '0 12px' }}>
                                 <div>
                                     <Text
                                         type="secondary"
                                         style={{
                                             fontSize: '12px',
-                                            fontWeight: '600',
+                                            fontWeight: '500',
                                             textTransform: 'uppercase',
                                             letterSpacing: '1px',
                                             color: isDarkMode ? '#1890ff' : '#096dd9',
@@ -295,33 +295,33 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                     >
                                         Executive Platform
                                     </Text>
-                                    <Title level={2} style={{ margin: '0 0 12px 0', fontWeight: '800', fontSize: '32px' }}>
+                                    <Title level={2} style={{ margin: '0 0 10px 0', fontWeight: '700', fontSize: '28px' }}>
                                         Smarter County Governance
                                     </Title>
-                                    <Paragraph style={{ fontSize: '16px', color: token.colorTextSecondary }}>
+                                    <Paragraph style={{ fontSize: '14px', color: token.colorTextSecondary }}>
                                         HealthPro ERP provides integrated oversight of health human resources,
                                         facility infrastructure, and financial claims.
                                     </Paragraph>
                                 </div>
 
-                                <div style={{ display: 'grid', gap: '20px' }}>
+                                <div style={{ display: 'grid', gap: '16px' }}>
                                     {features.map((feature, index) => (
                                         <Card
                                             key={index}
                                             style={{
-                                                borderRadius: '20px',
+                                                borderRadius: '16px',
                                                 background: 'transparent',
                                                 border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid rgba(0, 0, 0, 0.05)',
                                                 transition: 'all 0.3s ease'
                                             }}
-                                            bodyStyle={{ padding: '24px' }}
+                                            bodyStyle={{ padding: '18px' }}
                                         >
-                                            <Space size={20} align="start">
+                                            <Space size={16} align="start">
                                                 <div
                                                     style={{
-                                                        width: '48px',
-                                                        height: '48px',
-                                                        borderRadius: '12px',
+                                                        width: '42px',
+                                                        height: '42px',
+                                                        borderRadius: '10px',
                                                         background: isDarkMode ? 'rgba(24, 144, 255, 0.15)' : 'rgba(24, 144, 255, 0.1)',
                                                         display: 'flex',
                                                         alignItems: 'center',
@@ -332,28 +332,28 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                                     {feature.icon}
                                                 </div>
                                                 <div>
-                                                    <Title level={5} style={{ margin: '0 0 4px 0', fontWeight: '700' }}>
+                                                    <Title level={5} style={{ margin: '0 0 4px 0', fontWeight: '600' }}>
                                                         {feature.title}
                                                     </Title>
-                                                    <Text style={{ fontSize: '14px', color: token.colorTextSecondary }}>
+                                                    <Text style={{ fontSize: '13px', color: token.colorTextSecondary }}>
                                                         {feature.description}
                                                     </Text>
                                                 </div>
-                                                <CheckCircleOutlined style={{ fontSize: '20px', color: '#52c41a', marginLeft: 'auto', alignSelf: 'center' }} />
+                                                <CheckCircleOutlined style={{ fontSize: '18px', color: '#52c41a', marginLeft: 'auto', alignSelf: 'center' }} />
                                             </Space>
                                         </Card>
                                     ))}
                                 </div>
 
                                 <div style={{
-                                    marginTop: '20px',
+                                    marginTop: '16px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '12px',
                                     color: token.colorTextTertiary,
                                     fontSize: '12px'
                                 }}>
-                                    <SafetyCertificateOutlined style={{ fontSize: '20px' }} />
+                                    <SafetyCertificateOutlined style={{ fontSize: '18px' }} />
                                     <span>Secured by Enterprise-Grade Authentication System</span>
                                 </div>
                             </Space>

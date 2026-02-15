@@ -1,7 +1,7 @@
 /**
  * Executive Dashboard Component
  * Main dashboard view for county executives and senior administrators
- * Displays KPIs for Company overview, Approvals, Financial Overview, and HR/Attendance
+ * Displays KPIs focused on Health Facilities and Facility Affiliations
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -22,23 +22,15 @@ import {
     Tooltip,
 } from 'antd';
 import {
-    TeamOutlined,
     BankOutlined,
     CheckCircleOutlined,
-    DollarOutlined,
-    ShoppingCartOutlined,
-    CreditCardOutlined,
-    InboxOutlined,
-    RiseOutlined,
-    FallOutlined,
-    CalendarOutlined,
     UserAddOutlined,
     ReloadOutlined,
-    LaptopOutlined,
-    FieldTimeOutlined,
+    LinkOutlined,
     SafetyCertificateOutlined,
+    ArrowRightOutlined,
 } from '@ant-design/icons';
-import { dashboardApi, hrApi } from '../services/api';
+import { dashboardApi, employeesApi } from '../services/api';
 import { useResponsive } from '../hooks/useResponsive';
 import useFacilityStore from '../stores/facilityStore';
 import useDashboardRealtime from '../hooks/useDashboardRealtime';
@@ -65,47 +57,15 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
 
     // State for real data
     const [companyData, setCompanyData] = useState<any>(null);
-    const [approvalData, setApprovalData] = useState<any>(null);
+    const [affiliationData, setAffiliationData] = useState<any>(null);
     const [licenseData, setLicenseData] = useState<any>(null);
-    const [attendanceData, setAttendanceData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [realtimeError, setRealtimeError] = useState<string | null>(null);
 
     // Realtime updates - merge with existing state
-    const handleApprovalUpdate = useCallback((update: any) => {
-        setApprovalData((prev: any) => ({
-            ...prev,
-            purchase_orders: {
-                ...prev?.purchase_orders,
-                ...update.purchase_orders,
-            },
-            expense_claims: {
-                ...prev?.expense_claims,
-                ...update.expense_claims,
-            },
-            material_requests: {
-                ...prev?.material_requests,
-                ...update.material_requests,
-            },
-            leave_applications: {
-                ...prev?.leave_applications,
-                ...update.leave_applications,
-            },
-        }));
-        console.log('[Dashboard] Applied approval metrics update from realtime');
-    }, []);
-
     const handleBudgetUpdate = useCallback((update: any) => {
         // Budget metrics removed as per plan, but we might still receive updates
         console.log('[Dashboard] Received budget metrics update, but budget section is removed', update);
-    }, []);
-
-    const handleAttendanceUpdate = useCallback((update: any) => {
-        setAttendanceData((prev: any) => ({
-            ...prev,
-            ...update,
-        }));
-        console.log('[Dashboard] Applied attendance metrics update from realtime');
     }, []);
 
     const handleCompanyUpdate = useCallback((update: any) => {
@@ -118,9 +78,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
 
     // Subscribe to realtime updates
     const { isConnected: realtimeConnected } = useDashboardRealtime({
-        onApprovalUpdate: handleApprovalUpdate,
         onBudgetUpdate: handleBudgetUpdate,
-        onAttendanceUpdate: handleAttendanceUpdate,
         onCompanyUpdate: handleCompanyUpdate,
         onError: (error) => {
             console.error('[Dashboard] Realtime error:', error);
@@ -144,45 +102,72 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         setError(null);
 
         try {
+            // Keep this count in sync with the Health Professionals module list.
+            const workforceResponse = await employeesApi.getList({
+                page: 1,
+                page_size: 1,
+            });
+            const healthProfessionalsTotal =
+                workforceResponse.success && workforceResponse.data
+                    ? (workforceResponse.data.total_count ?? workforceResponse.data.metrics?.total_employees ?? 0)
+                    : 0;
+
             // Fetch company overview - no facility filtering, show entire company
             const overviewResponse = await dashboardApi.getCompanyOverview();
 
+            // Fetch affiliation statistics for focused affiliation KPIs
+            const affiliationStatsResponse = await dashboardApi.getAffiliationStatistics();
+
+            const byStatus = affiliationStatsResponse.success
+                ? (affiliationStatsResponse.data?.by_status || {})
+                : {};
+            const byEmploymentType = affiliationStatsResponse.success
+                ? (affiliationStatsResponse.data?.by_employment_type || {})
+                : {};
+
+            const totalAffiliations = Number(
+                affiliationStatsResponse.success
+                    ? (affiliationStatsResponse.data?.total ?? Object.values(byStatus).reduce((sum: number, count: any) => sum + Number(count || 0), 0))
+                    : 0
+            );
+
+            const confirmedAffiliations = Number(byStatus.Active || 0) + Number(byStatus.Confirmed || 0);
+            const pendingAffiliations = Number(byStatus.Pending || 0);
+            const rejectedAffiliations = Number(byStatus.Rejected || 0);
+            const confirmationRate = totalAffiliations > 0 ? (confirmedAffiliations / totalAffiliations) * 100 : 0;
+            const rejectionRate = totalAffiliations > 0 ? (rejectedAffiliations / totalAffiliations) * 100 : 0;
+
+            setAffiliationData({
+                total: totalAffiliations,
+                confirmed: confirmedAffiliations,
+                pending: pendingAffiliations,
+                rejected: rejectedAffiliations,
+                confirmation_rate: confirmationRate,
+                rejection_rate: rejectionRate,
+                by_employment_type: byEmploymentType,
+            });
+
             if (overviewResponse.success && overviewResponse.data) {
                 setCompanyData({
-                    total_employees: overviewResponse.data.total_employees || 0,
-                    pending_affiliations: overviewResponse.data.pending_affiliations || 0,
+                    health_professionals_total: healthProfessionalsTotal,
+                    confirmed_affiliations: confirmedAffiliations,
+                    pending_affiliations: pendingAffiliations,
+                    total_affiliations: totalAffiliations,
+                    rejected_affiliations: rejectedAffiliations,
+                    confirmation_rate: confirmationRate,
                     total_assets: overviewResponse.data.total_assets || 0,
                     total_facilities: overviewResponse.data.total_facilities || 0,
-                    active_affiliations: overviewResponse.data.active_affiliations || 0,
-                    trend: {
-                        employees: 0,
-                        affiliations: 0,
-                        assets: 0
-                    }
                 });
-            }
-
-            // Fetch financial overview (includes approvals) - no facility filtering
-            const financialResponse = await dashboardApi.getFinancialOverview();
-
-            if (financialResponse.success && financialResponse.data) {
-                setApprovalData({
-                    purchase_orders: {
-                        pending: financialResponse.data.purchase_orders?.pending || 0,
-                        total_value: financialResponse.data.purchase_orders?.total_value || 0
-                    },
-                    expense_claims: {
-                        pending: financialResponse.data.expense_claims?.pending || 0,
-                        total_value: financialResponse.data.expense_claims?.total_value || 0
-                    },
-                    material_requests: {
-                        pending: financialResponse.data.material_requests?.pending || 0,
-                        total_value: 0
-                    },
-                    leave_applications: {
-                        pending: 0
-                    }
-                });
+            } else {
+                setCompanyData((prev: any) => ({
+                    ...(prev || {}),
+                    health_professionals_total: healthProfessionalsTotal,
+                    confirmed_affiliations: confirmedAffiliations,
+                    pending_affiliations: pendingAffiliations,
+                    total_affiliations: totalAffiliations,
+                    rejected_affiliations: rejectedAffiliations,
+                    confirmation_rate: confirmationRate,
+                }));
             }
 
             // Fetch license compliance - no facility filtering
@@ -202,19 +187,14 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 });
             }
 
-            // Fetch attendance summary - no facility filtering
-            const attendanceResponse = await hrApi.getAttendanceSummary();
-            if (attendanceResponse.success && attendanceResponse.data) {
-                setAttendanceData(attendanceResponse.data);
-            }
         } catch (err: any) {
             console.error('Error fetching dashboard data:', err);
             const errorMessage = err.error || err.message || 'Failed to load dashboard data';
             setError(errorMessage);
 
             // Fallback to partially empty data if error occurs
-            setCompanyData((prev: any) => prev || { total_employees: 0, pending_affiliations: 0, total_assets: 0, total_facilities: 0 });
-            setApprovalData((prev: any) => prev || { purchase_orders: { pending: 0, total_value: 0 }, expense_claims: { pending: 0, total_value: 0 }, material_requests: { pending: 0, total_value: 0 }, leave_applications: { pending: 0 } });
+            setCompanyData((prev: any) => prev || { health_professionals_total: 0, pending_affiliations: 0, total_affiliations: 0, total_facilities: 0 });
+            setAffiliationData((prev: any) => prev || { total: 0, confirmed: 0, pending: 0, rejected: 0, confirmation_rate: 0, rejection_rate: 0, by_employment_type: {} });
         } finally {
             setLoading(false);
         }
@@ -236,17 +216,6 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         return `KES ${value.toLocaleString()}`;
     };
 
-    // Get trend icon
-    const getTrendIcon = (trend: number) => {
-        if (trend > 0) {
-            return <RiseOutlined style={{ color: token.colorSuccess, fontSize: '12px' }} />;
-        }
-        if (trend < 0) {
-            return <FallOutlined style={{ color: token.colorError, fontSize: '12px' }} />;
-        }
-        return null;
-    };
-
     // KPI Card Component
     const KPICard: React.FC<{
         title: string;
@@ -254,9 +223,10 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         icon: React.ReactNode;
         color: string;
         subtitle?: string;
-        trend?: number;
         onClick?: () => void;
-    }> = ({ title, value, icon, color, subtitle, trend, onClick }) => (
+        actionLabel?: string;
+        onActionClick?: () => void;
+    }> = ({ title, value, icon, color, subtitle, onClick, actionLabel, onActionClick }) => (
         <Card
             hoverable
             onClick={onClick}
@@ -268,40 +238,46 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 transition: 'all 0.3s ease',
                 cursor: onClick ? 'pointer' : 'default',
             }}
-            bodyStyle={{ padding: isMobile ? '16px' : isTablet ? '18px' : '20px' }}
+            bodyStyle={{ padding: isMobile ? '12px' : isTablet ? '14px' : '16px' }}
         >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ flex: 1 }}>
-                    <Text type="secondary" style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Text type="secondary" style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                         {title}
                     </Text>
-                    <div style={{ fontSize: isMobile ? '28px' : isTablet ? '30px' : '32px', fontWeight: 700, color, marginTop: '8px', lineHeight: 1.1 }}>
+                    <div style={{ fontSize: isMobile ? '24px' : isTablet ? '26px' : '28px', fontWeight: 700, color, marginTop: '6px', lineHeight: 1.1 }}>
                         {loading && !value ? <Spin size="small" /> : value}
                     </div>
-                    {(subtitle || trend !== undefined) && (
-                        <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            {subtitle && <Text type="secondary" style={{ fontSize: '12px' }}>{subtitle}</Text>}
-                            {trend !== undefined && (
-                                <Tag
-                                    color={trend > 0 ? 'success' : trend < 0 ? 'error' : 'default'}
-                                    style={{ fontSize: '11px', padding: '0 6px', margin: 0 }}
-                                >
-                                    {getTrendIcon(trend)} {Math.abs(trend)}%
-                                </Tag>
-                            )}
+                    {subtitle && (
+                        <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <Text type="secondary" style={{ fontSize: '11px' }}>{subtitle}</Text>
                         </div>
+                    )}
+                    {actionLabel && onActionClick && (
+                        <Button
+                            type="link"
+                            size="small"
+                            icon={<ArrowRightOutlined />}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                onActionClick();
+                            }}
+                            style={{ paddingInline: 0, marginTop: 2, fontSize: 12, height: 22 }}
+                        >
+                            {actionLabel}
+                        </Button>
                     )}
                 </div>
                 <div
                     style={{
-                        width: '56px',
-                        height: '56px',
+                        width: '48px',
+                        height: '48px',
                         borderRadius: '12px',
                         background: `${color}15`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '24px',
+                        fontSize: '20px',
                         color,
                     }}
                 >
@@ -312,40 +288,47 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
     );
 
     // Section Header Component
-    const SectionHeader: React.FC<{ title: string; icon: React.ReactNode }> = ({ title, icon }) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', marginTop: '32px' }}>
-            <div
-                style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '10px',
-                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: '18px',
-                }}
-            >
-                {icon}
+    const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; action?: React.ReactNode }> = ({ title, icon, action }) => (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '16px', marginTop: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                    style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '9px',
+                        background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: '16px',
+                    }}
+                >
+                    {icon}
+                </div>
+                <Title level={4} style={{ margin: 0, color: token.colorTextHeading }}>
+                    {title}
+                </Title>
             </div>
-            <Title level={4} style={{ margin: 0, color: token.colorTextHeading }}>
-                {title}
-            </Title>
+            {action}
         </div>
     );
+
+    const employmentTypeEntries = Object.entries(affiliationData?.by_employment_type || {})
+        .map(([type, count]) => ({ type, count: Number(count || 0) }))
+        .sort((a, b) => b.count - a.count);
 
     return (
         <div
             style={{
-                padding: isMobile ? '16px' : '24px',
+                padding: isMobile ? '12px' : '20px',
                 background: token.colorBgLayout,
                 minHeight: 'calc(100vh - 64px)',
             }}
         >
             {/* Header */}
             <div style={{
-                marginBottom: '24px',
+                marginBottom: '16px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: isMobile ? 'flex-start' : 'center',
@@ -354,7 +337,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             }}>
                 <div style={{ width: isMobile ? '100%' : 'auto' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: token.colorTextHeading }}>
+                        <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: token.colorTextHeading, fontWeight: 600, fontSize: isMobile ? '22px' : '26px' }}>
                             Executive Dashboard
                         </Title>
                         {realtimeConnected ? (
@@ -363,7 +346,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                             <Badge status="default" text={isMobile ? "" : "Manual"} style={{ marginLeft: '4px' }} />
                         )}
                     </div>
-                    <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '14px' }}>
+                    <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '13px' }}>
                         Company-wide overview for {company?.abbr || company?.company_name}
                     </Text>
                 </div>
@@ -384,17 +367,36 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             </div>
 
             {/* Section 1: County Overview */}
-            <SectionHeader title="County Overview" icon={<BankOutlined />} />
+            <SectionHeader title="Facility & Affiliation Overview" icon={<BankOutlined />} />
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} lg={6}>
                     <KPICard
-                        title="Total Employees"
-                        value={companyData?.total_employees?.toLocaleString() || '0'}
-                        icon={<TeamOutlined />}
+                        title="Health Professionals"
+                        value={companyData?.health_professionals_total?.toLocaleString() || '0'}
+                        icon={<CheckCircleOutlined />}
+                        color="#52c41a"
+                        subtitle="Total records"
+                        onClick={() => navigateToRoute?.('health-professionals')}
+                    />
+                </Col>
+                <Col xs={24} sm={12} lg={6}>
+                    <KPICard
+                        title="Health Facilities"
+                        value={companyData?.total_facilities || '0'}
+                        icon={<BankOutlined />}
+                        color="#722ed1"
+                        subtitle="Registered facilities"
+                        onClick={() => navigateToRoute?.('facilities')}
+                    />
+                </Col>
+                <Col xs={24} sm={12} lg={6}>
+                    <KPICard
+                        title="Total Affiliations"
+                        value={companyData?.total_affiliations || '0'}
+                        icon={<LinkOutlined />}
                         color="#1890ff"
-                        subtitle="Active workforce"
-                        trend={companyData?.trend?.employees}
-                        onClick={() => navigateToRoute?.('employees')}
+                        subtitle="All affiliation requests"
+                        onClick={() => navigateToRoute?.('affiliations')}
                     />
                 </Col>
                 <Col xs={24} sm={12} lg={6}>
@@ -403,36 +405,126 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                         value={companyData?.pending_affiliations || '0'}
                         icon={<UserAddOutlined />}
                         color="#faad14"
-                        subtitle="Awaiting approval"
-                        trend={companyData?.trend?.affiliations}
+                        subtitle="Awaiting review"
                         onClick={() => navigateToRoute?.('affiliations')}
-                    />
-                </Col>
-                <Col xs={24} sm={12} lg={6}>
-                    <KPICard
-                        title="Assets"
-                        value={companyData?.total_assets || '0'}
-                        icon={<LaptopOutlined />}
-                        color="#52c41a"
-                        subtitle="Inventory items"
-                        trend={companyData?.trend?.assets}
-                        onClick={() => navigateToRoute?.('assets')}
-                    />
-                </Col>
-                <Col xs={24} sm={12} lg={6}>
-                    <KPICard
-                        title="Facilities"
-                        value={companyData?.total_facilities || '0'}
-                        icon={<BankOutlined />}
-                        color="#722ed1"
-                        subtitle="Health & Admin"
-                        onClick={() => navigateToRoute?.('facilities')}
                     />
                 </Col>
             </Row>
 
-            {/* Section 2: License Compliance & Expiry */}
-            <SectionHeader title="License Compliance & Expiry" icon={<SafetyCertificateOutlined />} />
+            {/* Section 2: Affiliation Insights */}
+            <SectionHeader
+                title="Facility Affiliation Insights"
+                icon={<LinkOutlined />}
+                action={
+                    <Button
+                        size={isMobile ? 'small' : 'middle'}
+                        icon={<ArrowRightOutlined />}
+                        onClick={() => navigateToRoute?.('affiliations')}
+                    >
+                        Open Module
+                    </Button>
+                }
+            />
+            <Row gutter={[16, 16]}>
+                <Col xs={24} md={10}>
+                    <Card
+                        style={{
+                            borderRadius: '12px',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                            border: 'none',
+                        }}
+                        title="Affiliation Status"
+                    >
+                        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+                            <Col span={12}>
+                                <div style={{ background: '#e6f7ff', borderRadius: 10, padding: 12 }}>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>TOTAL</Text>
+                                    <Title level={4} style={{ margin: 0, color: '#1890ff' }}>{affiliationData?.total || 0}</Title>
+                                </div>
+                            </Col>
+                            <Col span={12}>
+                                <div style={{ background: '#f6ffed', borderRadius: 10, padding: 12 }}>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>CONFIRMED</Text>
+                                    <Title level={4} style={{ margin: 0, color: '#52c41a' }}>{affiliationData?.confirmed || 0}</Title>
+                                </div>
+                            </Col>
+                            <Col span={12}>
+                                <div style={{ background: '#fffbe6', borderRadius: 10, padding: 12 }}>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>PENDING</Text>
+                                    <Title level={4} style={{ margin: 0, color: '#faad14' }}>{affiliationData?.pending || 0}</Title>
+                                </div>
+                            </Col>
+                            <Col span={12}>
+                                <div style={{ background: '#fff1f0', borderRadius: 10, padding: 12 }}>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>REJECTED</Text>
+                                    <Title level={4} style={{ margin: 0, color: '#ff4d4f' }}>{affiliationData?.rejected || 0}</Title>
+                                </div>
+                            </Col>
+                        </Row>
+                        <div style={{ marginBottom: 10 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <Text type="secondary">Confirmation Rate</Text>
+                                <Text strong>{(affiliationData?.confirmation_rate || 0).toFixed(1)}%</Text>
+                            </div>
+                            <Progress percent={Number((affiliationData?.confirmation_rate || 0).toFixed(1))} showInfo={false} strokeColor="#52c41a" />
+                        </div>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <Text type="secondary">Rejection Rate</Text>
+                                <Text strong>{(affiliationData?.rejection_rate || 0).toFixed(1)}%</Text>
+                            </div>
+                            <Progress percent={Number((affiliationData?.rejection_rate || 0).toFixed(1))} showInfo={false} strokeColor="#ff4d4f" />
+                        </div>
+                    </Card>
+                </Col>
+                <Col xs={24} md={14}>
+                    <Card
+                        style={{
+                            borderRadius: '12px',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                            border: 'none',
+                            height: '100%',
+                        }}
+                        title="Distribution by Employment Type"
+                    >
+                        {employmentTypeEntries.length === 0 ? (
+                            <div style={{ padding: 24, textAlign: 'center' }}>
+                                <Text type="secondary">No affiliation employment type data available</Text>
+                            </div>
+                        ) : (
+                            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+                                {employmentTypeEntries.map((entry) => {
+                                    const percent = affiliationData?.total ? (entry.count / affiliationData.total) * 100 : 0;
+                                    return (
+                                        <div key={entry.type}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
+                                                <Text style={{ fontSize: 13 }}>{entry.type}</Text>
+                                                <Text strong>{entry.count}</Text>
+                                            </div>
+                                            <Progress percent={Number(percent.toFixed(1))} showInfo={false} />
+                                        </div>
+                                    );
+                                })}
+                            </Space>
+                        )}
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Section 3: License Compliance & Expiry */}
+            <SectionHeader
+                title="License Compliance & Expiry"
+                icon={<SafetyCertificateOutlined />}
+                action={
+                    <Button
+                        size={isMobile ? 'small' : 'middle'}
+                        icon={<ArrowRightOutlined />}
+                        onClick={() => navigateToRoute?.('licenses')}
+                    >
+                        Open Module
+                    </Button>
+                }
+            />
             <Row gutter={[16, 16]}>
                 <Col xs={24}>
                     <Card
@@ -450,15 +542,13 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                         ) : (
                         <List
                             itemLayout="horizontal"
-                            pagination={{ pageSize: 5 }}
-                            dataSource={licenseData.expiring_details}
+                            dataSource={(licenseData.expiring_details || []).slice(0, 5)}
                             renderItem={(item: any) => {
                                 const expiry = new Date(item.expiry_date);
                                 const now = new Date();
                                 const daysDiff = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 3600 * 24));
                                 const totalDuration = 365; // Assuming 1 year licenses for visual scale
-                                const percentRemaining = Math.max(0, Math.min(100, (daysDiff / totalDuration) * 100));
-                                const percentElapsed = 100 - percentRemaining; // For progress bar (0% -> 100% means fresh -> expired)
+                                const percentElapsed = 100 - Math.max(0, Math.min(100, (daysDiff / totalDuration) * 100)); // For progress bar (0% -> 100% means fresh -> expired)
 
                                 let statusColor = '#52c41a';
 
@@ -543,221 +633,24 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 </Col>
             </Row>
 
-            {/* Section 3: Central Approval Platform */}
-            <SectionHeader title="Central Approval Platform" icon={<CheckCircleOutlined />} />
-            <Row gutter={[16, 16]}>
-                <Col xs={24} sm={24} md={16} lg={18}>
-                    <Card
-                        style={{
-                            borderRadius: '12px',
-                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                            border: 'none',
-                        }}
-                        title={
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>Pending Approvals</span>
-                                <Badge
-                                    count={(approvalData?.purchase_orders?.pending || 0) + (approvalData?.expense_claims?.pending || 0) + (approvalData?.material_requests?.pending || 0)}
-                                    style={{ backgroundColor: token.colorError }}
-                                />
-                            </div>
-                        }
-                    >
-                        <Row gutter={[24, 24]}>
-                            {/* Purchase Orders */}
-                            <Col xs={24} md={8}>
-                                <Card
-                                    size="small"
-                                    hoverable
-                                    onClick={() => navigateToRoute?.('purchase-orders')}
-                                    style={{
-                                        background: 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)',
-                                        borderRadius: '10px',
-                                        border: '1px solid #667eea30',
-                                        cursor: 'pointer',
-                                    }}
-                                >
-                                    <div style={{ textAlign: 'center' }}>
-                                        <ShoppingCartOutlined style={{ fontSize: '28px', color: '#667eea', marginBottom: '8px' }} />
-                                        <Title level={2} style={{ margin: 0, color: '#667eea' }}>
-                                            {loading ? <Spin size="small" /> : approvalData?.purchase_orders?.pending || 0}
-                                        </Title>
-                                        <Text strong>Purchase Orders</Text>
-                                        <div style={{ marginTop: '8px' }}>
-                                            <Text type="secondary" style={{ fontSize: '12px' }}>
-                                                Total: {formatCurrency(approvalData?.purchase_orders?.total_value || 0)}
-                                            </Text>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </Col>
-
-                            {/* Expense Claims */}
-                            <Col xs={24} md={8}>
-                                <Card
-                                    size="small"
-                                    hoverable
-                                    onClick={() => navigateToRoute?.('expense-claims')}
-                                    style={{
-                                        background: 'linear-gradient(135deg, #f093fb15 0%, #f5576c15 100%)',
-                                        borderRadius: '10px',
-                                        border: '1px solid #f5576c30',
-                                        cursor: 'pointer',
-                                    }}
-                                >
-                                    <div style={{ textAlign: 'center' }}>
-                                        <CreditCardOutlined style={{ fontSize: '28px', color: '#f5576c', marginBottom: '8px' }} />
-                                        <Title level={2} style={{ margin: 0, color: '#f5576c' }}>
-                                            {loading ? <Spin size="small" /> : approvalData?.expense_claims?.pending || 0}
-                                        </Title>
-                                        <Text strong>Expense Claims</Text>
-                                        <div style={{ marginTop: '8px' }}>
-                                            <Text type="secondary" style={{ fontSize: '12px' }}>
-                                                Total: {formatCurrency(approvalData?.expense_claims?.total_value || 0)}
-                                            </Text>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </Col>
-
-                            {/* Material Requests */}
-                            <Col xs={24} md={8}>
-                                <Card
-                                    size="small"
-                                    hoverable
-                                    onClick={() => navigateToRoute?.('material-requests')}
-                                    style={{
-                                        background: 'linear-gradient(135deg, #4facfe15 0%, #00f2fe15 100%)',
-                                        borderRadius: '10px',
-                                        border: '1px solid #4facfe30',
-                                        cursor: 'pointer',
-                                    }}
-                                >
-                                    <div style={{ textAlign: 'center' }}>
-                                        <InboxOutlined style={{ fontSize: '28px', color: '#4facfe', marginBottom: '8px' }} />
-                                        <Title level={2} style={{ margin: 0, color: '#4facfe' }}>
-                                            {loading ? <Spin size="small" /> : approvalData?.material_requests?.pending || 0}
-                                        </Title>
-                                        <Text strong>Material Requests</Text>
-                                        <div style={{ marginTop: '8px' }}>
-                                            <Text type="secondary" style={{ fontSize: '12px' }}>
-                                                Total: {formatCurrency(approvalData?.material_requests?.total_value || 0)}
-                                            </Text>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </Col>
-                        </Row>
-                    </Card>
-                </Col>
-                <Col xs={24} sm={24} md={8} lg={6}>
-                    <Card
-                        style={{
-                            borderRadius: '12px',
-                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                            border: 'none',
-                            height: '100%',
-                        }}
-                        title="Leave Applications"
-                    >
-                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <Badge count={approvalData?.leave_applications?.pending || 0} showZero>
-                                <Avatar
-                                    size={64}
-                                    style={{
-                                        backgroundColor: '#13c2c215',
-                                        color: '#13c2c2',
-                                    }}
-                                    icon={<CalendarOutlined />}
-                                />
-                            </Badge>
-                            <div style={{ marginTop: '16px' }}>
-                                <Text strong>Pending Review</Text>
-                            </div>
-                            <Button type="link" size="small" onClick={() => navigateToRoute?.('leave-applications')}>
-                                View All →
-                            </Button>
-                        </div>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Section 4: HR & Attendance */}
-            <SectionHeader title="HR & Attendance" icon={<TeamOutlined />} />
-            <Row gutter={[16, 16]}>
-                {/* Attendance Summary */}
-                <Col xs={24} md={12} lg={8}>
-                    <Card
-                        style={{
-                            borderRadius: '12px',
-                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                            border: 'none',
-                        }}
-                        title={
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>Today's Attendance</span>
-                                <Tag color="blue">
-                                    <FieldTimeOutlined /> Live
-                                </Tag>
-                            </div>
-                        }
-                    >
-                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                            <Spin spinning={loading}>
-                                <div style={{ fontSize: '48px', fontWeight: 700, color: token.colorSuccess }}>
-                                    {attendanceData?.attendance_rate || 0}%
-                                </div>
-                                <Text type="secondary">Attendance Rate</Text>
-                            </Spin>
-                        </div>
-                        <Row gutter={8}>
-                            <Col span={8} style={{ textAlign: 'center' }}>
-                                <div style={{ padding: '8px', background: '#f6ffed', borderRadius: '8px' }}>
-                                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#52c41a' }}>{attendanceData?.present || 0}</div>
-                                    <Text type="secondary" style={{ fontSize: '11px' }}>Present</Text>
-                                </div>
-                            </Col>
-                            <Col span={8} style={{ textAlign: 'center' }}>
-                                <div style={{ padding: '8px', background: '#fff1f0', borderRadius: '8px' }}>
-                                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#ff4d4f' }}>{attendanceData?.absent || 0}</div>
-                                    <Text type="secondary" style={{ fontSize: '11px' }}>Absent</Text>
-                                </div>
-                            </Col>
-                            <Col span={8} style={{ textAlign: 'center' }}>
-                                <div style={{ padding: '8px', background: '#e6f7ff', borderRadius: '8px' }}>
-                                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#1890ff' }}>{attendanceData?.on_leave || 0}</div>
-                                    <Text type="secondary" style={{ fontSize: '11px' }}>On Leave</Text>
-                                </div>
-                            </Col>
-                        </Row>
-                        <Button
-                            block
-                            type="dashed"
-                            style={{ marginTop: '16px' }}
-                            onClick={() => navigateToRoute?.('attendance')}
-                        >
-                            Detailed Attendance Report
-                        </Button>
-                    </Card>
-                </Col>
-
-                <Col xs={24} md={12} lg={16}>
-                    <Card
-                        style={{
-                            borderRadius: '12px',
-                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                            border: 'none',
-                            height: '100%',
-                        }}
-                        title="Workforce Distribution"
-                    >
-                        {/* Placeholder for future distribution chart */}
-                        <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5', borderRadius: '8px' }}>
-                            <Text type="secondary">Workforce distribution by facility type</Text>
-                        </div>
-                    </Card>
-                </Col>
-            </Row>
+            {error && (
+                <Row style={{ marginTop: 16 }}>
+                    <Col span={24}>
+                        <Card style={{ borderColor: '#ffccc7', background: '#fff1f0' }}>
+                            <Text type="danger">{error}</Text>
+                        </Card>
+                    </Col>
+                </Row>
+            )}
+            {realtimeError && (
+                <Row style={{ marginTop: 12 }}>
+                    <Col span={24}>
+                        <Card style={{ borderColor: '#ffe58f', background: '#fffbe6' }}>
+                            <Text type="warning">{realtimeError}</Text>
+                        </Card>
+                    </Col>
+                </Row>
+            )}
         </div>
     );
 };

@@ -1,13 +1,10 @@
-import base64
 import json
 import frappe
-
-from careverse_hq.api.facility_onboarding import HIE
-from careverse_hq.api.healthpro_mobile_app.mobile_notifications import generate_token
-from healthpro_erp.careverse_hq.api.healthworker_api import fetch_healthworkers_list
 import requests
-from requests import HTTPError, RequestException
-from .utils import sanitize_request,api_response
+
+from .hie_settings import HIE
+from .utils import api_response
+from healthpro_erp.api.utils import sanitize_request
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required
 
 _hie = HIE()
@@ -298,7 +295,7 @@ def fetch_facility_details(**kwargs):
                 "facility_owner": f.get("facility_owner"),
                 "website": f.get("website"),
                 "registration_number": f.get("registration_number"),
-                "board_registration_number": f.get("board_registration_number"),             
+                "board_registration_number": f.get("board_registration_number"),
                 "number_of_medical_staff":facility_metrics.get('number_of_medical_staff'),
                 "number_of_support_staff":facility_metrics.get('number_of_support_staff'),
                 "number_of_stations":facility_metrics.get('number_of_stations'),
@@ -306,14 +303,18 @@ def fetch_facility_details(**kwargs):
                 "category": f.get("category"),
                 "region": f.get("sub_county"),
                 "kephl_level": f.get("kephl_level"),
-                "phone": f.get("phone"), 
+                "phone": f.get("phone"),
                 "email": f.get("email"),
-                "industry":f.get("industry"), 
-                "maximum_bed_allocation":f.get("maximum_bed_allocation",None) , 
-                "open_whole_day":f.get("open_whole_day",None), 
-                "open_public_holiday":f.get("open_public_holiday",None), 
-                "open_weekends":f.get("open_weekends",None), 
-                "open_late_night":f.get("open_late_night",None), 
+                "industry":f.get("industry"),
+                "bed_capacity": f.get("bed_capacity"),
+                "operational_status": f.get("operational_status"),
+                "latitude": f.get("latitude"),
+                "longitude": f.get("longitude"),
+                "maximum_bed_allocation":f.get("maximum_bed_allocation",None) ,
+                "open_whole_day":f.get("open_whole_day",None),
+                "open_public_holiday":f.get("open_public_holiday",None),
+                "open_weekends":f.get("open_weekends",None),
+                "open_late_night":f.get("open_late_night",None),
                 "constituency":f.get("constituency",None), 
  
                 "audit_trail": formatted_versions,             

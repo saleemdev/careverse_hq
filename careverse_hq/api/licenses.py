@@ -98,20 +98,56 @@ def get_licenses_overview(facilities: Optional[str] = None):
 				)
 
 		# Get all licenses
-		licenses = frappe.get_all(
-			"License Record",
-			filters=license_filters,
-			fields=[
-				"name", "health_facility", "facility_name", "license_type",
+			licenses = frappe.get_all(
+				"License Record",
+				filters=license_filters,
+				fields=[
+					"name", "health_facility", "facility_name", "license_type",
 				"license_type_name", "license_number", "application_type",
 				"status", "issue_date", "expiry_date", "regulatory_body",
 				"license_fee", "license_fee_paid", "docstatus"
 			],
-			order_by="modified desc"
-		)
+				order_by="modified desc"
+			)
 
-		# Calculate days to expiry for each license
-		today = datetime.now().date()
+			# Normalize facility fields for frontend list views:
+			# - facility_name as human-readable primary label
+			# - facility_id as HIE ID secondary label
+			facility_refs = list({l.get("health_facility") for l in licenses if l.get("health_facility")})
+			facility_map = {}
+			if facility_refs:
+				facilities_data = frappe.get_all(
+					"Health Facility",
+					filters={"hie_id": ["in", facility_refs]},
+					fields=["name", "hie_id", "facility_name"]
+				)
+
+				if len(facilities_data) < len(facility_refs):
+					by_name_data = frappe.get_all(
+						"Health Facility",
+						filters={"name": ["in", facility_refs]},
+						fields=["name", "hie_id", "facility_name"]
+					)
+					facilities_data.extend(by_name_data)
+
+				for facility in facilities_data:
+					if facility.get("name"):
+						facility_map[facility["name"]] = facility
+					if facility.get("hie_id"):
+						facility_map[facility["hie_id"]] = facility
+
+			for license_rec in licenses:
+				facility_ref = license_rec.get("health_facility")
+				facility = facility_map.get(facility_ref)
+				if facility:
+					license_rec["facility_name"] = license_rec.get("facility_name") or facility.get("facility_name") or facility_ref or "Unknown Facility"
+					license_rec["facility_id"] = facility.get("hie_id") or ""
+				else:
+					license_rec["facility_name"] = license_rec.get("facility_name") or facility_ref or "Unknown Facility"
+					license_rec["facility_id"] = ""
+
+			# Calculate days to expiry for each license
+			today = datetime.now().date()
 		for license_rec in licenses:
 			if license_rec.get("expiry_date"):
 				expiry = datetime.fromisoformat(str(license_rec["expiry_date"])).date()

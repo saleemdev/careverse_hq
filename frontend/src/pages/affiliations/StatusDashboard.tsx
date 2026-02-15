@@ -46,6 +46,8 @@ interface BulkUploadItem {
 interface BulkUploadJob {
     name: string;
     facility: string;
+    facility_name: string;
+    facility_id: string;
     uploaded_by: string;
     status: string;
     creation: string;
@@ -76,51 +78,52 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
         }
 
         try {
-            // Fetch parent job
-            const jobResponse = await fetch('/api/method/frappe.client.get', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
-                },
-                body: JSON.stringify({
-                    doctype: 'Bulk Health Worker Upload',
-                    name: jobId
-                })
-            });
+            // Use new custom API endpoint that fetches job + items efficiently
+            const response = await fetch(
+                `/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_bulk_upload_job_details?job_id=${jobId}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    },
+                    credentials: 'include'
+                }
+            );
 
-            if (!jobResponse.ok) {
-                throw new Error('Failed to fetch job details');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch job details');
             }
 
-            const jobResult = await jobResponse.json();
-            setJob(jobResult.data);
+            const result = await response.json();
 
-            // Fetch child items
-            const itemsResponse = await fetch('/api/method/frappe.client.get_list', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
-                },
-                body: JSON.stringify({
-                    doctype: 'Bulk Health Worker Upload Item',
-                    filters: { parent: jobId },
-                    fields: ['*'],
-                    limit_page_length: 1000
-                })
-            });
+            // Handle standardized API response format
+            if (result.status === 'success') {
+                const jobData = result.data;
 
-            if (!itemsResponse.ok) {
-                throw new Error('Failed to fetch items');
-            }
+                // Set job details
+                setJob({
+                    name: jobData.name,
+                    facility: jobData.facility,
+                    facility_name: jobData.facility_name || jobData.facility,
+                    facility_id: jobData.facility_id || '',
+                    uploaded_by: jobData.uploaded_by,
+                    status: jobData.status,
+                    creation: jobData.creation,
+                    started_at: jobData.started_at,
+                    completed_at: jobData.completed_at
+                });
 
-            const itemsResult = await itemsResponse.json();
-            setItems(itemsResult.data);
+                // Set items
+                setItems(jobData.items || []);
 
-            // Stop auto-refresh if job is completed
-            if (jobResult.data.status === 'Completed' || jobResult.data.status === 'Failed') {
-                setAutoRefresh(false);
+                // Stop auto-refresh if job is completed
+                if (jobData.status === 'Completed' || jobData.status === 'Failed') {
+                    setAutoRefresh(false);
+                }
+            } else {
+                throw new Error(result.message || 'Failed to fetch job details');
             }
 
         } catch (error: any) {
@@ -313,23 +316,56 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
             {/* Job Details Card */}
             <Card
                 style={{
-                    borderRadius: 12,
-                    border: 'none',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    backdropFilter: 'blur(20px) saturate(180%)',
+                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                    border: '1px solid rgba(255, 255, 255, 0.18)',
+                    borderRadius: 16,
+                    boxShadow: '0 12px 40px rgba(31, 38, 135, 0.1)',
                     marginBottom: 24
                 }}
             >
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                            <Title level={3} style={{ margin: 0, marginBottom: 8 }}>
-                                <FileTextOutlined style={{ marginRight: 12, color: token.colorPrimary }} />
-                                Upload Job: {jobId}
-                            </Title>
-                            <Text type="secondary">
-                                Facility: {job?.facility} | Uploaded by: {job?.uploaded_by}
+                    {/* Metadata Section - Subtle Glass Inset */}
+                    <div style={{
+                        background: 'rgba(0, 0, 0, 0.02)',
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        borderRadius: 12,
+                        padding: 16,
+                        border: '1px solid rgba(0, 0, 0, 0.04)'
+                    }}>
+                        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                            <Text className="admin-detail" style={{
+                                fontFamily: 'SF Mono, Monaco, Consolas, monospace',
+                                fontSize: 11,
+                                opacity: 0.7
+                            }}>
+                                Job ID: {jobId}
                             </Text>
-                        </div>
+                            <Text className="admin-detail" style={{
+                                fontFamily: 'SF Mono, Monaco, Consolas, monospace',
+                                fontSize: 11,
+                                opacity: 0.7
+                            }}>
+                                Facility: {job?.facility_name || job?.facility}
+                                {job?.facility_id && ` (${job.facility_id})`}
+                            </Text>
+                            <Text className="admin-detail" style={{
+                                fontFamily: 'SF Mono, Monaco, Consolas, monospace',
+                                fontSize: 11,
+                                opacity: 0.7
+                            }}>
+                                Uploaded by: {job?.uploaded_by} | {job?.creation ? new Date(job.creation).toLocaleString() : '-'}
+                            </Text>
+                        </Space>
+                    </div>
+
+                    {/* Status and Actions */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Title level={4} style={{ margin: 0 }}>
+                            Upload Status
+                        </Title>
                         <Space>
                             <Tag
                                 color={getStatusColor(job?.status || '')}
@@ -357,12 +393,17 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                         <Text strong style={{ marginBottom: 8, display: 'block' }}>Processing Progress</Text>
                         <Progress
                             percent={Math.round(stats.progress)}
+                            strokeColor={{
+                                '0%': 'rgba(24, 144, 255, 0.6)',
+                                '100%': 'rgba(24, 144, 255, 1)'
+                            }}
+                            trailColor="rgba(0, 0, 0, 0.04)"
+                            strokeWidth={10}
                             status={
                                 job?.status === 'Completed' ? 'success' :
                                 job?.status === 'Failed' ? 'exception' :
                                 'active'
                             }
-                            strokeColor={token.colorPrimary}
                         />
                     </div>
 
@@ -381,62 +422,164 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
             {/* Statistics Cards */}
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={24} sm={12} md={8} lg={4}>
-                    <Card style={{ borderRadius: 12 }}>
+                    <Card style={{
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: 'blur(16px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 32px rgba(31, 38, 135, 0.08)'
+                    }}>
                         <Statistic
                             title="Total"
                             value={stats.total}
-                            prefix={<FileTextOutlined />}
-                            valueStyle={{ color: token.colorPrimary }}
+                            prefix={
+                                <FileTextOutlined style={{
+                                    color: token.colorPrimary,
+                                    fontSize: 18,
+                                    opacity: 0.7
+                                }} />
+                            }
+                            valueStyle={{
+                                color: token.colorText,
+                                fontSize: 24,
+                                fontWeight: 600
+                            }}
                         />
                     </Card>
                 </Col>
                 <Col xs={24} sm={12} md={8} lg={4}>
-                    <Card style={{ borderRadius: 12 }}>
+                    <Card style={{
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: 'blur(16px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 32px rgba(31, 38, 135, 0.08)'
+                    }}>
                         <Statistic
                             title="Verified"
                             value={stats.verified}
-                            prefix={<CheckCircleOutlined />}
-                            valueStyle={{ color: token.colorSuccess }}
+                            prefix={
+                                <CheckCircleOutlined style={{
+                                    color: token.colorSuccess,
+                                    fontSize: 18,
+                                    opacity: 0.7
+                                }} />
+                            }
+                            valueStyle={{
+                                color: token.colorText,
+                                fontSize: 24,
+                                fontWeight: 600
+                            }}
                         />
                     </Card>
                 </Col>
                 <Col xs={24} sm={12} md={8} lg={4}>
-                    <Card style={{ borderRadius: 12 }}>
+                    <Card style={{
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: 'blur(16px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 32px rgba(31, 38, 135, 0.08)'
+                    }}>
                         <Statistic
                             title="Created"
                             value={stats.created}
-                            prefix={<CheckCircleOutlined />}
-                            valueStyle={{ color: token.colorSuccess }}
+                            prefix={
+                                <CheckCircleOutlined style={{
+                                    color: token.colorSuccess,
+                                    fontSize: 18,
+                                    opacity: 0.7
+                                }} />
+                            }
+                            valueStyle={{
+                                color: token.colorText,
+                                fontSize: 24,
+                                fontWeight: 600
+                            }}
                         />
                     </Card>
                 </Col>
                 <Col xs={24} sm={12} md={8} lg={4}>
-                    <Card style={{ borderRadius: 12 }}>
+                    <Card style={{
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: 'blur(16px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 32px rgba(31, 38, 135, 0.08)'
+                    }}>
                         <Statistic
                             title="Pending"
                             value={stats.pending}
-                            prefix={<ClockCircleOutlined />}
-                            valueStyle={{ color: token.colorWarning }}
+                            prefix={
+                                <ClockCircleOutlined style={{
+                                    color: token.colorWarning,
+                                    fontSize: 18,
+                                    opacity: 0.7
+                                }} />
+                            }
+                            valueStyle={{
+                                color: token.colorText,
+                                fontSize: 24,
+                                fontWeight: 600
+                            }}
                         />
                     </Card>
                 </Col>
                 <Col xs={24} sm={12} md={8} lg={4}>
-                    <Card style={{ borderRadius: 12 }}>
+                    <Card style={{
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: 'blur(16px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 32px rgba(31, 38, 135, 0.08)'
+                    }}>
                         <Statistic
                             title="Ver. Failed"
                             value={stats.verificationFailed}
-                            prefix={<CloseCircleOutlined />}
-                            valueStyle={{ color: token.colorError }}
+                            prefix={
+                                <CloseCircleOutlined style={{
+                                    color: token.colorError,
+                                    fontSize: 18,
+                                    opacity: 0.7
+                                }} />
+                            }
+                            valueStyle={{
+                                color: token.colorText,
+                                fontSize: 24,
+                                fontWeight: 600
+                            }}
                         />
                     </Card>
                 </Col>
                 <Col xs={24} sm={12} md={8} lg={4}>
-                    <Card style={{ borderRadius: 12 }}>
+                    <Card style={{
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: 'blur(16px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 32px rgba(31, 38, 135, 0.08)'
+                    }}>
                         <Statistic
                             title="Failed"
                             value={stats.failed}
-                            prefix={<CloseCircleOutlined />}
-                            valueStyle={{ color: token.colorError }}
+                            prefix={
+                                <CloseCircleOutlined style={{
+                                    color: token.colorError,
+                                    fontSize: 18,
+                                    opacity: 0.7
+                                }} />
+                            }
+                            valueStyle={{
+                                color: token.colorText,
+                                fontSize: 24,
+                                fontWeight: 600
+                            }}
                         />
                     </Card>
                 </Col>
@@ -444,13 +587,25 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
 
             {/* Records Table */}
             <Card
+                className="glass-card-standard"
                 style={{
-                    borderRadius: 12,
-                    border: 'none',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+                    borderRadius: 16,
+                    overflow: 'hidden'
                 }}
                 title={
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{
+                        background: 'rgba(255, 255, 255, 0.3)',
+                        margin: '-24px -24px 0',
+                        padding: '16px 24px',
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        borderBottom: '1px solid rgba(0, 0, 0, 0.04)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12
+                    }}>
                         <Text strong style={{ fontSize: 16 }}>Upload Records</Text>
                         <Select
                             value={filter}
@@ -469,6 +624,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                 }
             >
                 <Table
+                    className="glass-table"
                     dataSource={getFilteredItems()}
                     columns={columns}
                     rowKey="name"

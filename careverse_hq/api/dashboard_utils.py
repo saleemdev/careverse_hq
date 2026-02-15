@@ -5,7 +5,7 @@ Helper functions for dashboard API endpoints.
 """
 
 import frappe
-from typing import Optional, List
+from typing import Optional, List, Dict
 from collections import defaultdict
 from frappe.utils import get_first_day, get_last_day, add_months, getdate, today
 
@@ -118,3 +118,62 @@ def get_period_dates(period_type: str = "monthly"):
         "prev_end": prev_end
     }
 
+
+def resolve_health_facility_reference(facility_ref: Optional[str]) -> Dict[str, str]:
+    """Resolve a facility reference to canonical facility metadata.
+
+    Supports references stored as Health Facility docname, HIE ID, and other
+    common identifier fields. Always returns a stable payload so API consumers
+    can render a facility name even when the source doctype does not store one.
+    """
+    normalized_ref = (str(facility_ref).strip() if facility_ref is not None else "")
+    if not normalized_ref:
+        return {
+            "facility_docname": "",
+            "facility_id": "",
+            "facility_name": ""
+        }
+
+    fieldnames = ["name", "hie_id", "facility_name"]
+    facility = frappe.db.get_value(
+        "Health Facility",
+        normalized_ref,
+        fieldnames,
+        as_dict=True
+    )
+
+    if not facility:
+        meta = frappe.get_meta("Health Facility")
+        lookup_fields = ["hie_id"]
+        for optional_field in (
+            "facility_mfl",
+            "registration_number",
+            "facility_id",
+            "facility_code",
+            "facility_fid",
+        ):
+            if meta.has_field(optional_field):
+                lookup_fields.append(optional_field)
+
+        for lookup_field in lookup_fields:
+            facility = frappe.db.get_value(
+                "Health Facility",
+                {lookup_field: normalized_ref},
+                fieldnames,
+                as_dict=True
+            )
+            if facility:
+                break
+
+    if facility:
+        return {
+            "facility_docname": facility.get("name") or "",
+            "facility_id": facility.get("hie_id") or normalized_ref,
+            "facility_name": facility.get("facility_name") or normalized_ref
+        }
+
+    return {
+        "facility_docname": "",
+        "facility_id": normalized_ref,
+        "facility_name": normalized_ref
+    }

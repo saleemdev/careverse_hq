@@ -9,26 +9,27 @@ import AppLayout from './components/AppLayout';
 import UnauthorizedPage from './components/UnauthorizedPage';
 import CompanyPermissionRequired from './components/CompanyPermissionRequired';
 import ExecutiveDashboard from './components/ExecutiveDashboard';
-import EmployeesListView from './components/modules/employees/EmployeesListView';
+import EmployeeListView from './components/modules/employees/EmployeeListView';
 import AssetsListView from './components/modules/assets/AssetsListView';
 import FacilitiesListView from './components/modules/facilities/FacilitiesListView';
 import AffiliationsListView from './components/modules/affiliations/AffiliationsListView';
 import LicensesListView from './components/modules/licenses/LicensesListView';
 import LicenseDetailView from './components/modules/licenses/LicenseDetailView';
-import LeaveApplicationsListView from './components/modules/hr/LeaveApplicationsListView';
-import PurchaseOrdersListView from './components/modules/approvals/PurchaseOrdersListView';
-import ExpenseClaimsListView from './components/modules/approvals/ExpenseClaimsListView';
-import MaterialRequestsListView from './components/modules/approvals/MaterialRequestsListView';
 import EmptyState from './components/shared/EmptyState/EmptyState';
 import BulkUploadListPage from './pages/affiliations/BulkUploadListPage';
 import BulkUploadPage from './pages/affiliations/BulkUploadPage';
-import StatusDashboard from './pages/affiliations/StatusDashboard';
+import BulkUploadDetailView from './pages/affiliations/BulkUploadDetailView';
 import UserListPage from './pages/user-management/UserListPage';
 import CreateUserPage from './pages/user-management/CreateUserPage';
 import EditUserPage from './pages/user-management/EditUserPage';
 import './App.css';
 
 const { Content } = Layout;
+const DEFAULT_FAVICON = '/assets/careverse_hq/images/favicon.svg?v=20260215b';
+const ROUTE_FAVICONS: Record<string, string> = {
+  licenses: DEFAULT_FAVICON,
+  affiliations: DEFAULT_FAVICON,
+};
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -147,11 +148,60 @@ function App() {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
+  // Keep browser-tab favicon in sync with route.
+  // Affiliations intentionally shares the same favicon as Licenses.
+  useEffect(() => {
+    const routeKey = currentRoute === 'licenses' || currentRoute.startsWith('licenses/')
+      ? 'licenses'
+      : currentRoute === 'affiliations' || currentRoute.startsWith('affiliations/')
+        ? 'affiliations'
+        : currentRoute;
+
+    const faviconHref = ROUTE_FAVICONS[routeKey] || DEFAULT_FAVICON;
+
+    const upsertFavicon = (rel: string) => {
+      let link = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement('link');
+        link.setAttribute('rel', rel);
+        document.head.appendChild(link);
+      }
+      link.setAttribute('type', 'image/svg+xml');
+      link.setAttribute('href', faviconHref);
+    };
+
+    upsertFavicon('icon');
+    upsertFavicon('alternate icon');
+  }, [currentRoute]);
+
   // Handle hash-based routing
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1) || 'dashboard';
-      const [route, id] = hash.split('/');
+      const parts = hash.split('/');
+
+      // Handle multi-segment routes like 'bulk-upload/status' or 'bulk-upload/new'
+      // Format: #route/subpath/id or #route/id or #route
+      let route = parts[0];
+      let id = null;
+
+      if (parts.length === 3) {
+        // e.g., #bulk-upload/status/JOB-001
+        route = `${parts[0]}/${parts[1]}`;
+        id = parts[2];
+      } else if (parts.length === 2) {
+        // Could be #bulk-upload/new or #licenses/LIC-001
+        // Check if second part looks like an ID or is a subpath
+        if (parts[0] === 'bulk-upload' && (parts[1] === 'new' || parts[1] === 'status')) {
+          route = `${parts[0]}/${parts[1]}`;
+        } else if (parts[0] === 'user-management' && (parts[1] === 'create' || parts[1] === 'edit')) {
+          route = `${parts[0]}/${parts[1]}`;
+        } else {
+          // Second part is an ID
+          id = parts[1];
+        }
+      }
+
       setCurrentRoute(route);
       setCurrentDetailId(id || null);
     };
@@ -184,10 +234,12 @@ function App() {
       borderRadiusLG: 12,
       borderRadiusXS: 4,
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-      fontSize: 14,
-      fontSizeLG: 16,
-      fontSizeXL: 20,
-      lineHeight: 1.5714285714285714,
+      fontSize: 13,
+      fontSizeLG: 15,
+      fontSizeXL: 18,
+      lineHeight: 1.5,
+      controlHeight: 30,
+      controlHeightLG: 36,
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
       boxShadowSecondary: '0 4px 16px rgba(0, 0, 0, 0.08)',
       colorBgLayout: isDarkMode ? '#141414' : '#f5f7fa',
@@ -211,11 +263,16 @@ function App() {
         itemHoverBg: isDarkMode ? '#262626' : '#f5f5f5',
         itemActiveBg: isDarkMode ? '#1890ff1a' : '#e6f4ff',
         subMenuItemBg: 'transparent',
-        itemMarginBlock: 4,
+        itemMarginBlock: 2,
+        itemHeight: 36,
+        itemFontSize: 13,
         itemBorderRadius: 8,
       },
       Card: {
         borderRadiusLG: 12,
+        headerHeight: 46,
+        headerFontSize: 15,
+        bodyPadding: 16,
         boxShadowTertiary: '0 2px 8px rgba(0, 0, 0, 0.06)',
       },
       Button: {
@@ -228,6 +285,9 @@ function App() {
       },
       Table: {
         borderRadiusLG: 10,
+        cellPaddingBlock: 10,
+        cellPaddingInline: 12,
+        cellFontSize: 13,
       },
       Progress: {
         circleTextFontSize: '1em',
@@ -245,22 +305,14 @@ function App() {
           />
         );
 
-      case 'employees':
-        return <EmployeesListView />;
+      case 'health-professionals':
+        return <EmployeeListView />;
 
       case 'assets':
         return <AssetsListView />;
 
       case 'facilities':
         return <FacilitiesListView />;
-
-      // Approval Platform routes
-      case 'purchase-orders':
-        return <PurchaseOrdersListView />;
-      case 'expense-claims':
-        return <ExpenseClaimsListView />;
-      case 'material-requests':
-        return <MaterialRequestsListView />;
 
       // Attendance routes (Under Construction)
       case 'attendance':
@@ -305,7 +357,7 @@ function App() {
       case 'bulk-upload/status':
         // #bulk-upload/status/{jobId} - View job status
         if (currentDetailId) {
-          return <StatusDashboard jobId={currentDetailId} navigateToRoute={navigateToRoute} />;
+          return <BulkUploadDetailView jobId={currentDetailId} navigateToRoute={navigateToRoute} />;
         }
         // No job ID provided, redirect to list
         return <BulkUploadListPage navigateToRoute={navigateToRoute} />;
@@ -321,10 +373,6 @@ function App() {
           );
         }
         return <LicensesListView navigateToRoute={navigateToRoute} />;
-
-      // Leave route
-      case 'leave-applications':
-        return <LeaveApplicationsListView />;
 
       // User Management routes
       case 'user-management':
@@ -367,9 +415,9 @@ function App() {
     return (
       <ConfigProvider theme={themeConfig} locale={enUS}>
         <Layout className="auth-loading" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Content style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: '24px' }}>
+          <Content style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: '16px' }}>
             <Spin size="large" />
-            <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '15px', fontWeight: 500, letterSpacing: '0.5px' }}>
+            <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '13px', fontWeight: 500, letterSpacing: '0.3px' }}>
               {authLoading ? 'Verifying Session...' : 'Syncing Global Context...'}
             </span>
           </Content>

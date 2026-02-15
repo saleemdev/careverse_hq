@@ -17,6 +17,8 @@ import {
     Breadcrumb,
     theme,
     Tooltip,
+    message,
+    Modal,
 } from 'antd';
 import {
     DashboardOutlined,
@@ -30,8 +32,6 @@ import {
     BellOutlined,
     SearchOutlined,
     HomeOutlined,
-    ShoppingCartOutlined,
-    CreditCardOutlined,
     CalendarOutlined,
     MoonOutlined,
     SunOutlined,
@@ -40,10 +40,9 @@ import {
     MedicineBoxOutlined,
     LinkOutlined,
     ClockCircleOutlined,
-    InboxOutlined,
-    DollarOutlined,
     SafetyCertificateOutlined,
     CloudUploadOutlined,
+    ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { useResponsive } from '../hooks/useResponsive';
 import useAuthStore from '../stores/authStore';
@@ -75,6 +74,29 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     const { user, logout } = useAuthStore();
     const { company, selectedFacilities } = useFacilityStore();
 
+    const confirmLogout = () => {
+        Modal.confirm({
+            title: 'Log out of your session?',
+            icon: <ExclamationCircleOutlined />,
+            content: 'You will be signed out immediately and redirected to the login page.',
+            okText: 'Log Out',
+            cancelText: 'Stay Signed In',
+            centered: true,
+            okButtonProps: { danger: true },
+            onOk: async () => {
+                try {
+                    await logout();
+                } catch (error: any) {
+                    message.error({
+                        content: error.message || 'Logout failed. Please try again.',
+                        duration: 5,
+                    });
+                    throw error;
+                }
+            },
+        });
+    };
+
     // Auto-collapse on tablet
     useEffect(() => {
         setCollapsed(isTablet);
@@ -99,9 +121,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             label: 'Modules',
             children: [
                 {
-                    key: 'employees',
+                    key: 'health-professionals',
                     icon: <TeamOutlined />,
-                    label: 'Employees',
+                    label: 'Health Professionals',
                 },
                 {
                     key: 'assets',
@@ -127,26 +149,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     key: 'licenses',
                     icon: <SafetyCertificateOutlined />,
                     label: 'Licenses',
-                },
-                {
-                    key: 'purchase-orders',
-                    icon: <ShoppingCartOutlined />,
-                    label: 'Purchase Orders',
-                },
-                {
-                    key: 'expense-claims',
-                    icon: <DollarOutlined />,
-                    label: 'Expense Claims',
-                },
-                {
-                    key: 'material-requests',
-                    icon: <InboxOutlined />,
-                    label: 'Material Requests',
-                },
-                {
-                    key: 'leave-applications',
-                    icon: <CalendarOutlined />,
-                    label: 'Leave Applications',
                 },
                 {
                     key: 'attendance',
@@ -195,7 +197,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             icon: <LogoutOutlined />,
             label: 'Logout',
             danger: true,
-            onClick: logout,
+            onClick: confirmLogout,
         },
     ];
 
@@ -211,7 +213,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     const getPageTitle = () => {
         const routes: Record<string, string> = {
             dashboard: 'Executive Dashboard',
-            employees: 'Employees',
+            'health-professionals': 'Health Professionals',
             assets: 'Assets',
             facilities: 'Facilities',
             affiliations: 'Affiliations',
@@ -219,10 +221,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             'bulk-upload/new': 'New Upload',
             'bulk-upload/status': 'Upload Status',
             licenses: 'Licenses',
-            'purchase-orders': 'Purchase Orders',
-            'expense-claims': 'Expense Claims',
-            'material-requests': 'Material Requests',
-            'leave-applications': 'Leave Applications',
             attendance: 'Attendance',
             'user-management': 'User Management',
             'create-user': 'Create User',
@@ -510,7 +508,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                 </Tooltip>
 
                                 <Tooltip title="Notifications">
-                                    <Badge count={5} size="small">
+                                    <Badge count={0} showZero size="small">
                                         <Button type="text" icon={<BellOutlined />} style={{ width: '40px', height: '40px' }} />
                                     </Badge>
                                 </Tooltip>

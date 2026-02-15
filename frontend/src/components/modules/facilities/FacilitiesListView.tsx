@@ -1,27 +1,24 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import {
     Table,
     Card,
-    Row,
-    Col,
-    Statistic,
     Tag,
     Input,
     Space,
     Typography,
     Badge,
     Button,
-    theme
+    theme,
+    Select,
+    Tooltip,
 } from 'antd';
 import {
     MedicineBoxOutlined,
-    GlobalOutlined,
-    CheckCircleOutlined,
     CloudServerOutlined,
     SearchOutlined,
     ReloadOutlined,
     HomeOutlined,
-    InfoCircleOutlined
+    ClearOutlined,
 } from '@ant-design/icons';
 import useFacilitiesModuleStore from '../../../stores/modules/facilitiesModuleStore';
 import useFacilityStore from '../../../stores/facilityStore';
@@ -29,6 +26,7 @@ import { TableSkeleton } from '../../shared/Skeleton/Skeleton';
 import EmptyState from '../../shared/EmptyState/EmptyState';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { COMPONENT_WIDTHS } from '../../../styles/tokens';
+import FacilityDetailDrawer from './FacilityDetailDrawer';
 
 const { Text, Title } = Typography;
 
@@ -46,9 +44,33 @@ const FacilitiesListView: React.FC = () => {
         setFilters
     } = useFacilitiesModuleStore();
 
+    // Drawer state
+    const [drawerVisible, setDrawerVisible] = useState(false);
+    const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
+
+    // Search state
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCounty, setSelectedCounty] = useState<string | undefined>();
+    const [selectedLevel, setSelectedLevel] = useState<string | undefined>();
+    const [selectedOperationalStatus, setSelectedOperationalStatus] = useState<string | undefined>();
+
     const handleRefresh = useCallback(() => {
         fetchFacilities();
     }, [fetchFacilities]);
+
+    const handleSearch = (value: string) => {
+        setSearchTerm(value);
+    };
+
+    const handleViewFacility = (facilityId: string) => {
+        setSelectedFacilityId(facilityId);
+        setDrawerVisible(true);
+    };
+
+    const handleCloseDrawer = () => {
+        setDrawerVisible(false);
+        setSelectedFacilityId(null);
+    };
 
     useEffect(() => {
         handleRefresh();
@@ -60,6 +82,51 @@ const FacilitiesListView: React.FC = () => {
         if (level?.includes('L4')) return '#13c2c2';
         return '#52c41a';
     };
+
+    const countyOptions = useMemo(
+        () =>
+            Array.from(new Set(facilities.map((f) => f.county).filter(Boolean) as string[]))
+                .sort((a, b) => a.localeCompare(b))
+                .map((county) => ({ label: county, value: county })),
+        [facilities]
+    );
+
+    const levelOptions = useMemo(
+        () =>
+            Array.from(new Set(facilities.map((f) => f.kephl_level).filter(Boolean) as string[]))
+                .sort((a, b) => a.localeCompare(b))
+                .map((level) => ({ label: level, value: level })),
+        [facilities]
+    );
+
+    const operationalStatusOptions = useMemo(
+        () =>
+            Array.from(new Set(facilities.map((f) => f.operational_status).filter(Boolean) as string[]))
+                .sort((a, b) => a.localeCompare(b))
+                .map((status) => ({ label: status, value: status })),
+        [facilities]
+    );
+
+    const activeFiltersCount = [searchTerm, selectedCounty, selectedLevel, selectedOperationalStatus].filter(Boolean).length;
+
+    // Filter facilities based on search term + selected filters
+    const filteredFacilities = facilities.filter(facility => {
+        if (selectedCounty && facility.county !== selectedCounty) return false;
+        if (selectedLevel && facility.kephl_level !== selectedLevel) return false;
+        if (selectedOperationalStatus && facility.operational_status !== selectedOperationalStatus) return false;
+
+        if (!searchTerm) return true;
+
+        const searchLower = searchTerm.trim().toLowerCase();
+        return (
+            facility.facility_name?.toLowerCase().includes(searchLower) ||
+            facility.name?.toLowerCase().includes(searchLower) ||
+            facility.hie_id?.toLowerCase().includes(searchLower) ||
+            facility.county?.toLowerCase().includes(searchLower) ||
+            facility.kephl_level?.toLowerCase().includes(searchLower) ||
+            facility.facility_mfl?.toLowerCase().includes(searchLower)
+        );
+    });
 
     const columns = [
         {
@@ -121,71 +188,34 @@ const FacilitiesListView: React.FC = () => {
             key: 'status',
             width: 160,
             render: (status: string) => (
-                <Badge status={status === 'Operational' ? 'success' : 'warning'} text={status || 'Operational'} />
+                <Badge status={status === 'Operational' ? 'success' : 'warning'} text={status || 'N/A'} />
             )
         },
         {
             title: 'Action',
             key: 'action',
             fixed: 'right' as const,
-            width: 100,
-            render: () => <Button type="link">View Map</Button>
+            width: 120,
+            render: (record: any) => (
+                <Button
+                    type="link"
+                    onClick={() => handleViewFacility(record.name)}
+                >
+                    View Details
+                </Button>
+            )
         }
     ];
 
     return (
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
-            {/* Metric Section */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={12} sm={6}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                        <Statistic
-                            title={<Text type="secondary" style={{ fontSize: 12 }}>TOTAL FACILITIES</Text>}
-                            value={facilities.length}
-                            prefix={<GlobalOutlined style={{ color: token.colorPrimary, marginRight: 8 }} />}
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                        <Statistic
-                            title={<Text type="secondary" style={{ fontSize: 12 }}>OPERATIONAL</Text>}
-                            value={facilities.filter(f => f.operational_status === 'Operational').length}
-                            prefix={<CheckCircleOutlined style={{ color: '#52c41a', marginRight: 8 }} />}
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                        <Statistic
-                            title={<Text type="secondary" style={{ fontSize: 12 }}>LEVEL 4-6</Text>}
-                            value={facilities.filter(f => f.kephl_level?.match(/L[4-6]/)).length}
-                            prefix={<MedicineBoxOutlined style={{ color: '#722ed1', marginRight: 8 }} />}
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                        <Statistic
-                            title={<Text type="secondary" style={{ fontSize: 12 }}>COUNTIES</Text>}
-                            value={new Set(facilities.map(f => f.county)).size}
-                            prefix={<InfoCircleOutlined style={{ color: '#faad14', marginRight: 8 }} />}
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
-                        />
-                    </Card>
-                </Col>
-            </Row>
-
             {/* Table Section */}
             <Card
                 style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
                 bodyStyle={{ padding: 0 }}
                 title={
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '16px 24px' }}>
-                        <Title level={4} style={{ margin: 0 }}>Health Facility Directory</Title>
+                        <Title level={4} style={{ margin: 0 }}>Health Facilities</Title>
                         <Space wrap>
                             <Input
                                 placeholder="Search facilities..."
@@ -196,7 +226,57 @@ const FacilitiesListView: React.FC = () => {
                                     borderRadius: 8
                                 }}
                                 allowClear
+                                value={searchTerm}
+                                onChange={(e) => handleSearch(e.target.value)}
                             />
+                            <Select
+                                placeholder="County"
+                                allowClear
+                                value={selectedCounty}
+                                onChange={setSelectedCounty}
+                                options={countyOptions}
+                                style={{
+                                    width: getResponsiveValue(COMPONENT_WIDTHS.facilitySelector),
+                                    minWidth: isMobile ? 140 : 170
+                                }}
+                            />
+                            <Select
+                                placeholder="KEPHL Level"
+                                allowClear
+                                value={selectedLevel}
+                                onChange={setSelectedLevel}
+                                options={levelOptions}
+                                style={{
+                                    width: getResponsiveValue(COMPONENT_WIDTHS.facilitySelector),
+                                    minWidth: isMobile ? 140 : 170
+                                }}
+                            />
+                            <Select
+                                placeholder="Status"
+                                allowClear
+                                value={selectedOperationalStatus}
+                                onChange={setSelectedOperationalStatus}
+                                options={operationalStatusOptions}
+                                style={{
+                                    width: getResponsiveValue(COMPONENT_WIDTHS.facilitySelector),
+                                    minWidth: isMobile ? 130 : 150
+                                }}
+                            />
+                            {activeFiltersCount > 0 && (
+                                <Tooltip title="Clear all filters">
+                                    <Button
+                                        icon={<ClearOutlined />}
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            setSelectedCounty(undefined);
+                                            setSelectedLevel(undefined);
+                                            setSelectedOperationalStatus(undefined);
+                                        }}
+                                    >
+                                        Clear ({activeFiltersCount})
+                                    </Button>
+                                </Tooltip>
+                            )}
                             <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
                         </Space>
                     </div>
@@ -204,20 +284,28 @@ const FacilitiesListView: React.FC = () => {
             >
                 {loading ? (
                     <TableSkeleton rows={filters.pageSize} />
-                ) : facilities.length > 0 ? (
+                ) : filteredFacilities.length > 0 ? (
                     <Table
-                        dataSource={facilities}
+                        dataSource={filteredFacilities}
                         columns={columns}
                         rowKey="name"
                         pagination={{
                             current: filters.page,
                             pageSize: filters.pageSize,
-                            total: total,
+                            total: filteredFacilities.length,
                             showSizeChanger: true,
                             onChange: (page, pageSize) => setFilters({ page, pageSize })
                         }}
                         scroll={{ x: 'max-content' }}
                         size="middle"
+                    />
+                ) : searchTerm ? (
+                    <EmptyState
+                        type="no-results"
+                        title="No Facilities Found"
+                        description={`No facilities match your search "${searchTerm}". Try different keywords.`}
+                        onAction={() => setSearchTerm('')}
+                        actionText="Clear Search"
                     />
                 ) : (
                     <EmptyState
@@ -229,6 +317,13 @@ const FacilitiesListView: React.FC = () => {
                     />
                 )}
             </Card>
+
+            {/* Facility Detail Drawer */}
+            <FacilityDetailDrawer
+                visible={drawerVisible}
+                facilityId={selectedFacilityId}
+                onClose={handleCloseDrawer}
+            />
         </div>
     );
 };

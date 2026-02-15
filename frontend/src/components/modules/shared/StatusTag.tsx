@@ -43,4 +43,5 @@ const StatusTag: React.FC<StatusTagProps> = ({ status }) => {
     );
 };
 
+export { StatusTag };
 export default StatusTag;

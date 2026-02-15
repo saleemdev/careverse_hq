@@ -8,8 +8,8 @@ from .hie_settings import HIE
 from .encryption import SecureTransportManager
 from requests import HTTPError, RequestException
 from frappe.exceptions import ValidationError, PermissionError, UniqueValidationError
-from .utils import (
-    api_response,
+from .utils import api_response
+from healthpro_erp.api.utils import (
     verify_otp,
     mask_phone,
     mask_name,

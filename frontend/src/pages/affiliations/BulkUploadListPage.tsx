@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Card,
     Table,
@@ -7,13 +7,11 @@ import {
     Space,
     Typography,
     Tag,
-    Breadcrumb,
     Row,
     Col,
-    Statistic,
-    Select,
     Progress,
-    theme
+    theme,
+    Tooltip
 } from 'antd';
 import {
     PlusOutlined,
@@ -24,11 +22,12 @@ import {
     CheckCircleOutlined,
     CloseCircleOutlined,
     SyncOutlined,
-    HomeOutlined,
     CloudUploadOutlined,
-    FileTextOutlined
+    FileTextOutlined,
+    FilterOutlined
 } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
+import type { ColumnsType, FilterValue, SorterResult } from 'antd/es/table/interface';
+import type { TablePaginationConfig } from 'antd/es/table';
 import EmptyState from '../../components/shared/EmptyState/EmptyState';
 
 const { Title, Text } = Typography;
@@ -36,6 +35,8 @@ const { Title, Text } = Typography;
 interface BulkUploadJob {
     name: string;
     facility: string;
+    facility_name: string;
+    facility_id: string;
     uploaded_by: string;
     upload_date: string;
     status: string;
@@ -45,6 +46,7 @@ interface BulkUploadJob {
     verified?: number;
     created?: number;
     failed?: number;
+    pending?: number;
 }
 
 interface BulkUploadListPageProps {
@@ -56,206 +58,234 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
     const [jobs, setJobs] = useState<BulkUploadJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
+    const [filteredInfo, setFilteredInfo] = useState<Record<string, FilterValue | null>>({});
+    const [sortedInfo, setSortedInfo] = useState<SorterResult<BulkUploadJob>>({});
+    const formatDateTime = (date?: string) => {
+        if (!date) return '-';
+        const parsed = new Date(date);
+        if (Number.isNaN(parsed.getTime())) return '-';
+        return parsed.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
 
     // Fetch all bulk upload jobs
     const fetchJobs = useCallback(async () => {
         setLoading(true);
         try {
-            const filters: any = {};
-            if (statusFilter !== 'all') {
-                filters.status = statusFilter;
-            }
+            const params = new URLSearchParams();
+            params.append('page', '1');
+            params.append('per_page', '100');
 
-            const response = await fetch('/api/method/frappe.client.get_list', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
-                },
-                body: JSON.stringify({
-                    doctype: 'Bulk Health Worker Upload',
-                    fields: ['name', 'facility', 'uploaded_by', 'upload_date', 'status', 'started_at', 'completed_at'],
-                    filters: filters,
-                    order_by: 'creation desc',
-                    limit_page_length: 100
-                })
-            });
+            const response = await fetch(
+                `/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_bulk_upload_jobs?${params.toString()}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    },
+                    credentials: 'include'
+                }
+            );
 
             if (!response.ok) {
-                throw new Error('Failed to fetch upload jobs');
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch upload jobs');
             }
 
             const result = await response.json();
-            const jobsData = result.data || [];
 
-            // Fetch item counts for each job
-            const jobsWithCounts = await Promise.all(
-                jobsData.map(async (job: BulkUploadJob) => {
-                    try {
-                        const itemsResponse = await fetch('/api/method/frappe.client.get_list', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-Frappe-CSRF-Token': (window as any).csrf_token
-                            },
-                            body: JSON.stringify({
-                                doctype: 'Bulk Health Worker Upload Item',
-                                fields: ['verification_status', 'onboarding_status'],
-                                filters: { parent: job.name },
-                                limit_page_length: 1000
-                            })
-                        });
-
-                        if (itemsResponse.ok) {
-                            const itemsResult = await itemsResponse.json();
-                            const items = itemsResult.data || [];
-
-                            job.total_records = items.length;
-                            job.verified = items.filter((i: any) => i.verification_status === 'Verified').length;
-                            job.created = items.filter((i: any) => i.onboarding_status === 'Success').length;
-                            job.failed = items.filter((i: any) => i.onboarding_status === 'Failed').length;
-                        }
-                    } catch (error) {
-                        console.error(`Error fetching items for job ${job.name}:`, error);
-                    }
-
-                    return job;
-                })
-            );
-
-            setJobs(jobsWithCounts);
+            if (result.status === 'success') {
+                setJobs(result.data.jobs || []);
+            } else {
+                throw new Error(result.message || 'Failed to fetch upload jobs');
+            }
         } catch (error: any) {
             console.error('Error fetching jobs:', error);
         } finally {
             setLoading(false);
         }
-    }, [statusFilter]);
+    }, []);
 
     useEffect(() => {
         fetchJobs();
     }, [fetchJobs]);
 
-    // Get status color
-    const getStatusColor = (status: string) => {
-        switch (status?.toLowerCase()) {
-            case 'completed':
-                return 'success';
-            case 'processing':
-                return 'processing';
-            case 'queued':
-                return 'default';
-            case 'failed':
-                return 'error';
-            default:
-                return 'default';
-        }
-    };
-
-    // Get status icon
-    const getStatusIcon = (status: string) => {
-        switch (status?.toLowerCase()) {
-            case 'completed':
-                return <CheckCircleOutlined />;
-            case 'processing':
-                return <SyncOutlined spin />;
-            case 'queued':
-                return <ClockCircleOutlined />;
-            case 'failed':
-                return <CloseCircleOutlined />;
-            default:
-                return <FileTextOutlined />;
-        }
+    // Get status properties
+    const getStatusProps = (status: string) => {
+        const statusMap = {
+            completed: { color: 'success', icon: <CheckCircleOutlined /> },
+            processing: { color: 'processing', icon: <SyncOutlined spin /> },
+            queued: { color: 'default', icon: <ClockCircleOutlined /> },
+            failed: { color: 'error', icon: <CloseCircleOutlined /> }
+        };
+        return statusMap[status?.toLowerCase() as keyof typeof statusMap] ||
+               { color: 'default', icon: <FileTextOutlined /> };
     };
 
     // Calculate progress
     const getProgress = (job: BulkUploadJob) => {
         if (!job.total_records || job.total_records === 0) return 0;
-        const processed = (job.verified || 0) + (job.failed || 0);
+        const pending = job.pending || 0;
+        const processed = job.total_records - pending;
         return Math.round((processed / job.total_records) * 100);
     };
+
+    // Get unique values for filters - memoized to prevent filter dropdown issues
+    const statusFilters = useMemo(() => {
+        const statuses = Array.from(new Set(jobs.map(job => job.status))).sort();
+        return statuses.map(status => ({ text: status, value: status }));
+    }, [jobs]);
+
+    const facilityFilters = useMemo(() => {
+        const facilities = Array.from(
+            new Set(jobs.map((job) => (job.facility_name || '').trim() || 'Unknown Facility'))
+        ).sort();
+        return facilities.map(facility => ({ text: facility, value: facility }));
+    }, [jobs]);
 
     // Filter jobs by search text
     const getFilteredJobs = () => {
         if (!searchText) return jobs;
-
+        const search = searchText.toLowerCase();
         return jobs.filter(job =>
-            job.name.toLowerCase().includes(searchText.toLowerCase()) ||
-            job.facility.toLowerCase().includes(searchText.toLowerCase()) ||
-            job.uploaded_by.toLowerCase().includes(searchText.toLowerCase())
+            job.name.toLowerCase().includes(search) ||
+            (job.facility_name || '').toLowerCase().includes(search) ||
+            (job.facility_id || '').toLowerCase().includes(search) ||
+            (job.facility || '').toLowerCase().includes(search) ||
+            job.uploaded_by.toLowerCase().includes(search)
         );
     };
 
-    // Calculate summary statistics
-    const getSummaryStats = () => {
-        const total = jobs.length;
-        const active = jobs.filter(j => j.status === 'Queued' || j.status === 'Processing').length;
-        const completed = jobs.filter(j => j.status === 'Completed').length;
-        const failed = jobs.filter(j => j.status === 'Failed').length;
-
-        return { total, active, completed, failed };
+    // Handle table changes
+    const handleTableChange = (
+        pagination: TablePaginationConfig,
+        filters: Record<string, FilterValue | null>,
+        sorter: SorterResult<BulkUploadJob> | SorterResult<BulkUploadJob>[]
+    ) => {
+        setFilteredInfo(filters);
+        setSortedInfo(sorter as SorterResult<BulkUploadJob>);
     };
 
-    const stats = getSummaryStats();
-
-    // Table columns
+    // Table columns with advanced features
     const columns: ColumnsType<BulkUploadJob> = [
         {
-            title: 'Job ID',
+            title: 'Upload Job',
             dataIndex: 'name',
             key: 'name',
-            width: 180,
+            width: 220,
             fixed: 'left',
-            render: (name: string) => (
-                <Text strong style={{ fontFamily: 'monospace', fontSize: 13 }}>
-                    {name}
-                </Text>
+            sorter: (a, b) => a.name.localeCompare(b.name),
+            sortOrder: sortedInfo.columnKey === 'name' ? sortedInfo.order : null,
+            render: (name: string, record: BulkUploadJob) => (
+                <Space direction="vertical" size={0}>
+                    <Text
+                        className="admin-detail"
+                        style={{
+                            fontFamily: 'SF Mono, Monaco, Consolas, monospace',
+                            fontSize: 11,
+                            color: token.colorTextTertiary,
+                            opacity: 0.75
+                        }}
+                    >
+                        {name}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                        {formatDateTime(record.upload_date)}
+                    </Text>
+                </Space>
             )
         },
         {
             title: 'Facility',
-            dataIndex: 'facility',
-            key: 'facility',
-            width: 200,
-            render: (facility: string) => <Text>{facility}</Text>
+            dataIndex: 'facility_name',
+            key: 'facility_name',
+            width: 240,
+            filters: facilityFilters,
+            filteredValue: filteredInfo.facility_name || null,
+            onFilter: (value, record) => (((record.facility_name || '').trim() || 'Unknown Facility') === value),
+            sorter: (a, b) =>
+                (((a.facility_name || '').trim() || 'Unknown Facility')).localeCompare(((b.facility_name || '').trim() || 'Unknown Facility')),
+            sortOrder: sortedInfo.columnKey === 'facility_name' ? sortedInfo.order : null,
+            render: (facility_name: string, record: BulkUploadJob) => (
+                <Space direction="vertical" size={0}>
+                    <Text strong style={{ fontSize: 14 }}>
+                        {(facility_name || '').trim() || 'Unknown Facility'}
+                    </Text>
+                    {(record.facility_id || record.facility) && (
+                        <Text
+                            type="secondary"
+                            className="admin-detail"
+                            style={{
+                                fontSize: 11,
+                                fontFamily: 'SF Mono, Monaco, Consolas, monospace',
+                                opacity: 0.6
+                            }}
+                        >
+                            ID: {record.facility_id || record.facility}
+                        </Text>
+                    )}
+                </Space>
+            )
         },
         {
-            title: 'Uploaded By',
-            dataIndex: 'uploaded_by',
-            key: 'uploaded_by',
-            width: 180
-        },
-        {
-            title: 'Date',
-            dataIndex: 'upload_date',
-            key: 'upload_date',
-            width: 180,
-            render: (date: string) => date ? new Date(date).toLocaleString() : '-'
-        },
-        {
-            title: 'Total Records',
+            title: 'Records',
             dataIndex: 'total_records',
             key: 'total_records',
-            width: 120,
+            width: 100,
             align: 'center',
-            render: (count: number) => <Text strong>{count || 0}</Text>
+            sorter: (a, b) => (a.total_records || 0) - (b.total_records || 0),
+            sortOrder: sortedInfo.columnKey === 'total_records' ? sortedInfo.order : null,
+            render: (count: number) => (
+                <Text strong style={{ fontSize: 15, color: token.colorPrimary }}>
+                    {count?.toLocaleString() || 0}
+                </Text>
+            )
         },
         {
             title: 'Progress',
             key: 'progress',
-            width: 180,
+            width: 200,
+            sorter: (a, b) => getProgress(a) - getProgress(b),
+            sortOrder: sortedInfo.columnKey === 'progress' ? sortedInfo.order : null,
             render: (record: BulkUploadJob) => {
                 const progress = getProgress(record);
+                const pending = record.pending || 0;
+                const verified = record.verified || 0;
+                const created = record.created || 0;
+
                 return (
-                    <Progress
-                        percent={progress}
-                        size="small"
-                        status={
-                            record.status === 'Completed' ? 'success' :
-                            record.status === 'Failed' ? 'exception' :
-                            'active'
+                    <Tooltip
+                        title={
+                            <div>
+                                <div>Verified: {verified}</div>
+                                <div>Onboarded: {created}</div>
+                                <div>Pending: {pending}</div>
+                            </div>
                         }
-                    />
+                    >
+                        <Progress
+                            percent={progress}
+                            size="small"
+                            strokeColor={{
+                                '0%': 'rgba(24, 144, 255, 0.5)',
+                                '100%': 'rgba(24, 144, 255, 1)'
+                            }}
+                            trailColor="rgba(0, 0, 0, 0.04)"
+                            status={
+                                record.status === 'Completed' ? 'success' :
+                                record.status === 'Failed' ? 'exception' :
+                                progress === 100 ? 'success' :
+                                'active'
+                            }
+                            style={{ marginBottom: 0 }}
+                        />
+                    </Tooltip>
                 );
             }
         },
@@ -263,109 +293,140 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
             title: 'Status',
             dataIndex: 'status',
             key: 'status',
-            width: 130,
-            render: (status: string) => (
-                <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
-                    {status || 'Pending'}
-                </Tag>
-            )
+            width: 120,
+            filters: statusFilters,
+            filteredValue: filteredInfo.status || null,
+            onFilter: (value, record) => record.status === value,
+            render: (status: string) => {
+                const props = getStatusProps(status);
+                return (
+                    <Tag
+                        color={props.color}
+                        icon={props.icon}
+                        style={{
+                            borderRadius: 6,
+                            padding: '2px 10px',
+                            fontSize: 12,
+                            border: 'none'
+                        }}
+                    >
+                        {status || 'Pending'}
+                    </Tag>
+                );
+            }
         },
         {
-            title: 'Actions',
+            title: '',
             key: 'actions',
             fixed: 'right',
-            width: 120,
+            width: 60,
             render: (record: BulkUploadJob) => (
                 <Button
-                    type="link"
+                    type="text"
                     icon={<EyeOutlined />}
                     onClick={() => navigateToRoute('bulk-upload/status', record.name)}
-                >
-                    View Details
-                </Button>
+                    style={{
+                        color: token.colorPrimary,
+                        transition: 'all 0.2s ease'
+                    }}
+                />
             )
         }
     ];
 
-    return (
-        <div style={{ padding: '24px' }}>
-            {/* Breadcrumb */}
-            <Breadcrumb style={{ marginBottom: 24 }}>
-                <Breadcrumb.Item>
-                    <HomeOutlined />
-                </Breadcrumb.Item>
-                <Breadcrumb.Item>
-                    <CloudUploadOutlined /> Bulk Upload
-                </Breadcrumb.Item>
-            </Breadcrumb>
+    const renderExpandedJobDetails = (record: BulkUploadJob) => (
+        <div style={{ padding: '8px 8px 6px 40px' }}>
+            <Row gutter={[16, 12]}>
+                <Col xs={24} md={12} lg={8}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>Submitted By</Text>
+                    <div>
+                        <Text style={{ fontSize: 13 }}>{record.uploaded_by || '-'}</Text>
+                    </div>
+                    <div style={{ marginTop: 6 }}>
+                        <Text type="secondary" style={{ fontSize: 11 }}>Facility Reference</Text>
+                    </div>
+                    <div>
+                        <Text style={{ fontSize: 12 }}>{record.facility_id || record.facility || '-'}</Text>
+                    </div>
+                </Col>
 
-            {/* Summary Statistics */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} sm={12} md={6}>
-                    <Card style={{ borderRadius: 12 }}>
-                        <Statistic
-                            title="Total Uploads"
-                            value={stats.total}
-                            prefix={<FileTextOutlined style={{ color: token.colorPrimary }} />}
-                            valueStyle={{ color: token.colorPrimary }}
-                        />
-                    </Card>
+                <Col xs={24} md={12} lg={8}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>Timeline</Text>
+                    <div>
+                        <Text style={{ fontSize: 12 }}>Uploaded: {formatDateTime(record.upload_date)}</Text>
+                    </div>
+                    <div>
+                        <Text style={{ fontSize: 12 }}>Started: {formatDateTime(record.started_at)}</Text>
+                    </div>
+                    <div>
+                        <Text style={{ fontSize: 12 }}>Completed: {formatDateTime(record.completed_at)}</Text>
+                    </div>
                 </Col>
-                <Col xs={24} sm={12} md={6}>
-                    <Card style={{ borderRadius: 12 }}>
-                        <Statistic
-                            title="Active Jobs"
-                            value={stats.active}
-                            prefix={<SyncOutlined style={{ color: token.colorWarning }} />}
-                            valueStyle={{ color: token.colorWarning }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={24} sm={12} md={6}>
-                    <Card style={{ borderRadius: 12 }}>
-                        <Statistic
-                            title="Completed"
-                            value={stats.completed}
-                            prefix={<CheckCircleOutlined style={{ color: token.colorSuccess }} />}
-                            valueStyle={{ color: token.colorSuccess }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={24} sm={12} md={6}>
-                    <Card style={{ borderRadius: 12 }}>
-                        <Statistic
-                            title="Failed"
-                            value={stats.failed}
-                            prefix={<CloseCircleOutlined style={{ color: token.colorError }} />}
-                            valueStyle={{ color: token.colorError }}
-                        />
-                    </Card>
+
+                <Col xs={24} md={24} lg={8}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>Processing Breakdown</Text>
+                    <div style={{ marginTop: 6 }}>
+                        <Space wrap size={[8, 8]}>
+                            <Tag color="blue">Total: {record.total_records || 0}</Tag>
+                            <Tag color="processing">Verified: {record.verified || 0}</Tag>
+                            <Tag color="success">Onboarded: {record.created || 0}</Tag>
+                            <Tag color="error">Failed: {record.failed || 0}</Tag>
+                            <Tag color="warning">Pending: {record.pending || 0}</Tag>
+                        </Space>
+                    </div>
                 </Col>
             </Row>
+        </div>
+    );
 
-            {/* Main Card */}
-            <Card
-                style={{
-                    borderRadius: 12,
-                    border: 'none',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
-                }}
-            >
-                {/* Header */}
+    return (
+        <div style={{
+            padding: '32px 24px',
+            background: `
+                radial-gradient(circle at 20% 30%, rgba(24, 144, 255, 0.02) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(24, 144, 255, 0.015) 0%, transparent 50%),
+                ${token.colorBgLayout}
+            `,
+            minHeight: '100vh'
+        }}>
+            {/* Header Section - Proximity & Continuity */}
+            <div style={{ marginBottom: 20 }}>
                 <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 24,
+                    alignItems: 'flex-start',
+                    marginBottom: 0,
                     flexWrap: 'wrap',
                     gap: 16
                 }}>
                     <div>
-                        <Title level={2} style={{ margin: 0, marginBottom: 8 }}>
-                            <CloudUploadOutlined style={{ marginRight: 12, color: token.colorPrimary }} />
+                        <Title
+                            level={2}
+                            style={{
+                                margin: 0,
+                                marginBottom: 8,
+                                fontSize: 28,
+                                fontWeight: 600,
+                                color: token.colorText,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 12
+                            }}
+                        >
+                            <CloudUploadOutlined style={{
+                                opacity: 0.5,
+                                color: token.colorTextTertiary
+                            }} />
                             Bulk Health Worker Upload
                         </Title>
-                        <Text type="secondary">
+                        <Text
+                            type="secondary"
+                            style={{
+                                fontSize: 14,
+                                display: 'block',
+                                marginTop: 4
+                            }}
+                        >
                             Upload and validate health worker data in bulk
                         </Text>
                     </div>
@@ -374,68 +435,139 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                         icon={<PlusOutlined />}
                         size="large"
                         onClick={() => navigateToRoute('bulk-upload/new')}
+                        style={{
+                            borderRadius: 8,
+                            height: 44,
+                            paddingLeft: 24,
+                            paddingRight: 24,
+                            fontWeight: 500,
+                            boxShadow: `0 4px 12px ${token.colorPrimary}25`
+                        }}
                     >
                         New Upload
                     </Button>
                 </div>
+            </div>
 
-                {/* Filters */}
-                <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                    <Space wrap>
+            {/* Main Content Card - Figure/Ground */}
+            <Card
+                bordered={false}
+                style={{
+                    borderRadius: 16,
+                    background: 'rgba(255, 255, 255, 0.7)',
+                    backdropFilter: 'blur(18px) saturate(180%)',
+                    WebkitBackdropFilter: 'blur(18px) saturate(180%)',
+                    border: '1px solid rgba(255, 255, 255, 0.18)',
+                    boxShadow: '0 8px 32px rgba(31, 38, 135, 0.1)'
+                }}
+                bodyStyle={{ padding: 0 }}
+            >
+                {/* Search and Filter Bar */}
+                <div style={{
+                    padding: '20px 24px',
+                    borderBottom: `1px solid ${token.colorBorderSecondary}`
+                }}>
+                    <Space
+                        style={{
+                            width: '100%',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap'
+                        }}
+                    >
                         <Input
-                            placeholder="Search by Job ID or Facility..."
-                            prefix={<SearchOutlined />}
+                            placeholder="Search jobs, facilities, or users..."
+                            prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
-                            style={{ width: 300 }}
                             allowClear
+                            style={{
+                                width: 320,
+                                borderRadius: 8
+                            }}
                         />
-                        <Select
-                            value={statusFilter}
-                            onChange={setStatusFilter}
-                            style={{ width: 150 }}
-                            options={[
-                                { label: 'All Status', value: 'all' },
-                                { label: 'Queued', value: 'Queued' },
-                                { label: 'Processing', value: 'Processing' },
-                                { label: 'Completed', value: 'Completed' },
-                                { label: 'Failed', value: 'Failed' }
-                            ]}
-                        />
+                        <Space>
+                            <Tooltip title="Use table column filters for advanced filtering">
+                                <Button
+                                    icon={<FilterOutlined />}
+                                    style={{ borderRadius: 8 }}
+                                    type={Object.keys(filteredInfo).filter(key => filteredInfo[key]).length > 0 ? 'primary' : 'default'}
+                                >
+                                    {Object.keys(filteredInfo).filter(key => filteredInfo[key]).length} Filters
+                                </Button>
+                            </Tooltip>
+                            <Button
+                                icon={<ReloadOutlined />}
+                                onClick={fetchJobs}
+                                loading={loading}
+                                style={{ borderRadius: 8 }}
+                            >
+                                Refresh
+                            </Button>
+                        </Space>
                     </Space>
-                    <Button
-                        icon={<ReloadOutlined />}
-                        onClick={fetchJobs}
-                        loading={loading}
-                    >
-                        Refresh
-                    </Button>
-                </Space>
+                </div>
 
                 {/* Table */}
-                {jobs.length === 0 && !loading ? (
-                    <EmptyState
-                        type="no-data"
-                        title="No Upload Jobs Yet"
-                        description="Start by uploading your first batch of health worker data"
-                        onAction={() => navigateToRoute('bulk-upload/new')}
-                        actionText="Create First Upload"
-                    />
-                ) : (
-                    <Table
-                        dataSource={getFilteredJobs()}
-                        columns={columns}
-                        rowKey="name"
-                        loading={loading}
-                        pagination={{
-                            pageSize: 20,
-                            showSizeChanger: true,
-                            showTotal: (total) => `Total ${total} jobs`
-                        }}
-                        scroll={{ x: 'max-content' }}
-                    />
-                )}
+                <div style={{ padding: 24 }}>
+                    {jobs.length === 0 && !loading ? (
+                        <EmptyState
+                            type="no-data"
+                            title="No Upload Jobs Yet"
+                            description="Start by uploading your first batch of health worker data"
+                            onAction={() => navigateToRoute('bulk-upload/new')}
+                            actionText="Create First Upload"
+                        />
+                    ) : (
+                        <Table
+                            dataSource={getFilteredJobs()}
+                            columns={columns}
+                            rowKey="name"
+                            loading={loading}
+                            expandable={{
+                                expandedRowRender: renderExpandedJobDetails,
+                                rowExpandable: () => true,
+                                columnWidth: 44
+                            }}
+                            onChange={handleTableChange}
+                            pagination={{
+                                pageSize: 20,
+                                showSizeChanger: true,
+                                showTotal: (total) => (
+                                    <Text type="secondary" style={{ fontSize: 13 }}>
+                                        {total} {total === 1 ? 'job' : 'jobs'}
+                                    </Text>
+                                ),
+                                style: { marginTop: 16 }
+                            }}
+                            tableLayout="fixed"
+                            scroll={{ x: 1040 }}
+                            style={{
+                                borderRadius: 8
+                            }}
+                            rowClassName={() => 'table-row-hover'}
+                        />
+                    )}
+                </div>
             </Card>
+
+            <style>{`
+                .table-row-hover:hover {
+                    background: ${token.colorBgTextHover} !important;
+                    transition: background 0.2s ease;
+                }
+                .ant-table-thead > tr > th {
+                    background: ${token.colorBgContainer} !important;
+                    font-weight: 600;
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    color: ${token.colorTextSecondary} !important;
+                    border-bottom: 2px solid ${token.colorBorderSecondary} !important;
+                }
+                .ant-table-cell {
+                    padding: 16px !important;
+                }
+            `}</style>
         </div>
     );
 };

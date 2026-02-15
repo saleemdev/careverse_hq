@@ -6,7 +6,8 @@ from .hie_settings import HIE
 from .encryption import SecureTransportManager
 from requests import HTTPError, RequestException
 from frappe.exceptions import ValidationError, PermissionError, UniqueValidationError
-from .utils import api_response, verify_otp, mask_phone, mask_name, send_otp
+from .utils import api_response
+from healthpro_erp.api.utils import verify_otp, mask_phone, mask_name, send_otp
 from frappe.email.doctype.email_template.email_template import get_email_template
 from .jwt_token_management import get_token_manager
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required, AuthError

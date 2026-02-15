@@ -12,6 +12,7 @@ import {
   Empty,
   Badge,
   Button,
+  Typography,
 } from 'antd';
 import {
   FileTextOutlined,
@@ -30,6 +31,8 @@ import {
   formatDate,
 } from '../../../utils/licenseHelpers';
 
+const { Text } = Typography;
+
 interface LicensesListViewProps {
   navigateToRoute?: (route: string, id?: string) => void;
 }
@@ -38,6 +41,7 @@ interface LicenseRecord {
   name: string;
   health_facility: string;
   facility_name: string;
+  facility_id?: string;
   license_type: string;
   license_type_name: string;
   license_number: string;
@@ -114,6 +118,8 @@ const LicensesListView: React.FC<LicensesListViewProps> = ({ navigateToRoute }) 
         (l) =>
           l.license_number?.toLowerCase().includes(lowerSearch) ||
           l.facility_name?.toLowerCase().includes(lowerSearch) ||
+          l.facility_id?.toLowerCase().includes(lowerSearch) ||
+          l.health_facility?.toLowerCase().includes(lowerSearch) ||
           l.license_type_name?.toLowerCase().includes(lowerSearch)
       );
     }
@@ -161,7 +167,22 @@ const LicensesListView: React.FC<LicensesListViewProps> = ({ navigateToRoute }) 
       title: 'Facility',
       dataIndex: 'facility_name',
       key: 'facility_name',
-      width: 200,
+      width: 240,
+      render: (_: string, record: LicenseRecord) => {
+        const facilityName = record.facility_name || record.health_facility || 'Unknown Facility';
+        const facilityId = record.facility_id || record.health_facility || '';
+
+        return (
+          <Space direction="vertical" size={0}>
+            <Text strong>{facilityName}</Text>
+            {facilityId && (
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                ID: {facilityId}
+              </Text>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: 'Type',

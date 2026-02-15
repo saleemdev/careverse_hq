@@ -72,7 +72,22 @@ export const frappeCall = async <T = any>(
     methodName: string,
     params: Record<string, any> = {}
 ): Promise<ApiResponse<T>> => {
-    const queryString = new URLSearchParams(params).toString();
+    const sanitizedParams = Object.entries(params).reduce<Record<string, string>>((acc, [key, value]) => {
+        if (value === undefined || value === null) return acc;
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            const lowered = trimmed.toLowerCase();
+            if (!trimmed || lowered === 'undefined' || lowered === 'null') return acc;
+            acc[key] = trimmed;
+            return acc;
+        }
+
+        acc[key] = String(value);
+        return acc;
+    }, {});
+
+    const queryString = new URLSearchParams(sanitizedParams).toString();
     const endpoint = `/api/method/${methodName}${queryString ? `?${queryString}` : ''}`;
     return apiCall<T>('GET', endpoint);
 };
@@ -317,6 +332,77 @@ export const hrApi = {
     },
 };
 
+// Health Professionals API - Complete health professional management
+export const healthProfessionalsApi = {
+    // Get health professionals list with pagination and filters
+    getList: async (params: {
+        page?: number;
+        page_size?: number;
+        search?: string;
+        status?: string;
+        cadre?: string;
+        specialty?: string;
+    }): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.health_professionals.get_health_professionals', params);
+    },
+
+    // Get detailed health professional information including affiliations
+    getDetail: async (id: string): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.health_professionals.get_health_professional_detail', { id });
+    },
+
+    // Get list of professional cadres for dropdown
+    getCadreOptions: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.health_professionals.get_professional_cadres');
+    },
+
+    // Get list of specialties, optionally filtered by cadre
+    getSpecialtyOptions: async (cadre?: string): Promise<ApiResponse> => {
+        const params: Record<string, any> = {};
+        if (cadre) params.cadre = cadre;
+        return frappeCall('careverse_hq.api.health_professionals.get_specialties_by_cadre', params);
+    },
+};
+
+// Employees API - Employee management with Company-based RBAC
+export const employeesApi = {
+    // Get employees list with pagination and filters
+    getList: async (params: {
+        page?: number;
+        page_size?: number;
+        search?: string;
+        status?: string;
+        company?: string;
+        facility?: string;
+        department?: string;
+        cadre?: string;
+    }): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.employees.get_employees', params);
+    },
+
+    // Get detailed employee information
+    getDetail: async (id: string): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.employees.get_employee_detail', { id });
+    },
+
+    // Get professional cadres dropdown
+    getCadreOptions: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.employees.get_professional_cadres');
+    },
+
+    // Get departments dropdown
+    getDepartments: async (company?: string): Promise<ApiResponse> => {
+        const params: Record<string, any> = {};
+        if (company) params.company = company;
+        return frappeCall('careverse_hq.api.employees.get_departments', params);
+    },
+
+    // Get designations dropdown
+    getDesignations: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.employees.get_designations');
+    },
+};
+
 // Assets API
 export const assetsApi = {
     getAssets: async (params: {
@@ -343,7 +429,81 @@ export const facilitiesApi = {
         return frappeCall('careverse_hq.api.dashboard.get_facilities', params);
     },
     getFacilityDetail: async (facilityId: string): Promise<ApiResponse> => {
-        return apiCall('GET', `/api/resource/Health Facility/${encodeURIComponent(facilityId)}`);
+        const response = await frappeCall('careverse_hq.api.facility_detail.get_facility_detail', { facility_id: facilityId });
+
+        if (response.success && response.data) {
+            const backendData = response.data;
+            const facilityDetails = backendData.facility_details || {};
+            const orgDetails = backendData.healthcare_organization || {};
+
+            // Transform nested backend structure to flat frontend structure
+            response.data = {
+                // Core facility fields
+                name: facilityDetails.facility_id,
+                facility_name: facilityDetails.facility_name,
+                hie_id: facilityDetails.facility_id,
+                facility_mfl: facilityDetails.facility_mfl,
+                facility_type: facilityDetails.facility_type,
+                kephl_level: facilityDetails.kephl_level,
+                category: facilityDetails.category,
+                industry: facilityDetails.industry,
+                operational_status: facilityDetails.operational_status || 'N/A',
+
+                // Contact info
+                phone: facilityDetails.phone,
+                email: facilityDetails.email,
+                website: facilityDetails.website,
+
+                // Administrative
+                facility_administrator: facilityDetails.facility_admin,
+                facility_owner: facilityDetails.facility_owner,
+                organization_company: orgDetails.organization_name,
+
+                // Registration
+                board_registration_number: facilityDetails.board_registration_number,
+                registration_number: facilityDetails.registration_number,
+
+                // Capacity and operations
+                bed_capacity: facilityDetails.bed_capacity,
+                maximum_bed_allocation: facilityDetails.maximum_bed_allocation,
+                open_whole_day: facilityDetails.open_whole_day,
+                open_public_holiday: facilityDetails.open_public_holiday,
+                open_weekends: facilityDetails.open_weekends,
+                open_late_night: facilityDetails.open_late_night,
+
+                // Location - flatten nested address object
+                county: facilityDetails.address?.county,
+                sub_county: facilityDetails.address?.sub_county,
+                ward: facilityDetails.address?.ward,
+                constituency: facilityDetails.constituency,
+                latitude: facilityDetails.latitude,
+                longitude: facilityDetails.longitude,
+
+                // Child tables - transform field names to match frontend expectations
+                bank_accounts: (facilityDetails.banks || []).map((bank: any) => ({
+                    bank_name: bank.bank_name,
+                    account_name: bank.account_name,
+                    account_number: bank.account_number,
+                    branch: bank.branch_name  // Backend: branch_name → Frontend: branch
+                })),
+
+                contacts: (facilityDetails.contacts || []).map((contact: any) => ({
+                    contact_name: contact.contact_name,
+                    phone: contact.phone_number,  // Backend: phone_number → Frontend: phone
+                    email: contact.email || 'N/A',  // Email not in backend contacts table
+                    designation: contact.designation
+                })),
+
+                services: (backendData.facility_available_services || [])
+                    .filter((service: any) => service.is_available === 1)  // Only show available services
+                    .map((service: any) => ({
+                        service_name: service.available_services,
+                        description: service.description || ''
+                    }))
+            };
+        }
+
+        return response;
     }
 };
 
@@ -364,9 +524,20 @@ export const affiliationsApi = {
         page?: number;
         pageSize?: number;
         status?: string;
+        professional_name?: string;
+        dateFrom?: string;
+        dateTo?: string;
     }): Promise<ApiResponse> => {
-        const queryParams: Record<string, any> = { ...params };
+        const queryParams: Record<string, any> = {};
+
+        if (params.page !== undefined) queryParams.page = params.page;
+        if (params.pageSize !== undefined) queryParams.page_size = params.pageSize;
+        if (params.status) queryParams.status = params.status;
+        if (params.professional_name) queryParams.professional_name = params.professional_name;
+        if (params.dateFrom) queryParams.date_from = params.dateFrom;
+        if (params.dateTo) queryParams.date_to = params.dateTo;
         if (params.facilities?.length) queryParams.facilities = params.facilities.join(',');
+
         return frappeCall('careverse_hq.api.dashboard.get_affiliations', queryParams);
     },
 
@@ -530,6 +701,8 @@ export default {
     approvals: approvalApi,
     finance: financeApi,
     hr: hrApi,
+    healthProfessionals: healthProfessionalsApi,
+    employees: employeesApi,
     affiliations: affiliationsApi,
     companies: companiesApi,
     licenses: licensesApi,
