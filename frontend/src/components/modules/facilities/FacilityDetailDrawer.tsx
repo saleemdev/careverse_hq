@@ -143,268 +143,127 @@ const FacilityDetailDrawer: React.FC<FacilityDetailDrawerProps> = ({
                         tab={<Space><BankOutlined />Basic Information</Space>}
                         key="1"
                     >
-                        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                            {/* Metric Cards - Clean Design */}
-                            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
-                                {/* Services Count */}
-                                <div
-                                    style={{
-                                        flex: '1 1 calc(25% - 12px)',
-                                        minWidth: '120px',
-                                        backgroundColor: '#fff',
-                                        border: '1px solid #e8e8e8',
-                                        borderRadius: '8px',
-                                        padding: '16px 12px',
-                                        textAlign: 'center',
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                        transition: 'all 0.3s ease',
-                                        cursor: 'pointer'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                    }}
-                                >
-                                    <div style={{ fontSize: '24px', color: '#52c41a' }}>
-                                        <MedicineBoxOutlined />
-                                    </div>
-                                    <div style={{
-                                        fontSize: '11px',
-                                        color: '#999',
-                                        fontWeight: '500',
-                                        letterSpacing: '0.5px',
-                                        textTransform: 'uppercase',
-                                        margin: '8px 0 4px 0'
-                                    }}>
-                                        Services
-                                    </div>
-                                    <div style={{
-                                        fontSize: '28px',
-                                        fontWeight: '700',
-                                        color: '#52c41a',
-                                        lineHeight: '1'
-                                    }}>
+                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                            {/* Quick Stats - Minimal Design */}
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                                <div style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    background: '#f0f9ff',
+                                    borderLeft: '3px solid #1890ff',
+                                    borderRadius: '4px'
+                                }}>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>Services</Text>
+                                    <div style={{ fontSize: '20px', fontWeight: '600', color: '#1890ff' }}>
                                         {facility.services?.length || 0}
                                     </div>
                                 </div>
-
-                                {/* Bed Capacity */}
-                                <div
-                                    style={{
-                                        flex: '1 1 calc(25% - 12px)',
-                                        minWidth: '120px',
-                                        backgroundColor: '#fff',
-                                        border: '1px solid #e8e8e8',
-                                        borderRadius: '8px',
-                                        padding: '16px 12px',
-                                        textAlign: 'center',
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                        transition: 'all 0.3s ease',
-                                        cursor: 'pointer'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                    }}
-                                >
-                                    <div style={{ fontSize: '24px', color: '#1890ff' }}>
-                                        <HomeOutlined />
-                                    </div>
-                                    <div style={{
-                                        fontSize: '11px',
-                                        color: '#999',
-                                        fontWeight: '500',
-                                        letterSpacing: '0.5px',
-                                        textTransform: 'uppercase',
-                                        margin: '8px 0 4px 0'
-                                    }}>
-                                        Bed Capacity
-                                    </div>
-                                    <div style={{
-                                        fontSize: '28px',
-                                        fontWeight: '700',
-                                        color: '#1890ff',
-                                        lineHeight: '1'
-                                    }}>
+                                <div style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    background: '#f6ffed',
+                                    borderLeft: '3px solid #52c41a',
+                                    borderRadius: '4px'
+                                }}>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>Bed Capacity</Text>
+                                    <div style={{ fontSize: '20px', fontWeight: '600', color: '#52c41a' }}>
                                         {facility.bed_capacity || 'N/A'}
                                     </div>
                                 </div>
-
-                                {/* Contacts */}
-                                <div
-                                    style={{
-                                        flex: '1 1 calc(25% - 12px)',
-                                        minWidth: '120px',
-                                        backgroundColor: '#fff',
-                                        border: '1px solid #e8e8e8',
-                                        borderRadius: '8px',
-                                        padding: '16px 12px',
-                                        textAlign: 'center',
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                        transition: 'all 0.3s ease',
-                                        cursor: 'pointer'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                    }}
-                                >
-                                    <div style={{ fontSize: '24px', color: '#722ed1' }}>
-                                        <TeamOutlined />
-                                    </div>
-                                    <div style={{
-                                        fontSize: '11px',
-                                        color: '#999',
-                                        fontWeight: '500',
-                                        letterSpacing: '0.5px',
-                                        textTransform: 'uppercase',
-                                        margin: '8px 0 4px 0'
-                                    }}>
-                                        Contacts
-                                    </div>
-                                    <div style={{
-                                        fontSize: '28px',
-                                        fontWeight: '700',
-                                        color: '#722ed1',
-                                        lineHeight: '1'
-                                    }}>
-                                        {facility.contacts?.length || 0}
-                                    </div>
-                                </div>
-
-                                {/* KEPHL Level */}
-                                <div
-                                    style={{
-                                        flex: '1 1 calc(25% - 12px)',
-                                        minWidth: '120px',
-                                        backgroundColor: '#fff',
-                                        border: '1px solid #e8e8e8',
-                                        borderRadius: '8px',
-                                        padding: '16px 12px',
-                                        textAlign: 'center',
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                        transition: 'all 0.3s ease',
-                                        cursor: 'pointer'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                    }}
-                                >
-                                    <div style={{ fontSize: '24px', color: '#faad14' }}>
-                                        <SafetyOutlined />
-                                    </div>
-                                    <div style={{
-                                        fontSize: '11px',
-                                        color: '#999',
-                                        fontWeight: '500',
-                                        letterSpacing: '0.5px',
-                                        textTransform: 'uppercase',
-                                        margin: '8px 0 4px 0'
-                                    }}>
-                                        KEPHL Level
-                                    </div>
-                                    <div style={{
-                                        fontSize: '28px',
-                                        fontWeight: '700',
-                                        color: '#faad14',
-                                        lineHeight: '1'
-                                    }}>
+                                <div style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    background: '#fff7e6',
+                                    borderLeft: '3px solid #faad14',
+                                    borderRadius: '4px'
+                                }}>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>KEPHL Level</Text>
+                                    <div style={{ fontSize: '20px', fontWeight: '600', color: '#faad14' }}>
                                         {kephlBadge ? kephlBadge.text : 'N/A'}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Primary Information - Single Gradient Hero */}
+                            {/* Facility Header Card */}
                             <Card
+                                bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    border: 'none',
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                    background: 'linear-gradient(135deg, #f0f5ff 0%, #e6f2ff 100%)',
-                                    marginBottom: '24px'
+                                    background: '#fff',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                                 }}
                             >
-                                <Row gutter={[24, 16]}>
-                                    <Col xs={24} md={8}>
-                                        <div style={{ marginBottom: '4px', fontSize: '11px', color: '#8c8c8c', fontWeight: 600, textTransform: 'uppercase' }}>
-                                            Facility Name
-                                        </div>
-                                        <div style={{ fontSize: '16px', fontWeight: '600' }}>
-                                            {facility.facility_name}
-                                        </div>
-                                    </Col>
+                                <div style={{ marginBottom: '20px' }}>
+                                    <div style={{
+                                        fontSize: '20px',
+                                        fontWeight: '600',
+                                        marginBottom: '8px',
+                                        color: '#262626'
+                                    }}>
+                                        {facility.facility_name}
+                                    </div>
+                                    <Space size="middle" wrap>
+                                        <Space size={4}>
+                                            <Text type="secondary" style={{ fontSize: '13px' }}>MFL:</Text>
+                                            <Text strong style={{ fontSize: '13px' }}>{formatFieldValue(facility.facility_mfl)}</Text>
+                                        </Space>
+                                        <Divider type="vertical" style={{ margin: 0 }} />
+                                        <Space size={4}>
+                                            <Text type="secondary" style={{ fontSize: '13px' }}>ID:</Text>
+                                            <Text code style={{ fontSize: '12px', padding: '2px 6px' }}>{formatFieldValue(facility.name)}</Text>
+                                        </Space>
+                                    </Space>
+                                </div>
 
-                                    <Col xs={24} md={8}>
-                                        <div style={{ marginBottom: '4px', fontSize: '11px', color: '#8c8c8c', fontWeight: 600, textTransform: 'uppercase' }}>
-                                            MFL Code
-                                        </div>
-                                        <div style={{ fontSize: '16px', fontWeight: '600' }}>
-                                            {formatFieldValue(facility.facility_mfl)}
-                                        </div>
-                                    </Col>
+                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '140px', fontSize: '13px' }}>Facility Type</Text>
+                                        <Text strong style={{ fontSize: '13px' }}>{formatFieldValue(facility.facility_type)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '140px', fontSize: '13px' }}>Category</Text>
+                                        <Text strong style={{ fontSize: '13px' }}>{formatFieldValue(facility.category)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '140px', fontSize: '13px' }}>Industry</Text>
+                                        <Text strong style={{ fontSize: '13px' }}>{formatFieldValue(facility.industry)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '8px' }}>
+                                        <Text type="secondary" style={{ width: '140px', fontSize: '13px' }}>Organization</Text>
+                                        <Text strong style={{ fontSize: '13px' }}>{formatFieldValue(facility.organization_company)}</Text>
+                                    </div>
+                                </Space>
+                            </Card>
 
-                                    <Col xs={24} md={8}>
-                                        <div style={{ marginBottom: '4px', fontSize: '11px', color: '#8c8c8c', fontWeight: 600, textTransform: 'uppercase' }}>
-                                            Facility ID
-                                        </div>
-                                        <div style={{ fontSize: '16px', fontWeight: '600', wordBreak: 'break-all' }}>
-                                            {formatFieldValue(facility.name)}
-                                        </div>
-                                    </Col>
-
-                                    <Col xs={24} md={8}>
-                                        <div style={{ marginBottom: '4px', fontSize: '11px', color: '#8c8c8c', fontWeight: 600, textTransform: 'uppercase' }}>
-                                            Facility Type
-                                        </div>
-                                        <div style={{ fontSize: '16px', fontWeight: '600' }}>
-                                            {formatFieldValue(facility.facility_type)}
-                                        </div>
-                                    </Col>
-
-                                    <Col xs={24} md={8}>
-                                        <div style={{ marginBottom: '4px', fontSize: '11px', color: '#8c8c8c', fontWeight: 600, textTransform: 'uppercase' }}>
-                                            Category
-                                        </div>
-                                        <div style={{ fontSize: '16px', fontWeight: '600' }}>
-                                            {formatFieldValue(facility.category)}
-                                        </div>
-                                    </Col>
-
-                                    <Col xs={24} md={8}>
-                                        <div style={{ marginBottom: '4px', fontSize: '11px', color: '#8c8c8c', fontWeight: 600, textTransform: 'uppercase' }}>
-                                            Organization
-                                        </div>
-                                        <div style={{ fontSize: '16px', fontWeight: '600' }}>
-                                            {formatFieldValue(facility.organization_company)}
-                                        </div>
-                                    </Col>
-                                </Row>
-
-                                {/* Accent bar */}
-                                <div style={{
-                                    width: '40px',
-                                    height: '3px',
-                                    background: '#1890ff',
-                                    marginTop: '16px',
-                                    borderRadius: '2px'
-                                }} />
+                            {/* Ownership & Registration */}
+                            <Card
+                                title={<Text strong style={{ fontSize: '14px' }}>Ownership & Registration</Text>}
+                                size="small"
+                                bordered={false}
+                                style={{
+                                    background: '#fafafa',
+                                    borderRadius: '8px',
+                                    boxShadow: 'none'
+                                }}
+                            >
+                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                    <div style={{ display: 'flex', paddingBottom: '6px' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Facility Owner</Text>
+                                        <Text style={{ fontSize: '13px' }}>{formatFieldValue(facility.facility_owner)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '6px' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Administrator</Text>
+                                        <Text style={{ fontSize: '13px' }}>{formatFieldValue(facility.facility_administrator)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '6px' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Board Registration</Text>
+                                        <Text code style={{ fontSize: '12px', padding: '2px 6px' }}>{formatFieldValue(facility.board_registration_number)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Registration Number</Text>
+                                        <Text code style={{ fontSize: '12px', padding: '2px 6px' }}>{formatFieldValue(facility.registration_number)}</Text>
+                                    </div>
+                                </Space>
                             </Card>
                         </Space>
                     </TabPane>
@@ -463,71 +322,108 @@ const FacilityDetailDrawer: React.FC<FacilityDetailDrawerProps> = ({
 
                             {/* Left Side - Location & Contact Details (1/4 width) */}
                             <Col xs={24} lg={6} style={{ order: 1 }}>
-                                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
                                     {/* Location Details */}
-                                    <Card title="Location Details" size="small">
-                                        <Descriptions bordered column={1} size="small">
-                                            <Descriptions.Item label={<Space><EnvironmentOutlined />County</Space>}>
-                                                {formatFieldValue(facility.county)}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label="Sub-County">
-                                                {formatFieldValue(facility.sub_county)}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label="Constituency">
-                                                {formatFieldValue(facility.constituency)}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label="Ward">
-                                                {formatFieldValue(facility.ward)}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label="Latitude">
-                                                {facility.latitude ? (
-                                                    <Text code>{facility.latitude}</Text>
-                                                ) : 'N/A'}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label="Longitude">
-                                                {facility.longitude ? (
-                                                    <Text code>{facility.longitude}</Text>
-                                                ) : 'N/A'}
-                                            </Descriptions.Item>
-                                        </Descriptions>
+                                    <Card
+                                        title={<Text strong style={{ fontSize: '14px' }}><EnvironmentOutlined /> Location</Text>}
+                                        size="small"
+                                        bordered={false}
+                                        style={{
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                            borderRadius: '8px'
+                                        }}
+                                    >
+                                        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                                            <div>
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>County</Text>
+                                                <div><Text style={{ fontSize: '13px' }}>{formatFieldValue(facility.county)}</Text></div>
+                                            </div>
+                                            <Divider style={{ margin: '6px 0' }} />
+                                            <div>
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>Sub-County</Text>
+                                                <div><Text style={{ fontSize: '13px' }}>{formatFieldValue(facility.sub_county)}</Text></div>
+                                            </div>
+                                            <Divider style={{ margin: '6px 0' }} />
+                                            <div>
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>Constituency</Text>
+                                                <div><Text style={{ fontSize: '13px' }}>{formatFieldValue(facility.constituency)}</Text></div>
+                                            </div>
+                                            <Divider style={{ margin: '6px 0' }} />
+                                            <div>
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>Ward</Text>
+                                                <div><Text style={{ fontSize: '13px' }}>{formatFieldValue(facility.ward)}</Text></div>
+                                            </div>
+                                            {(facility.latitude || facility.longitude) && (
+                                                <>
+                                                    <Divider style={{ margin: '6px 0' }} />
+                                                    <div>
+                                                        <Text type="secondary" style={{ fontSize: '12px' }}>Coordinates</Text>
+                                                        <div>
+                                                            {facility.latitude && <Text code style={{ fontSize: '11px' }}>{facility.latitude}</Text>}
+                                                            {facility.latitude && facility.longitude && <span>, </span>}
+                                                            {facility.longitude && <Text code style={{ fontSize: '11px' }}>{facility.longitude}</Text>}
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </Space>
                                     </Card>
 
                                     {/* Contact Information */}
-                                    <Card title="Contact Information" size="small">
-                                        <Descriptions bordered column={1} size="small">
-                                            <Descriptions.Item label={<Space><PhoneOutlined />Phone</Space>}>
-                                                {(() => {
-                                                    const phoneData = formatPhone(facility.phone);
-                                                    return phoneData.href ? (
-                                                        <a href={phoneData.href} style={{ color: '#1890ff' }}>{phoneData.value}</a>
-                                                    ) : (
-                                                        <span style={{ color: '#999' }}>{phoneData.value}</span>
-                                                    );
-                                                })()}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={<Space><MailOutlined />Email</Space>}>
-                                                {(() => {
-                                                    const emailData = formatEmail(facility.email);
-                                                    return emailData.href ? (
-                                                        <a href={emailData.href} style={{ color: '#1890ff' }}>{emailData.value}</a>
-                                                    ) : (
-                                                        <span style={{ color: '#999' }}>{emailData.value}</span>
-                                                    );
-                                                })()}
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label={<Space><GlobalOutlined />Website</Space>}>
-                                                {(() => {
-                                                    const websiteData = formatWebsite(facility.website);
-                                                    return websiteData.href ? (
-                                                        <a href={websiteData.href} target="_blank" rel="noopener noreferrer" style={{ color: '#1890ff' }}>
-                                                            {websiteData.value}
-                                                        </a>
-                                                    ) : (
-                                                        <span style={{ color: '#999' }}>{websiteData.value}</span>
-                                                    );
-                                                })()}
-                                            </Descriptions.Item>
-                                        </Descriptions>
+                                    <Card
+                                        title={<Text strong style={{ fontSize: '14px' }}><PhoneOutlined /> Contact</Text>}
+                                        size="small"
+                                        bordered={false}
+                                        style={{
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                            borderRadius: '8px'
+                                        }}
+                                    >
+                                        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                                            <div>
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>Phone</Text>
+                                                <div>
+                                                    {(() => {
+                                                        const phoneData = formatPhone(facility.phone);
+                                                        return phoneData.href ? (
+                                                            <a href={phoneData.href} style={{ fontSize: '13px' }}>{phoneData.value}</a>
+                                                        ) : (
+                                                            <Text type="secondary" style={{ fontSize: '13px' }}>{phoneData.value}</Text>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
+                                            <Divider style={{ margin: '6px 0' }} />
+                                            <div>
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>Email</Text>
+                                                <div>
+                                                    {(() => {
+                                                        const emailData = formatEmail(facility.email);
+                                                        return emailData.href ? (
+                                                            <a href={emailData.href} style={{ fontSize: '13px' }}>{emailData.value}</a>
+                                                        ) : (
+                                                            <Text type="secondary" style={{ fontSize: '13px' }}>{emailData.value}</Text>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
+                                            <Divider style={{ margin: '6px 0' }} />
+                                            <div>
+                                                <Text type="secondary" style={{ fontSize: '12px' }}>Website</Text>
+                                                <div>
+                                                    {(() => {
+                                                        const websiteData = formatWebsite(facility.website);
+                                                        return websiteData.href ? (
+                                                            <a href={websiteData.href} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px' }}>
+                                                                {websiteData.value}
+                                                            </a>
+                                                        ) : (
+                                                            <Text type="secondary" style={{ fontSize: '13px' }}>{websiteData.value}</Text>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
+                                        </Space>
                                     </Card>
                                 </Space>
                             </Col>
@@ -539,120 +435,110 @@ const FacilityDetailDrawer: React.FC<FacilityDetailDrawerProps> = ({
                         tab={<Space><MedicineBoxOutlined />Operations & Capacity</Space>}
                         key="3"
                     >
-                        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                             {/* Bed Capacity Statistics */}
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <Card
+                                    size="small"
+                                    bordered={false}
+                                    style={{
+                                        flex: 1,
+                                        borderRadius: '8px',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                        background: '#f0f9ff'
+                                    }}
+                                >
+                                    <Space align="center">
+                                        <div style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '8px',
+                                            background: '#1890ff',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            <MedicineBoxOutlined style={{ color: '#fff', fontSize: '20px' }} />
+                                        </div>
+                                        <div>
+                                            <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>Bed Capacity</Text>
+                                            <Text strong style={{ fontSize: '20px', color: '#1890ff' }}>{facility.bed_capacity || 'N/A'}</Text>
+                                        </div>
+                                    </Space>
+                                </Card>
+                                <Card
+                                    size="small"
+                                    bordered={false}
+                                    style={{
+                                        flex: 1,
+                                        borderRadius: '8px',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                        background: '#f6ffed'
+                                    }}
+                                >
+                                    <Space align="center">
+                                        <div style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '8px',
+                                            background: '#52c41a',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            <HomeOutlined style={{ color: '#fff', fontSize: '20px' }} />
+                                        </div>
+                                        <div>
+                                            <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>Max Allocation</Text>
+                                            <Text strong style={{ fontSize: '20px', color: '#52c41a' }}>{facility.maximum_bed_allocation || 'N/A'}</Text>
+                                        </div>
+                                    </Space>
+                                </Card>
+                            </div>
+
+                            {/* Operating Hours */}
                             <Card
+                                title={<Text strong style={{ fontSize: '14px' }}><ClockCircleOutlined /> Operating Hours</Text>}
+                                size="small"
                                 bordered={false}
                                 style={{
                                     borderRadius: '8px',
-                                    boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
                                 }}
                             >
-                                <Row gutter={[24, 16]}>
-                                    <Col xs={24} sm={12}>
-                                        <Statistic
-                                            title="Current Bed Capacity"
-                                            value={facility.bed_capacity || 'N/A'}
-                                            prefix={<MedicineBoxOutlined style={{ color: '#1890ff' }} />}
-                                            valueStyle={{ color: '#1890ff' }}
-                                        />
-                                    </Col>
-                                    <Col xs={24} sm={12}>
-                                        <Statistic
-                                            title="Maximum Bed Allocation"
-                                            value={facility.maximum_bed_allocation || 'N/A'}
-                                            prefix={<HomeOutlined style={{ color: '#52c41a' }} />}
-                                            valueStyle={{ color: '#52c41a' }}
-                                        />
-                                    </Col>
-                                </Row>
-                            </Card>
-
-                            {/* Operating Hours - Visual Cards */}
-                            <Card
-                                title={
-                                    <Space>
-                                        <ClockCircleOutlined />
-                                        <span>Operating Hours & Availability</span>
-                                    </Space>
-                                }
-                                bordered={false}
-                            >
-                                <Row gutter={[16, 16]}>
+                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
                                     {[
-                                        {
-                                            label: '24/7 Operations',
-                                            value: facility.open_whole_day,
-                                            icon: ClockCircleOutlined,
-                                            color: '#1890ff'
-                                        },
-                                        {
-                                            label: 'Public Holidays',
-                                            value: facility.open_public_holiday,
-                                            icon: CalendarOutlined,
-                                            color: '#52c41a'
-                                        },
-                                        {
-                                            label: 'Weekends',
-                                            value: facility.open_weekends,
-                                            icon: CalendarOutlined,
-                                            color: '#722ed1'
-                                        },
-                                        {
-                                            label: 'Late Night',
-                                            value: facility.open_late_night,
-                                            icon: ClockCircleOutlined,
-                                            color: '#fa8c16'
-                                        },
+                                        { label: '24/7 Operations', value: facility.open_whole_day },
+                                        { label: 'Public Holidays', value: facility.open_public_holiday },
+                                        { label: 'Weekends', value: facility.open_weekends },
+                                        { label: 'Late Night', value: facility.open_late_night },
                                     ].map((item, index) => {
                                         const yesNo = formatYesNo(item.value);
                                         const isOpen = yesNo.status === 'success';
-                                        const Icon = item.icon;
 
                                         return (
-                                            <Col xs={12} sm={6} key={index}>
-                                                <Card
-                                                    size="small"
-                                                    bordered={false}
+                                            <div key={index} style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                padding: '8px 0',
+                                                borderBottom: index < 3 ? '1px solid #f0f0f0' : 'none'
+                                            }}>
+                                                <Text style={{ fontSize: '13px' }}>{item.label}</Text>
+                                                <Tag
+                                                    color={isOpen ? 'success' : 'default'}
                                                     style={{
-                                                        textAlign: 'center',
-                                                        background: isOpen ? '#f6ffed' : '#fff1f0',
-                                                        border: `2px solid ${isOpen ? '#b7eb8f' : '#ffccc7'}`,
-                                                        height: '100%'
+                                                        margin: 0,
+                                                        borderRadius: '4px',
+                                                        padding: '2px 8px'
                                                     }}
                                                 >
-                                                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                                                        <Badge
-                                                            status={isOpen ? 'success' : 'error'}
-                                                            style={{ fontSize: 12 }}
-                                                        />
-                                                        <Icon
-                                                            style={{
-                                                                fontSize: 32,
-                                                                color: isOpen ? '#52c41a' : '#ff4d4f'
-                                                            }}
-                                                        />
-                                                        <Text
-                                                            strong
-                                                            style={{
-                                                                fontSize: 13,
-                                                                color: isOpen ? '#52c41a' : '#ff4d4f'
-                                                            }}
-                                                        >
-                                                            {item.label}
-                                                        </Text>
-                                                        <Tag
-                                                            color={isOpen ? 'success' : 'error'}
-                                                            style={{ margin: 0 }}
-                                                        >
-                                                            {yesNo.text}
-                                                        </Tag>
-                                                    </Space>
-                                                </Card>
-                                            </Col>
+                                                    {yesNo.text}
+                                                </Tag>
+                                            </div>
                                         );
                                     })}
-                                </Row>
+                                </Space>
                             </Card>
                         </Space>
                     </TabPane>
@@ -662,33 +548,39 @@ const FacilityDetailDrawer: React.FC<FacilityDetailDrawerProps> = ({
                         tab={<Space><TeamOutlined />Administrative</Space>}
                         key="4"
                     >
-                        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                             {/* Ownership & Administration */}
                             <Card
-                                title="Administration"
+                                title={<Text strong style={{ fontSize: '14px' }}>Administration</Text>}
+                                size="small"
                                 bordered={false}
                                 style={{
                                     borderRadius: '8px',
-                                    boxShadow: '0 1px 4px rgba(0,0,0,0.08)'
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
                                 }}
                             >
-                                <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">
-                                    <Descriptions.Item label="Facility Owner">
-                                        {formatFieldValue(facility.facility_owner)}
-                                    </Descriptions.Item>
-                                    <Descriptions.Item label="Facility Administrator">
-                                        {formatFieldValue(facility.facility_administrator)}
-                                    </Descriptions.Item>
-                                    <Descriptions.Item label="Organization/Company" span={2}>
-                                        {formatFieldValue(facility.organization_company)}
-                                    </Descriptions.Item>
-                                    <Descriptions.Item label="Board Registration">
-                                        {formatFieldValue(facility.board_registration_number)}
-                                    </Descriptions.Item>
-                                    <Descriptions.Item label="Registration Number">
-                                        {formatFieldValue(facility.registration_number)}
-                                    </Descriptions.Item>
-                                </Descriptions>
+                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Facility Owner</Text>
+                                        <Text strong style={{ fontSize: '13px' }}>{formatFieldValue(facility.facility_owner)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Administrator</Text>
+                                        <Text strong style={{ fontSize: '13px' }}>{formatFieldValue(facility.facility_administrator)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Organization</Text>
+                                        <Text strong style={{ fontSize: '13px' }}>{formatFieldValue(facility.organization_company)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Board Registration</Text>
+                                        <Text code style={{ fontSize: '12px', padding: '2px 6px' }}>{formatFieldValue(facility.board_registration_number)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '8px' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Registration Number</Text>
+                                        <Text code style={{ fontSize: '12px', padding: '2px 6px' }}>{formatFieldValue(facility.registration_number)}</Text>
+                                    </div>
+                                </Space>
                             </Card>
 
                             {/* Banking Information - Card Grid */}
