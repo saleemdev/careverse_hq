@@ -130,6 +130,7 @@ export interface HealthProfessional extends BaseRecord {
         designation: string;
         date_of_joining: string;
         company: string;
+        image?: string;
     };
 }
 

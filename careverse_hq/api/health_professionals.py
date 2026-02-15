@@ -237,14 +237,14 @@ def get_health_professional_detail(id: str):
                 )
                 affiliation["health_facility_name"] = facility_name
 
-        # Get employee record if exists
+        # Get employee record if exists (including image for profile photo)
         employee_data = None
         if hp.employee:
             employee_data = frappe.get_value(
                 "Employee",
                 hp.employee,
                 ["name", "employee_name", "department", "designation",
-                 "date_of_joining", "company"],
+                 "date_of_joining", "company", "image"],
                 as_dict=True
             )
 

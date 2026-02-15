@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Descriptions, Tabs, Tag, Space, Typography, Alert, Divider, Badge } from 'antd';
+import { Descriptions, Tabs, Tag, Space, Typography, Alert, Divider, Badge, Avatar, Card } from 'antd';
 import {
     UserOutlined,
     SafetyCertificateOutlined,
@@ -109,52 +109,118 @@ const HealthProfessionalDetailDrawer: React.FC<HealthProfessionalDetailDrawerPro
                         tab={<Space><UserOutlined />Basic Info</Space>}
                         key="1"
                     >
-                        <Descriptions bordered column={2}>
-                            <Descriptions.Item label="Full Name" span={2}>
-                                <Text strong style={{ fontSize: 16 }}>{healthProfessional.full_name}</Text>
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Registration Number">
-                                <Tag color="blue" style={{ fontSize: 13 }}>
-                                    {healthProfessional.registration_number}
-                                </Tag>
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Registration ID">
-                                {healthProfessional.registration_id || 'N/A'}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Professional Cadre">
-                                <Tag color="blue">{healthProfessional.professional_cadre || 'N/A'}</Tag>
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Specialty">
-                                {healthProfessional.professional_specialty || 'N/A'}
-                            </Descriptions.Item>
-                            {healthProfessional.sub_specialty && (
-                                <Descriptions.Item label="Sub-Specialty" span={2}>
-                                    {healthProfessional.sub_specialty}
-                                </Descriptions.Item>
-                            )}
-                            <Descriptions.Item label="Status">
-                                <StatusTag status={healthProfessional.status} />
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Gender">
-                                {healthProfessional.gender || 'N/A'}
-                            </Descriptions.Item>
-                            {healthProfessional.date_of_birth && (
-                                <Descriptions.Item label="Date of Birth" span={2}>
-                                    {formatDate(healthProfessional.date_of_birth)}
-                                </Descriptions.Item>
-                            )}
-                            <Descriptions.Item label="Identification Type">
-                                {healthProfessional.identification_type || 'N/A'}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Identification Number">
-                                {healthProfessional.identification_number || 'N/A'}
-                            </Descriptions.Item>
-                            {healthProfessional.nationality && (
-                                <Descriptions.Item label="Nationality" span={2}>
-                                    {healthProfessional.nationality}
-                                </Descriptions.Item>
-                            )}
-                        </Descriptions>
+                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                            {/* Professional Header Card with Photo */}
+                            <Card
+                                bordered={false}
+                                style={{
+                                    background: '#fff',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '20px' }}>
+                                    {/* Professional Headshot */}
+                                    <Avatar
+                                        size={120}
+                                        src={healthProfessional.employee_record?.image}
+                                        icon={<UserOutlined style={{ fontSize: '48px' }} />}
+                                        style={{
+                                            backgroundColor: '#1890ff',
+                                            flexShrink: 0,
+                                            border: '4px solid #e6f7ff',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                        }}
+                                    />
+
+                                    {/* Name and Status */}
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{
+                                            fontSize: '24px',
+                                            fontWeight: '600',
+                                            marginBottom: '8px',
+                                            color: '#262626'
+                                        }}>
+                                            {healthProfessional.full_name}
+                                        </div>
+                                        <Space size="middle" wrap>
+                                            <Space size={4}>
+                                                <Text type="secondary" style={{ fontSize: '13px' }}>Reg. No:</Text>
+                                                <Tag color="blue" style={{ fontSize: '13px', margin: 0 }}>
+                                                    {healthProfessional.registration_number}
+                                                </Tag>
+                                            </Space>
+                                            <Divider type="vertical" style={{ margin: 0 }} />
+                                            <Space size={4}>
+                                                <Text type="secondary" style={{ fontSize: '13px' }}>Status:</Text>
+                                                <StatusTag status={healthProfessional.status} />
+                                            </Space>
+                                        </Space>
+                                    </div>
+                                </div>
+
+                                {/* Professional Details */}
+                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Professional Cadre</Text>
+                                        <Tag color="blue" style={{ margin: 0 }}>{healthProfessional.professional_cadre || 'N/A'}</Tag>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Specialty</Text>
+                                        <Text strong style={{ fontSize: '13px' }}>{healthProfessional.professional_specialty || 'N/A'}</Text>
+                                    </div>
+                                    {healthProfessional.sub_specialty && (
+                                        <div style={{ display: 'flex', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                                            <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Sub-Specialty</Text>
+                                            <Text strong style={{ fontSize: '13px' }}>{healthProfessional.sub_specialty}</Text>
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'flex', paddingBottom: '8px' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Registration ID</Text>
+                                        <Text code style={{ fontSize: '12px', padding: '2px 6px' }}>{healthProfessional.registration_id || 'N/A'}</Text>
+                                    </div>
+                                </Space>
+                            </Card>
+
+                            {/* Personal Information */}
+                            <Card
+                                title={<Text strong style={{ fontSize: '14px' }}>Personal Information</Text>}
+                                size="small"
+                                bordered={false}
+                                style={{
+                                    background: '#fafafa',
+                                    borderRadius: '8px',
+                                    boxShadow: 'none'
+                                }}
+                            >
+                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                    <div style={{ display: 'flex', paddingBottom: '6px' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Gender</Text>
+                                        <Text style={{ fontSize: '13px' }}>{healthProfessional.gender || 'N/A'}</Text>
+                                    </div>
+                                    {healthProfessional.date_of_birth && (
+                                        <div style={{ display: 'flex', paddingBottom: '6px' }}>
+                                            <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Date of Birth</Text>
+                                            <Text style={{ fontSize: '13px' }}>{formatDate(healthProfessional.date_of_birth)}</Text>
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'flex', paddingBottom: '6px' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Identification Type</Text>
+                                        <Text style={{ fontSize: '13px' }}>{healthProfessional.identification_type || 'N/A'}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', paddingBottom: '6px' }}>
+                                        <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Identification Number</Text>
+                                        <Text code style={{ fontSize: '12px', padding: '2px 6px' }}>{healthProfessional.identification_number || 'N/A'}</Text>
+                                    </div>
+                                    {healthProfessional.nationality && (
+                                        <div style={{ display: 'flex' }}>
+                                            <Text type="secondary" style={{ width: '180px', fontSize: '13px' }}>Nationality</Text>
+                                            <Text style={{ fontSize: '13px' }}>{healthProfessional.nationality}</Text>
+                                        </div>
+                                    )}
+                                </Space>
+                            </Card>
+                        </Space>
                     </TabPane>
 
                     {/* Tab 2: Licensing & Credentials */}

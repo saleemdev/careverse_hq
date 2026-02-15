@@ -95,12 +95,12 @@ const EmployeeCard: React.FC<{ data: Employee; token: any; onViewDetails: () => 
                     {data.employee_name}
                 </Text>
                 <Text type="secondary" style={{ fontSize: '11px' }}>
-                    {data.employee_number || data.name}
+                    {data.name}
                 </Text>
             </div>
         </Space>
 
-        {data.custom_is_licensed_practitioner && (
+        {!!data.custom_is_licensed_practitioner && (
             <Tag color="blue" icon={<SafetyCertificateOutlined />} style={{ fontSize: '10px' }}>
                 Licensed Practitioner
             </Tag>
@@ -243,8 +243,8 @@ const EmployeeListView: React.FC = () => {
                     </Avatar>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <Text strong style={{ fontSize: isMobile ? '12px' : '14px' }}>{record.employee_name}</Text>
-                        <Text type="secondary" style={{ fontSize: '11px' }}>{record.employee_number || record.name}</Text>
-                        {record.custom_is_licensed_practitioner && (
+                        <Text type="secondary" style={{ fontSize: '11px' }}>{record.name}</Text>
+                        {!!record.custom_is_licensed_practitioner && (
                             <Tag color="blue" icon={<SafetyCertificateOutlined />} style={{ fontSize: '9px', marginTop: 4, width: 'fit-content' }}>
                                 Licensed
                             </Tag>
