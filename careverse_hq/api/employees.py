@@ -176,6 +176,37 @@ def get_employees(
             order_by="employee_name asc"
         )
 
+        # Deduplicate: if multiple employees are linked to the same Health Professional,
+        # keep only the most recent one
+        if employees:
+            hp_to_employees = {}
+            for emp in employees:
+                hp_id = emp.get("custom_health_professional")
+                if hp_id:
+                    if hp_id not in hp_to_employees:
+                        hp_to_employees[hp_id] = emp
+                    else:
+                        # Keep the most recently modified employee
+                        existing = hp_to_employees[hp_id]
+                        if emp.get("modified") > existing.get("modified"):
+                            hp_to_employees[hp_id] = emp
+
+            # Rebuild employees list keeping only deduped records
+            deduped_employees = []
+            seen_hps = set()
+            for emp in employees:
+                hp_id = emp.get("custom_health_professional")
+                if hp_id:
+                    # Only include if this is the canonical employee for this HP
+                    if hp_id not in seen_hps and hp_to_employees.get(hp_id, {}).get("name") == emp.get("name"):
+                        deduped_employees.append(emp)
+                        seen_hps.add(hp_id)
+                else:
+                    # Always include employees with no HP link
+                    deduped_employees.append(emp)
+
+            employees = deduped_employees
+
         # Enrich with Health Professional data in one query (avoid N+1 lookups).
         hp_names = [emp.custom_health_professional for emp in employees if emp.get("custom_health_professional")]
         hp_map = {}
@@ -187,7 +218,7 @@ def get_employees(
                 fields=[
                     "name",
                     "professional_cadre", "professional_specialty", "sub_specialty",
-                    "registration_number", "license_id", "license_type", "license_end",
+                    "registration_number", "external_reference_id", "license_id", "license_type", "license_start", "license_end",
                     "phone", "email", "county"
                 ],
                 page_length=len(hp_names)
@@ -206,8 +237,10 @@ def get_employees(
                 "professional_specialty": hp_data.get("professional_specialty"),
                 "sub_specialty": hp_data.get("sub_specialty"),
                 "registration_number": hp_data.get("registration_number"),
+                "external_reference_id": hp_data.get("external_reference_id"),
                 "license_id": hp_data.get("license_id"),
                 "license_type": hp_data.get("license_type"),
+                "license_start": hp_data.get("license_start"),
                 "license_end": hp_data.get("license_end"),
                 "phone": hp_data.get("phone"),
                 "email": hp_data.get("email"),

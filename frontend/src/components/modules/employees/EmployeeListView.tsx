@@ -297,36 +297,42 @@ const EmployeeListView: React.FC = () => {
         columns.push({
             title: 'License Status',
             key: 'license',
-            width: 190,
+            width: 200,
             render: (record: Employee) => {
+                // No license end date = not licensed
                 if (!record.license_end) {
-                    return <Text type="secondary">N/A</Text>;
+                    return (
+                        <Tag color="default">
+                            Not Licensed
+                        </Tag>
+                    );
                 }
 
+                // Has license end date - show full timeline
                 const timeline = getLicenseTimeline(record.license_start, record.license_end);
+
+                if (!timeline) {
+                    return (
+                        <Tag color="error">
+                            Invalid dates
+                        </Tag>
+                    );
+                }
 
                 return (
                     <Space direction="vertical" size={4} style={{ width: '100%' }}>
                         <LicenseStatusBadge record={record} />
-                        {timeline ? (
-                            <>
-                                <Tooltip title={`${record.license_start} to ${record.license_end}`}>
-                                    <Progress
-                                        percent={timeline.percentElapsed}
-                                        showInfo={false}
-                                        size="small"
-                                        strokeColor={timeline.color}
-                                    />
-                                </Tooltip>
-                                <Text style={{ fontSize: '11px', color: timeline.color }}>
-                                    {timeline.label}
-                                </Text>
-                            </>
-                        ) : (
-                            <Text type="secondary" style={{ fontSize: '11px' }}>
-                                Missing start/end dates
-                            </Text>
-                        )}
+                        <Tooltip title={`${record.license_start || 'N/A'} to ${record.license_end}`}>
+                            <Progress
+                                percent={timeline.percentElapsed}
+                                showInfo={false}
+                                size="small"
+                                strokeColor={timeline.color}
+                            />
+                        </Tooltip>
+                        <Text style={{ fontSize: '10px', color: timeline.color }}>
+                            {timeline.label}
+                        </Text>
                     </Space>
                 );
             },
@@ -606,6 +612,7 @@ const EmployeeListView: React.FC = () => {
                     setSelectedEmployeeId(null);
                 }}
             />
+
         </div>
     );
 };

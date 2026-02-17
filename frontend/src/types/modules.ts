@@ -132,6 +132,12 @@ export interface HealthProfessional extends BaseRecord {
         company: string;
         image?: string;
     };
+
+    // HWR Sync fields (4 fields)
+    last_sync_date?: string;
+    last_sync_status?: 'Success' | 'Failed' | 'Never Synced';
+    last_sync_error?: string;
+    sync_in_progress?: number;
 }
 
 export interface ProfessionalAffiliation {

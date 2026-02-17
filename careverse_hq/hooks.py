@@ -146,23 +146,14 @@ home_page = "index"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"careverse_hq.tasks.all"
-# 	],
-# 	"daily": [
-# 		"careverse_hq.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"careverse_hq.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"careverse_hq.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"careverse_hq.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	# Run every 2 hours at minute 0
+	"cron": {
+		"0 */1 * * *": [
+			"careverse_hq.tasks.sync_expired_licenses_from_hwr"
+		]
+	}
+}
 
 # Testing
 # -------

@@ -362,6 +362,13 @@ export const healthProfessionalsApi = {
         if (cadre) params.cadre = cadre;
         return frappeCall('careverse_hq.api.health_professionals.get_specialties_by_cadre', params);
     },
+
+    // Sync health professional data from HWR
+    syncFromHWR: async (id: string): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.health_professionals.sync_health_professional_from_hwr', {
+            health_professional_id: id
+        });
+    },
 };
 
 // Employees API - Employee management with Company-based RBAC
