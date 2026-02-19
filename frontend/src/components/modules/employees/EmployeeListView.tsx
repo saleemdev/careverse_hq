@@ -280,14 +280,12 @@ const EmployeeListView: React.FC = () => {
         });
 
         columns.push({
-            title: 'Professional Cadre',
-            key: 'cadre',
+            title: 'Department',
+            key: 'department',
             width: 160,
             render: (record: Employee) => (
-                record.professional_cadre ? (
-                    <Tag color="blue" style={{ fontSize: '12px' }}>
-                        {record.professional_cadre}
-                    </Tag>
+                record.department ? (
+                    <Text style={{ fontSize: '13px' }}>{record.department}</Text>
                 ) : (
                     <Text type="secondary">N/A</Text>
                 )
@@ -379,6 +377,16 @@ const EmployeeListView: React.FC = () => {
                         </div>
                         <div>
                             <Text type="secondary" style={{ fontSize: 12 }}>{record.designation || 'N/A'}</Text>
+                        </div>
+                        <div style={{ marginTop: 4 }}>
+                            <Text type="secondary" style={{ fontSize: 11 }}>Professional Cadre</Text>
+                            <div>
+                                {record.professional_cadre ? (
+                                    <Tag color="blue" style={{ fontSize: '12px' }}>{record.professional_cadre}</Tag>
+                                ) : (
+                                    <Text type="secondary" style={{ fontSize: 12 }}>N/A</Text>
+                                )}
+                            </div>
                         </div>
                     </Col>
                     <Col xs={24} md={12} lg={8}>

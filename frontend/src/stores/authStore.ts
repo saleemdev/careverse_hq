@@ -396,8 +396,7 @@ const useAuthStore = create<AuthState>()(
           logout: async () => {
             set({ loading: true, error: null })
 
-            // Clear client state immediately, then delegate session invalidation
-            // to Frappe's native logout route (GET /logout), which avoids CSRF failures.
+            // Clear client state immediately
             set({
               isAuthenticated: false,
               user: null,
@@ -410,10 +409,11 @@ const useAuthStore = create<AuthState>()(
             try {
               localStorage.removeItem('f360-central-auth-store')
             } catch (e) {
-              console.warn('[AuthService] Could not clear localStorage:', e)
+              // Silent fail
             }
 
-            window.location.assign('/logout')
+            // Use Frappe's standard logout route
+            window.location.href = '/logout'
           },
 
           /**

@@ -876,27 +876,43 @@ def get_affiliation_statistics(
         # Generate monthly trend
         monthly_trend = generate_monthly_trend(affiliations, "requested_date")
         
-        # Get professional cadre breakdown (requires join with Health Professional)
-        by_cadre = defaultdict(int)
+        # Get professional cadre and licensing body breakdown (requires join with Health Professional)
+        by_cadre = defaultdict(lambda: defaultdict(int))
+        by_licensing_body = defaultdict(lambda: defaultdict(int))
         professional_ids = [a.get("health_professional") for a in affiliations if a.get("health_professional")]
         if professional_ids:
             professionals = frappe.get_all(
                 "Health Professional",
                 filters={"name": ["in", professional_ids]},
-                fields=["name", "professional_cadre"]
+                fields=["name", "professional_cadre", "licensing_body"]
             )
             cadre_map = {p.name: p.get("professional_cadre", "Unknown") for p in professionals}
+            licensing_map = {p.name: p.get("licensing_body", "Unknown") for p in professionals}
             for aff in affiliations:
                 prof_id = aff.get("health_professional")
+                status = aff.get("affiliation_status", "Unknown")
                 cadre = cadre_map.get(prof_id, "Unknown")
-                by_cadre[cadre] += 1
-        
+                licensing_body = licensing_map.get(prof_id, "Unknown")
+
+                # Track by cadre
+                by_cadre[cadre]["total"] += 1
+                by_cadre[cadre][status] += 1
+
+                # Track by licensing body
+                by_licensing_body[licensing_body]["total"] += 1
+                by_licensing_body[licensing_body][status] += 1
+
+        # Serialize nested dicts to regular dicts for JSON response
+        by_cadre_serialized = {k: dict(v) for k, v in by_cadre.items()}
+        by_licensing_body_serialized = {k: dict(v) for k, v in by_licensing_body.items()}
+
         return api_response(
             success=True,
             data={
                 "by_status": dict(by_status),
                 "by_employment_type": dict(by_employment_type),
-                "by_professional_cadre": dict(by_cadre),
+                "by_professional_cadre": by_cadre_serialized,
+                "by_licensing_body": by_licensing_body_serialized,
                 "monthly_trend": monthly_trend,
                 "total": len(affiliations)
             }

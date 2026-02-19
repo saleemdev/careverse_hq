@@ -74,27 +74,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     const { user, logout } = useAuthStore();
     const { company, selectedFacilities } = useFacilityStore();
 
-    const confirmLogout = () => {
-        Modal.confirm({
-            title: 'Log out of your session?',
-            icon: <ExclamationCircleOutlined />,
-            content: 'You will be signed out immediately and redirected to the login page.',
-            okText: 'Log Out',
-            cancelText: 'Stay Signed In',
-            centered: true,
-            okButtonProps: { danger: true },
-            onOk: async () => {
-                try {
-                    await logout();
-                } catch (error: any) {
-                    message.error({
-                        content: error.message || 'Logout failed. Please try again.',
-                        duration: 5,
-                    });
-                    throw error;
-                }
-            },
-        });
+    const confirmLogout = async () => {
+        try {
+            await logout();
+        } catch (error: any) {
+            message.error({
+                content: error.message || 'Logout failed. Please try again.',
+                duration: 5,
+            });
+        }
     };
 
     // Auto-collapse on tablet
@@ -177,19 +165,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             key: 'profile',
             icon: <UserOutlined />,
             label: 'My Profile',
-            onClick: () => onNavigate('profile'),
         },
         {
             key: 'settings',
             icon: <SettingOutlined />,
             label: 'Settings',
-            onClick: () => onNavigate('settings'),
         },
         {
             key: 'switch-desk',
             icon: <LinkOutlined />,
             label: 'Switch to Desk',
-            onClick: () => window.location.href = '/app',
         },
         { type: 'divider' as const },
         {
@@ -197,9 +182,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             icon: <LogoutOutlined />,
             label: 'Logout',
             danger: true,
-            onClick: confirmLogout,
         },
     ];
+
+    // Handle user menu selection
+    const handleUserMenuClick = (e: { key: string }) => {
+        if (e.key === 'logout') {
+            confirmLogout();
+        } else if (e.key === 'switch-desk') {
+            window.location.href = '/app';
+        } else {
+            onNavigate(e.key);
+        }
+    };
 
     // Handle menu click
     const handleMenuClick = (e: { key: string }) => {
@@ -526,7 +521,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                         </Tooltip>
 
                         {/* User Menu */}
-                        <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
+                        <Dropdown
+                            menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
+                            trigger={['click']}
+                            placement="bottomRight"
+                        >
                             <Space style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: '8px' }}>
                                 <Avatar
                                     size="default"

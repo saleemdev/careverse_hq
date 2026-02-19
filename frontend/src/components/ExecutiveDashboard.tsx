@@ -20,6 +20,7 @@ import {
     List,
     Progress,
     Tooltip,
+    Input,
 } from 'antd';
 import {
     BankOutlined,
@@ -29,6 +30,7 @@ import {
     LinkOutlined,
     SafetyCertificateOutlined,
     ArrowRightOutlined,
+    SearchOutlined,
 } from '@ant-design/icons';
 import { dashboardApi, employeesApi } from '../services/api';
 import { useResponsive } from '../hooks/useResponsive';
@@ -47,6 +49,8 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
     const { isMobile, isTablet } = useResponsive();
     const [loading, setLoading] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+    const [cadreSearchText, setCadreSearchText] = useState('');
+    const [licensingBodySearchText, setLicensingBodySearchText] = useState('');
 
     // Facility context - only for company info, no filtering
     const {
@@ -124,6 +128,12 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             const byEmploymentType = affiliationStatsResponse.success
                 ? (affiliationStatsResponse.data?.by_employment_type || {})
                 : {};
+            const byProfessionalCadre = affiliationStatsResponse.success
+                ? (affiliationStatsResponse.data?.by_professional_cadre || {})
+                : {};
+            const byLicensingBody = affiliationStatsResponse.success
+                ? (affiliationStatsResponse.data?.by_licensing_body || {})
+                : {};
 
             const totalAffiliations = Number(
                 affiliationStatsResponse.success
@@ -145,6 +155,8 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 confirmation_rate: confirmationRate,
                 rejection_rate: rejectionRate,
                 by_employment_type: byEmploymentType,
+                by_professional_cadre: byProfessionalCadre,
+                by_licensing_body: byLicensingBody,
             });
 
             if (overviewResponse.success && overviewResponse.data) {
@@ -194,7 +206,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
 
             // Fallback to partially empty data if error occurs
             setCompanyData((prev: any) => prev || { health_professionals_total: 0, pending_affiliations: 0, total_affiliations: 0, total_facilities: 0 });
-            setAffiliationData((prev: any) => prev || { total: 0, confirmed: 0, pending: 0, rejected: 0, confirmation_rate: 0, rejection_rate: 0, by_employment_type: {} });
+            setAffiliationData((prev: any) => prev || { total: 0, confirmed: 0, pending: 0, rejected: 0, confirmation_rate: 0, rejection_rate: 0, by_employment_type: {}, by_professional_cadre: {}, by_licensing_body: {} });
         } finally {
             setLoading(false);
         }
@@ -317,6 +329,26 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
     const employmentTypeEntries = Object.entries(affiliationData?.by_employment_type || {})
         .map(([type, count]) => ({ type, count: Number(count || 0) }))
         .sort((a, b) => b.count - a.count);
+
+    const cadreEntries = Object.entries(affiliationData?.by_professional_cadre || {})
+        .map(([cadre, status]: any) => ({
+            cadre,
+            total: Number(status.total || 0),
+            confirmed: (Number(status.Active || 0) + Number(status.Confirmed || 0)),
+            pending: Number(status.Pending || 0),
+            rejected: Number(status.Rejected || 0),
+        }))
+        .sort((a, b) => b.total - a.total);
+
+    const licensingBodyEntries = Object.entries(affiliationData?.by_licensing_body || {})
+        .map(([body, status]: any) => ({
+            body,
+            total: Number(status.total || 0),
+            confirmed: (Number(status.Active || 0) + Number(status.Confirmed || 0)),
+            pending: Number(status.Pending || 0),
+            rejected: Number(status.Rejected || 0),
+        }))
+        .sort((a, b) => b.total - a.total);
 
     return (
         <div
@@ -511,7 +543,257 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 </Col>
             </Row>
 
-            {/* Section 3: License Compliance & Expiry */}
+            {/* Section 3: Affiliation Distribution */}
+            <SectionHeader
+                title="Affiliation Distribution"
+                icon={<LinkOutlined />}
+            />
+            <Row gutter={[16, 16]}>
+                <Col xs={24} md={12}>
+                    <Card
+                        style={{
+                            borderRadius: 'var(--radius-lg)',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                            border: 'none',
+                        }}
+                        title="By Professional Cadre"
+                    >
+                        {cadreEntries.length === 0 ? (
+                            <div style={{ padding: 24, textAlign: 'center' }}>
+                                <Text type="secondary">No professional cadre data available</Text>
+                            </div>
+                        ) : (
+                            <>
+                                <Input
+                                    placeholder="Search cadres..."
+                                    prefix={<SearchOutlined />}
+                                    value={cadreSearchText}
+                                    onChange={(e) => setCadreSearchText(e.target.value)}
+                                    style={{ marginBottom: 16 }}
+                                    size="small"
+                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    {cadreEntries
+                                        .filter((entry) =>
+                                            entry.cadre.toLowerCase().includes(cadreSearchText.toLowerCase())
+                                        )
+                                        .map((entry) => {
+                                    const affiliatedPercent = entry.total ? (entry.confirmed / entry.total) * 100 : 0;
+                                    const pendingPercent = entry.total ? (entry.pending / entry.total) * 100 : 0;
+                                    const rejectedPercent = entry.total ? (entry.rejected / entry.total) * 100 : 0;
+
+                                    return (
+                                        <div
+                                            key={entry.cadre}
+                                            style={{
+                                                padding: 12,
+                                                borderRadius: 8,
+                                                background: token.colorBgContainer,
+                                                border: `1px solid ${token.colorBorder}`,
+                                            }}
+                                        >
+                                            {/* Header: Name & Total */}
+                                            <div style={{ marginBottom: 12 }}>
+                                                <Title level={5} style={{ margin: 0, color: token.colorTextHeading }}>
+                                                    {entry.cadre}
+                                                </Title>
+                                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                                    {entry.total} total affiliations
+                                                </Text>
+                                            </div>
+
+                                            {/* Status Rows - Vertical Stack */}
+                                            <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                                                {/* Affiliated Status */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Text style={{ fontSize: 12 }}>Affiliated</Text>
+                                                        <Text strong style={{ fontSize: 12, color: '#52c41a' }}>
+                                                            {entry.confirmed} ({affiliatedPercent.toFixed(0)}%)
+                                                        </Text>
+                                                    </div>
+                                                    <Progress
+                                                        percent={Number(affiliatedPercent.toFixed(1))}
+                                                        showInfo={false}
+                                                        strokeColor="#52c41a"
+                                                        size={['100%', 8]}
+                                                        trailColor={token.colorBgLayout}
+                                                    />
+                                                </div>
+
+                                                {/* Pending Status */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Text style={{ fontSize: 12 }}>Pending</Text>
+                                                        <Text strong style={{ fontSize: 12, color: '#faad14' }}>
+                                                            {entry.pending} ({pendingPercent.toFixed(0)}%)
+                                                        </Text>
+                                                    </div>
+                                                    <Progress
+                                                        percent={Number(pendingPercent.toFixed(1))}
+                                                        showInfo={false}
+                                                        strokeColor="#faad14"
+                                                        size={['100%', 8]}
+                                                        trailColor={token.colorBgLayout}
+                                                    />
+                                                </div>
+
+                                                {/* Rejected Status */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Text style={{ fontSize: 12 }}>Rejected</Text>
+                                                        <Text strong style={{ fontSize: 12, color: '#ff4d4f' }}>
+                                                            {entry.rejected} ({rejectedPercent.toFixed(0)}%)
+                                                        </Text>
+                                                    </div>
+                                                    <Progress
+                                                        percent={Number(rejectedPercent.toFixed(1))}
+                                                        showInfo={false}
+                                                        strokeColor="#ff4d4f"
+                                                        size={['100%', 8]}
+                                                        trailColor={token.colorBgLayout}
+                                                    />
+                                                </div>
+                                            </Space>
+                                        </div>
+                                    );
+                                })}
+                                    {cadreEntries.filter((entry) =>
+                                        entry.cadre.toLowerCase().includes(cadreSearchText.toLowerCase())
+                                    ).length === 0 && cadreSearchText && (
+                                        <div style={{ padding: 24, textAlign: 'center' }}>
+                                            <Text type="secondary">No cadres match "{cadreSearchText}"</Text>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </Card>
+                </Col>
+                <Col xs={24} md={12}>
+                    <Card
+                        style={{
+                            borderRadius: 'var(--radius-lg)',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                            border: 'none',
+                        }}
+                        title="By Licensing Body"
+                    >
+                        {licensingBodyEntries.length === 0 ? (
+                            <div style={{ padding: 24, textAlign: 'center' }}>
+                                <Text type="secondary">No licensing body data available</Text>
+                            </div>
+                        ) : (
+                            <>
+                                <Input
+                                    placeholder="Search licensing bodies..."
+                                    prefix={<SearchOutlined />}
+                                    value={licensingBodySearchText}
+                                    onChange={(e) => setLicensingBodySearchText(e.target.value)}
+                                    style={{ marginBottom: 16 }}
+                                    size="small"
+                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    {licensingBodyEntries
+                                        .filter((entry) =>
+                                            entry.body.toLowerCase().includes(licensingBodySearchText.toLowerCase())
+                                        )
+                                        .map((entry) => {
+                                    const affiliatedPercent = entry.total ? (entry.confirmed / entry.total) * 100 : 0;
+                                    const pendingPercent = entry.total ? (entry.pending / entry.total) * 100 : 0;
+                                    const rejectedPercent = entry.total ? (entry.rejected / entry.total) * 100 : 0;
+
+                                    return (
+                                        <div
+                                            key={entry.body}
+                                            style={{
+                                                padding: 12,
+                                                borderRadius: 8,
+                                                background: token.colorBgContainer,
+                                                border: `1px solid ${token.colorBorder}`,
+                                            }}
+                                        >
+                                            {/* Header: Name & Total */}
+                                            <div style={{ marginBottom: 12 }}>
+                                                <Title level={5} style={{ margin: 0, color: token.colorTextHeading }}>
+                                                    {entry.body}
+                                                </Title>
+                                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                                    {entry.total} total affiliations
+                                                </Text>
+                                            </div>
+
+                                            {/* Status Rows - Vertical Stack */}
+                                            <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                                                {/* Affiliated Status */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Text style={{ fontSize: 12 }}>Affiliated</Text>
+                                                        <Text strong style={{ fontSize: 12, color: '#52c41a' }}>
+                                                            {entry.confirmed} ({affiliatedPercent.toFixed(0)}%)
+                                                        </Text>
+                                                    </div>
+                                                    <Progress
+                                                        percent={Number(affiliatedPercent.toFixed(1))}
+                                                        showInfo={false}
+                                                        strokeColor="#52c41a"
+                                                        size={['100%', 8]}
+                                                        trailColor={token.colorBgLayout}
+                                                    />
+                                                </div>
+
+                                                {/* Pending Status */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Text style={{ fontSize: 12 }}>Pending</Text>
+                                                        <Text strong style={{ fontSize: 12, color: '#faad14' }}>
+                                                            {entry.pending} ({pendingPercent.toFixed(0)}%)
+                                                        </Text>
+                                                    </div>
+                                                    <Progress
+                                                        percent={Number(pendingPercent.toFixed(1))}
+                                                        showInfo={false}
+                                                        strokeColor="#faad14"
+                                                        size={['100%', 8]}
+                                                        trailColor={token.colorBgLayout}
+                                                    />
+                                                </div>
+
+                                                {/* Rejected Status */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Text style={{ fontSize: 12 }}>Rejected</Text>
+                                                        <Text strong style={{ fontSize: 12, color: '#ff4d4f' }}>
+                                                            {entry.rejected} ({rejectedPercent.toFixed(0)}%)
+                                                        </Text>
+                                                    </div>
+                                                    <Progress
+                                                        percent={Number(rejectedPercent.toFixed(1))}
+                                                        showInfo={false}
+                                                        strokeColor="#ff4d4f"
+                                                        size={['100%', 8]}
+                                                        trailColor={token.colorBgLayout}
+                                                    />
+                                                </div>
+                                            </Space>
+                                        </div>
+                                    );
+                                })}
+                                    {licensingBodyEntries.filter((entry) =>
+                                        entry.body.toLowerCase().includes(licensingBodySearchText.toLowerCase())
+                                    ).length === 0 && licensingBodySearchText && (
+                                        <div style={{ padding: 24, textAlign: 'center' }}>
+                                            <Text type="secondary">No licensing bodies match "{licensingBodySearchText}"</Text>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Section 4: License Compliance & Expiry */}
             <SectionHeader
                 title="License Compliance & Expiry"
                 icon={<SafetyCertificateOutlined />}
