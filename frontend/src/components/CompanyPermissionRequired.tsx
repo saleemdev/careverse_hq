@@ -1,11 +1,11 @@
 /**
- * Company Permission Required Component
+ * Organization Access Required Component
  * Shown when user lacks Company permission
  * Light, friendly design with header - user is logged in!
  */
 
-import { Button, Typography, Space, Avatar, Dropdown, Modal, message } from 'antd';
-import { BankOutlined, ReloadOutlined, LogoutOutlined, MailOutlined, UserOutlined, SettingOutlined, BellOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { Button, Typography, Space, Avatar, Dropdown } from 'antd';
+import { BankOutlined, ReloadOutlined, LogoutOutlined, MailOutlined, UserOutlined, SettingOutlined, BellOutlined } from '@ant-design/icons';
 import useAuthStore from '../stores/authStore';
 import { useResponsive } from '../hooks/useResponsive';
 
@@ -15,24 +15,8 @@ const CompanyPermissionRequired: React.FC = () => {
 	const { user, logout } = useAuthStore();
 	const { isMobile, isTablet } = useResponsive();
 
-	const confirmLogout = () => {
-		Modal.confirm({
-			title: 'Log out of your session?',
-			icon: <ExclamationCircleOutlined />,
-			content: 'You will be signed out immediately and redirected to the login page.',
-			okText: 'Log Out',
-			cancelText: 'Stay Signed In',
-			centered: true,
-			okButtonProps: { danger: true },
-			onOk: async () => {
-				try {
-					await logout();
-				} catch (error: any) {
-					message.error(error.message || 'Logout failed. Please try again.');
-					throw error;
-				}
-			},
-		});
+	const handleLogout = () => {
+		logout();
 	};
 
 	// Compact, responsive sizing
@@ -92,10 +76,9 @@ const CompanyPermissionRequired: React.FC = () => {
 				style={{
 					position: 'relative',
 					zIndex: 10,
-					background: 'rgba(255, 255, 255, 0.7)',
-					backdropFilter: 'blur(20px)',
-					WebkitBackdropFilter: 'blur(20px)',
+					background: '#fff',
 					borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+					boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
 					padding: isMobile ? '12px 16px' : '16px 24px',
 				}}
 			>
@@ -115,11 +98,14 @@ const CompanyPermissionRequired: React.FC = () => {
 								width: '32px',
 								height: '32px',
 								borderRadius: '8px',
-								background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+								background: 'rgba(24, 144, 255, 0.12)',
+								backdropFilter: 'blur(12px)',
+								WebkitBackdropFilter: 'blur(12px)',
+								border: '1px solid rgba(24, 144, 255, 0.15)',
 								display: 'flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								color: '#fff',
+								color: '#1890ff',
 								fontWeight: 'bold',
 								fontSize: '16px',
 							}}
@@ -171,7 +157,7 @@ const CompanyPermissionRequired: React.FC = () => {
 								],
 									onClick: ({ key }) => {
 										if (key === 'logout') {
-											confirmLogout();
+											handleLogout();
 										}
 									},
 								}}
@@ -201,8 +187,11 @@ const CompanyPermissionRequired: React.FC = () => {
 								<Avatar
 									size={isMobile ? 28 : 32}
 									style={{
-										background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-										color: '#fff',
+										background: 'rgba(24, 144, 255, 0.12)',
+								backdropFilter: 'blur(12px)',
+								WebkitBackdropFilter: 'blur(12px)',
+								border: '1px solid rgba(24, 144, 255, 0.15)',
+										color: '#1890ff',
 										fontWeight: 600,
 									}}
 									src={user?.user_image}
@@ -247,45 +236,31 @@ const CompanyPermissionRequired: React.FC = () => {
 					style={{
 						maxWidth: cardMaxWidth,
 						width: '100%',
-						borderRadius: isMobile ? '16px' : '20px',
-						background: 'rgba(255, 255, 255, 0.95)',
-						backdropFilter: 'blur(20px) saturate(180%)',
-						WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-						boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04)',
-						border: '1px solid rgba(255, 255, 255, 0.8)',
+						borderRadius: '12px',
+						background: '#fff',
+						boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+						border: 'none',
 						padding: cardPadding,
 						position: 'relative',
 						animation: 'slideUp 0.5s ease-out',
 					}}
 				>
-					{/* Top accent bar - Softer colors */}
-					<div
-						style={{
-							position: 'absolute',
-							top: 0,
-							left: 0,
-							right: 0,
-							height: '3px',
-							background: 'linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-							borderRadius: isMobile ? '16px 16px 0 0' : '20px 20px 0 0',
-						}}
-					/>
-
-					{/* Icon - Friendlier color */}
-					<div style={{ textAlign: 'center', marginBottom: isMobile ? '16px' : '20px', marginTop: isMobile ? '8px' : '12px' }}>
+					{/* Icon - Friendly blue color */}
+					<div style={{ textAlign: 'center', marginBottom: isMobile ? '16px' : '20px' }}>
 						<div
 							style={{
-								width: `${iconSize}px`,
-								height: `${iconSize}px`,
-								borderRadius: '50%',
-								background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+								width: '48px',
+								height: '48px',
+								borderRadius: '12px',
+								background: '#1890ff15',
 								display: 'inline-flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								boxShadow: '0 8px 24px rgba(99, 102, 241, 0.25), 0 0 0 6px rgba(99, 102, 241, 0.08)',
+								fontSize: '20px',
+								color: '#1890ff',
 							}}
 						>
-							<BankOutlined style={{ fontSize: `${iconFontSize}px`, color: '#fff' }} />
+							<BankOutlined />
 						</div>
 					</div>
 
@@ -303,7 +278,7 @@ const CompanyPermissionRequired: React.FC = () => {
 							lineHeight: 1.2,
 						}}
 					>
-						County Permission Required
+						Organization Access Required
 					</Title>
 
 					{/* Status Badge - Friendlier color */}
@@ -336,7 +311,7 @@ const CompanyPermissionRequired: React.FC = () => {
 							margin: `0 auto ${isMobile ? '20px' : '24px'}`,
 						}}
 					>
-						Your account needs <strong style={{ color: '#1e293b' }}>County (Company) access permission</strong> to use this dashboard. Contact your administrator to get assigned.
+						Your account needs <strong style={{ color: '#1e293b' }}>organization access permission</strong> to use this dashboard. Contact your administrator to get assigned.
 					</Paragraph>
 
 					{/* Instructions - More compact */}
@@ -400,9 +375,10 @@ const CompanyPermissionRequired: React.FC = () => {
 								fontWeight: 600,
 								borderRadius: '10px',
 								minWidth: isMobile ? 'auto' : '150px',
-								background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+								background: 'linear-gradient(135deg, #1890ff 0%, #1890ff 100%)',
 								border: 'none',
-								boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+								boxShadow: '0 4px 12px rgba(24, 144, 255, 0.3)',
+								color: '#fff',
 							}}
 						>
 							Refresh Page
@@ -410,7 +386,7 @@ const CompanyPermissionRequired: React.FC = () => {
 							<Button
 								icon={<LogoutOutlined />}
 								size={isMobile ? 'middle' : 'large'}
-								onClick={confirmLogout}
+								onClick={handleLogout}
 								block={isMobile}
 								style={{
 								height: isMobile ? '40px' : '44px',

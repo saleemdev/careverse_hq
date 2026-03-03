@@ -210,7 +210,7 @@ curl -X POST http://desk.kns.co.ke:8000/api/method/careverse_hq.api.user_managem
 ### Test 1.1: User Creation - Direct ✅
 - [x] Create user with required fields
 - [x] Assign "Assistant" role
-- [x] Create Department permission for county
+- [x] Create Department permission for organization
 - [x] Generate temporary password
 - [x] Send email with credentials
 - [x] Return success response with temp password
@@ -299,7 +299,7 @@ send_user_credentials_email(
 
 1. **Temporary passwords** are automatically generated with high entropy (12+ characters with mixed case, numbers, and symbols)
 2. **must_reset_password** flag forces users to change password on first login
-3. **User Permissions** are automatically created to restrict access by county/department
+3. **User Permissions** are automatically created to restrict access by department/organization
 4. **Email notifications** are sent for all password operations
 5. **API authentication** required for all user management operations
 

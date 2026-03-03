@@ -20,6 +20,64 @@ from .dashboard_utils import (
 )
 
 
+def _normalize_optional_string(value: Optional[str]) -> Optional[str]:
+    """Normalize optional string query parameters from HTTP requests."""
+    if value is None:
+        return None
+
+    if isinstance(value, (dict, list)):
+        return None
+
+    normalized = str(value).strip()
+    if not normalized or normalized.lower() in {"undefined", "null", "none"}:
+        return None
+
+    return normalized
+
+
+def _build_affiliation_scope_filters(
+    facilities: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """
+    Build normalized Facility Affiliation filters with consistent scope behavior.
+    Returns tuple(filters, is_empty_scope).
+    """
+    filters = {}
+
+    facilities = _normalize_optional_string(facilities)
+    date_from = _normalize_optional_string(date_from)
+    date_to = _normalize_optional_string(date_to)
+
+    if facilities:
+        requested_facilities = [f.strip() for f in facilities.split(",") if f.strip()]
+        if not requested_facilities:
+            return {}, True
+
+        facility_refs = set(requested_facilities)
+        for facility_ref in requested_facilities:
+            resolved = resolve_health_facility_reference(facility_ref)
+            if resolved.get("facility_docname"):
+                facility_refs.add(resolved["facility_docname"])
+            if resolved.get("facility_id"):
+                facility_refs.add(resolved["facility_id"])
+
+        if not facility_refs:
+            return {}, True
+
+        filters["health_facility"] = ["in", list(facility_refs)]
+
+    if date_from and date_to:
+        filters["requested_date"] = ["between", [getdate(date_from), getdate(date_to)]]
+    elif date_from:
+        filters["requested_date"] = [">=", getdate(date_from)]
+    elif date_to:
+        filters["requested_date"] = ["<=", getdate(date_to)]
+
+    return filters, False
+
+
 @frappe.whitelist()
 def get_employees(
     facilities: Optional[str] = None,
@@ -233,7 +291,9 @@ def get_affiliations(
     status: Optional[str] = None,
     professional_name: Optional[str] = None,
     date_from: Optional[str] = None,
-    date_to: Optional[str] = None
+    date_to: Optional[str] = None,
+    expiry_from: Optional[str] = None,
+    expiry_to: Optional[str] = None
 ):
     """
     Get list of facility affiliations.
@@ -250,6 +310,8 @@ def get_affiliations(
         professional_name: Search by professional name (optional, user input)
         date_from: Filter by requested_date >= date_from (optional)
         date_to: Filter by requested_date <= date_to (optional)
+        expiry_from: Filter by expiry_date >= expiry_from (optional)
+        expiry_to: Filter by expiry_date <= expiry_to (optional)
     """
     try:
         def _normalize_optional_string(value: Optional[str]) -> Optional[str]:
@@ -270,6 +332,8 @@ def get_affiliations(
         professional_name = _normalize_optional_string(professional_name)
         date_from = _normalize_optional_string(date_from)
         date_to = _normalize_optional_string(date_to)
+        expiry_from = _normalize_optional_string(expiry_from)
+        expiry_to = _normalize_optional_string(expiry_to)
 
         # Build filters dictionary - ONLY from user input
         filters = {}
@@ -316,6 +380,14 @@ def get_affiliations(
         elif date_to:
             filters["requested_date"] = ["<=", date_to]
 
+        # Optional affiliation expiry date range filter
+        if expiry_from and expiry_to:
+            filters["expiry_date"] = ["between", [expiry_from, expiry_to]]
+        elif expiry_from:
+            filters["expiry_date"] = [">=", expiry_from]
+        elif expiry_to:
+            filters["expiry_date"] = ["<=", expiry_to]
+
         # Calculate offset for pagination
         page = max(int(page), 1)
         page_size = max(int(page_size), 1)
@@ -324,20 +396,30 @@ def get_affiliations(
         # Get total count with permission-aware query
         total_count = frappe.db.count("Facility Affiliation", filters=filters)
 
+        # Base fields always present on Facility Affiliation
+        base_fields = [
+            "name",
+            "health_professional",
+            "health_professional_name",
+            "health_facility",
+            "affiliation_status",
+            "employment_type",
+            "requested_date",
+            "start_date",
+            "end_date",
+            "expiry_date",
+        ]
+        # Optional termination/history fields (if on doctype)
+        optional_fields = ["termination_reason", "termination_date", "terminated_by", "employee"]
+        meta = frappe.get_meta("Facility Affiliation")
+        request_fields = base_fields + [f for f in optional_fields if meta.has_field(f)]
+
         # Fetch affiliations using frappe.get_list
         # Frappe automatically applies User Permissions here
         affiliations = frappe.get_list(
             "Facility Affiliation",
             filters=filters,
-            fields=[
-                "name",
-                "health_professional",
-                "health_professional_name",
-                "health_facility",
-                "affiliation_status",
-                "employment_type",
-                "requested_date"
-            ],
+            fields=request_fields,
             order_by="requested_date desc",
             limit_start=offset,
             limit_page_length=page_size
@@ -792,61 +874,41 @@ def get_affiliation_statistics(
         }
     """
     try:
-        user = frappe.session.user
-        
-        # Get user's company
-        if not company:
-            company = get_user_company(user)
-            if not company:
-                return api_response(
-                    success=False,
-                    message="No company assigned to user",
-                    status_code=403
-                )
-        
-        # Verify permission
-        has_permission = frappe.db.exists("User Permission", {
-            "user": user,
-            "allow": "Company",
-            "for_value": company
-        })
-        if not has_permission:
+        filters, empty_scope = _build_affiliation_scope_filters(
+            facilities=facilities,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        if empty_scope:
             return api_response(
-                success=False,
-                message="Permission denied",
-                status_code=403
+                success=True,
+                data={
+                    "by_status": {},
+                    "status_aggregates": {
+                        "total": 0,
+                        "pending": 0,
+                        "confirmed": 0,
+                        "active": 0,
+                        "rejected": 0,
+                        "expired": 0,
+                        "inactive": 0,
+                        "confirmation_rate": 0.0,
+                        "rejection_rate": 0.0,
+                        "approval_rate": 0.0
+                    },
+                    "by_employment_type": {},
+                    "by_professional_cadre": {},
+                    "by_licensing_body": {},
+                    "monthly_trend": [],
+                    "total": 0,
+                    "unique_health_professionals": 0,
+                    "unique_confirmed_health_professionals": 0
+                }
             )
-        
-        # Build filters
-        filters = {}
-        
-        # Facility filter
-        if facilities:
-            facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facilities = validate_user_facilities(user, company, facility_ids)
-            if valid_facilities:
-                filters["health_facility"] = ["in", valid_facilities]
-        else:
-            # Get all facilities for company
-            company_facilities = frappe.get_all(
-                "Health Facility",
-                filters={"organization_company": company},
-                pluck="hie_id"
-            )
-            if company_facilities:
-                filters["health_facility"] = ["in", company_facilities]
-        
-        # Date filter - FIXED: Use proper Frappe filter syntax for date range
-        if date_from and date_to:
-            # Use between operator for inclusive range
-            filters["requested_date"] = ["between", [getdate(date_from), getdate(date_to)]]
-        elif date_from:
-            filters["requested_date"] = [">=", getdate(date_from)]
-        elif date_to:
-            filters["requested_date"] = ["<=", getdate(date_to)]
         
         # Get all affiliations
-        affiliations = frappe.get_all(
+        affiliations = frappe.get_list(
             "Facility Affiliation",
             filters=filters,
             fields=[
@@ -875,13 +937,38 @@ def get_affiliation_statistics(
         
         # Generate monthly trend
         monthly_trend = generate_monthly_trend(affiliations, "requested_date")
+
+        active_count = by_status.get("Active", 0)
+        confirmed_raw_count = by_status.get("Confirmed", 0)
+        confirmed_count = active_count + confirmed_raw_count
+        rejected_count = by_status.get("Rejected", 0)
+        total_count_for_rate = len(affiliations)
+
+        status_aggregates = {
+            "total": total_count_for_rate,
+            "pending": by_status.get("Pending", 0),
+            "confirmed": confirmed_count,
+            "active": active_count,
+            "rejected": rejected_count,
+            "expired": by_status.get("Expired", 0),
+            "inactive": by_status.get("Inactive", 0),
+            "confirmation_rate": round((confirmed_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
+            "rejection_rate": round((rejected_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
+            "approval_rate": round((confirmed_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
+        }
         
         # Get professional cadre and licensing body breakdown (requires join with Health Professional)
         by_cadre = defaultdict(lambda: defaultdict(int))
         by_licensing_body = defaultdict(lambda: defaultdict(int))
         professional_ids = [a.get("health_professional") for a in affiliations if a.get("health_professional")]
+        unique_professionals = {p for p in professional_ids if p}
+        confirmed_professionals = {
+            a.get("health_professional")
+            for a in affiliations
+            if a.get("health_professional") and (a.get("affiliation_status") in ["Active", "Confirmed"])
+        }
         if professional_ids:
-            professionals = frappe.get_all(
+            professionals = frappe.get_list(
                 "Health Professional",
                 filters={"name": ["in", professional_ids]},
                 fields=["name", "professional_cadre", "licensing_body"]
@@ -910,11 +997,14 @@ def get_affiliation_statistics(
             success=True,
             data={
                 "by_status": dict(by_status),
+                "status_aggregates": status_aggregates,
                 "by_employment_type": dict(by_employment_type),
                 "by_professional_cadre": by_cadre_serialized,
                 "by_licensing_body": by_licensing_body_serialized,
                 "monthly_trend": monthly_trend,
-                "total": len(affiliations)
+                "total": len(affiliations),
+                "unique_health_professionals": len(unique_professionals),
+                "unique_confirmed_health_professionals": len(confirmed_professionals),
             }
         )
     

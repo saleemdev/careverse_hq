@@ -169,7 +169,7 @@ const FacilityContextSwitcher: React.FC<FacilityContextSwitcherProps> = ({
 								Viewing Data For
 							</Text>
 							<Text strong style={{ fontSize: '13px' }}>
-								{company?.company_name || 'County'}
+								{company?.company_name || 'Organization'}
 							</Text>
 						</div>
 					)}

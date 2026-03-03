@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ConfigProvider, Layout, theme, Spin, Card } from 'antd';
+import { ConfigProvider, Layout, theme, Spin, Card, message } from 'antd';
 import enUS from 'antd/locale/en_US';
 import 'dayjs/locale/en';
 import useAuthStore from './stores/authStore';
@@ -22,6 +22,7 @@ import BulkUploadDetailView from './pages/affiliations/BulkUploadDetailView';
 import UserListPage from './pages/user-management/UserListPage';
 import CreateUserPage from './pages/user-management/CreateUserPage';
 import EditUserPage from './pages/user-management/EditUserPage';
+import { getCsrfToken, setCsrfToken } from './utils/csrf';
 import './App.css';
 
 const { Content } = Layout;
@@ -59,7 +60,11 @@ function App() {
 
   // Initialize CSRF token from window object (injected by Frappe)
   useEffect(() => {
-    if (!(window as any).csrf_token) {
+    if (!(window as any).csrf_token && (window as any).frappe?.boot?.csrf_token) {
+      setCsrfToken((window as any).frappe.boot.csrf_token);
+    }
+
+    if (!getCsrfToken()) {
       console.error('[SECURITY] CSRF token is not available. Frappe may not have injected it properly.');
     } else {
       console.log('[SECURITY] CSRF token initialized successfully');
@@ -78,6 +83,23 @@ function App() {
       window.removeEventListener('session-expired', handleSessionExpired);
     };
   }, [checkAuthentication]);
+
+  // Dev-only toast for CSRF refresh attempts/success.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const onCsrfRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ phase?: string }>).detail;
+      if (detail?.phase === 'success') {
+        message.info('[DEV] CSRF token refreshed');
+      } else if (detail?.phase === 'fallback') {
+        message.warning('[DEV] CSRF refresh fallback used');
+      }
+    };
+
+    window.addEventListener('csrf-refresh', onCsrfRefresh as EventListener);
+    return () => window.removeEventListener('csrf-refresh', onCsrfRefresh as EventListener);
+  }, []);
 
   // Initialize app: check authentication and load facility context in parallel
   useEffect(() => {
@@ -324,6 +346,22 @@ function App() {
                 type="under-construction"
                 title="Attendance Tracking Coming Soon"
                 description="We are integrating real-time biometric and geo-fencing attendance logs. This module will allow you to monitor staff presence across all facilities."
+                onAction={() => navigateToRoute('dashboard')}
+                actionText="Return to Dashboard"
+              />
+            </Card>
+          </div>
+        );
+
+      // eContracting route (Under Construction)
+      case 'e-contracting':
+        return (
+          <div style={{ padding: '24px' }}>
+            <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+              <EmptyState
+                type="under-construction"
+                title="eContracting Coming Soon"
+                description="We are rolling out digital contract lifecycle management to support draft, review, approval, and secure signing workflows."
                 onAction={() => navigateToRoute('dashboard')}
                 actionText="Return to Dashboard"
               />

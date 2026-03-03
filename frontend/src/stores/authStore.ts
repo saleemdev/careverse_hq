@@ -13,6 +13,7 @@
 
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { getCsrfToken } from '../utils/csrf'
 
 // Version for localStorage - increment to invalidate old cached data
 const AUTH_STORE_VERSION = 2
@@ -168,7 +169,7 @@ const useAuthStore = create<AuthState>()(
               credentials: 'include',
               headers: {
                 'Accept': 'application/json',
-                'X-Frappe-CSRF-Token': (window as any).csrf_token || ''
+                'X-Frappe-CSRF-Token': getCsrfToken()
               }
             })
 
@@ -234,8 +235,8 @@ const useAuthStore = create<AuthState>()(
 
             try {
               // SECURITY: Validate CSRF token exists before checking auth
-              console.log('[AUTH DEBUG] CSRF Token present:', !!(window as any).csrf_token)
-              if (!(window as any).csrf_token) {
+              console.log('[AUTH DEBUG] CSRF Token present:', !!getCsrfToken())
+              if (!getCsrfToken()) {
                 console.warn('[SECURITY] CSRF token not available during authentication check')
               }
 
@@ -316,7 +317,7 @@ const useAuthStore = create<AuthState>()(
                   credentials: 'include',
                   headers: {
                     'Accept': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token || ''
+                    'X-Frappe-CSRF-Token': getCsrfToken()
                   }
                 })
 

@@ -46,6 +46,7 @@ import {
 } from '@ant-design/icons';
 import { useResponsive } from '../hooks/useResponsive';
 import dayjs from 'dayjs';
+import { formatDateHuman } from '../utils/dateHelpers';
 
 const { Title, Text } = Typography;
 
@@ -319,7 +320,7 @@ const AffiliationsDashboard: React.FC<AffiliationsDashboardProps> = ({ navigateT
             title: 'Requested',
             dataIndex: 'requested_date',
             key: 'requested_date',
-            render: (date: string) => date ? dayjs(date).format('DD MMM YYYY') : '-',
+            render: (date: string) => formatDateHuman(date),
         },
         {
             title: 'View',
@@ -618,14 +619,14 @@ const AffiliationsDashboard: React.FC<AffiliationsDashboardProps> = ({ navigateT
                             <Descriptions.Item label="Role">{selectedAffiliation.role}</Descriptions.Item>
                             <Descriptions.Item label="Designation">{selectedAffiliation.designation}</Descriptions.Item>
                             <Descriptions.Item label="Requested Date">
-                                {selectedAffiliation.requested_date ? dayjs(selectedAffiliation.requested_date).format('DD MMM YYYY') : '-'}
+                                {formatDateHuman(selectedAffiliation.requested_date)}
                             </Descriptions.Item>
                             <Descriptions.Item label="Requested By">{selectedAffiliation.requested_by || '-'}</Descriptions.Item>
                             <Descriptions.Item label="Start Date">
-                                {selectedAffiliation.start_date ? dayjs(selectedAffiliation.start_date).format('DD MMM YYYY') : '-'}
+                                {formatDateHuman(selectedAffiliation.start_date)}
                             </Descriptions.Item>
                             <Descriptions.Item label="End Date">
-                                {selectedAffiliation.end_date ? dayjs(selectedAffiliation.end_date).format('DD MMM YYYY') : '-'}
+                                {formatDateHuman(selectedAffiliation.end_date)}
                             </Descriptions.Item>
                         </Descriptions>
                     </>

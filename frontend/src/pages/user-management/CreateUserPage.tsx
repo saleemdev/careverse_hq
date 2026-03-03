@@ -20,6 +20,7 @@ import {
     HomeOutlined,
     TeamOutlined
 } from '@ant-design/icons';
+import { getCsrfToken } from '../../utils/csrf';
 
 const { Title, Text } = Typography;
 
@@ -48,8 +49,9 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Frappe-CSRF-Token': (window as any).csrf_token
+                        'X-Frappe-CSRF-Token': getCsrfToken()
                     },
+                    credentials: 'include',
                     body: JSON.stringify({
                         doctype: 'Department',
                         fields: ['name'],
@@ -78,8 +80,9 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    'X-Frappe-CSRF-Token': getCsrfToken()
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     first_name: values.first_name,
                     last_name: values.last_name,

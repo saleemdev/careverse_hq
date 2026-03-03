@@ -5,6 +5,52 @@
   min-height: 100vh;
 }
 
+/* Header action controls - boost icon contrast and affordance */
+.header-action-btn.ant-btn.ant-btn-text {
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-primary) 88%, var(--color-primary) 12%);
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.header-action-btn.ant-btn.ant-btn-text .anticon {
+  color: inherit;
+  font-size: inherit;
+}
+
+.header-action-btn.ant-btn.ant-btn-text:hover {
+  color: var(--color-primary) !important;
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--border-color) 55%);
+  background: color-mix(in srgb, var(--bg-primary) 80%, var(--color-primary) 20%);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.header-action-btn.ant-btn.ant-btn-text:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 28%, transparent), var(--shadow-sm);
+}
+
+.header-action-btn--menu.ant-btn.ant-btn-text {
+  color: var(--color-primary) !important;
+}
+
+.header-user-trigger {
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.header-user-trigger:hover {
+  background: color-mix(in srgb, var(--bg-tertiary) 85%, var(--color-primary) 15%);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme='dark'] .header-action-btn.ant-btn.ant-btn-text {
+  background: color-mix(in srgb, var(--bg-tertiary) 82%, var(--color-primary) 18%);
+  border-color: var(--border-color-light);
+}
+
 /* Dashboard Specific Styles */
 .dashboard-container {
   padding: var(--spacing-lg);

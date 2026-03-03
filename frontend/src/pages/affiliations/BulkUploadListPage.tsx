@@ -29,6 +29,7 @@ import {
 import type { ColumnsType, FilterValue, SorterResult } from 'antd/es/table/interface';
 import type { TablePaginationConfig } from 'antd/es/table';
 import EmptyState from '../../components/shared/EmptyState/EmptyState';
+import { getCsrfToken } from '../../utils/csrf';
 
 const { Title, Text } = Typography;
 
@@ -87,7 +88,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Frappe-CSRF-Token': (window as any).csrf_token
+                        'X-Frappe-CSRF-Token': getCsrfToken()
                     },
                     credentials: 'include'
                 }

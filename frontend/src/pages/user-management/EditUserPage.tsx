@@ -22,6 +22,7 @@ import {
     HomeOutlined,
     TeamOutlined
 } from '@ant-design/icons';
+import { getCsrfToken } from '../../utils/csrf';
 
 const { Title, Text } = Typography;
 
@@ -62,8 +63,9 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Frappe-CSRF-Token': (window as any).csrf_token
+                        'X-Frappe-CSRF-Token': getCsrfToken()
                     },
+                    credentials: 'include',
                     body: JSON.stringify({
                         doctype: 'User',
                         name: userId
@@ -105,8 +107,9 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Frappe-CSRF-Token': (window as any).csrf_token
+                        'X-Frappe-CSRF-Token': getCsrfToken()
                     },
+                    credentials: 'include',
                     body: JSON.stringify({
                         doctype: 'Department',
                         fields: ['name'],
@@ -135,8 +138,9 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    'X-Frappe-CSRF-Token': getCsrfToken()
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     user_email: user?.email,
                     first_name: values.first_name,
@@ -173,8 +177,9 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    'X-Frappe-CSRF-Token': getCsrfToken()
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     user_email: user.email
                 })

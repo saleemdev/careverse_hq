@@ -28,6 +28,7 @@ import {
     CloudUploadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { getCsrfToken } from '../../utils/csrf';
 
 const { Title, Text } = Typography;
 
@@ -85,7 +86,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Frappe-CSRF-Token': (window as any).csrf_token
+                        'X-Frappe-CSRF-Token': getCsrfToken()
                     },
                     credentials: 'include'
                 }

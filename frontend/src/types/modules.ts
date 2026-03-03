@@ -1,5 +1,5 @@
 /**
- * TypeScript Interfaces for HealthPro ERP Modules
+ * TypeScript Interfaces for Admin Central Modules
  */
 
 export type StatusType = 'Active' | 'Inactive' | 'Pending' | 'Approved' | 'Rejected' | 'Draft' | 'Cancelled' | 'Submitted' | 'Open' | 'Closed';
@@ -151,6 +151,9 @@ export interface ProfessionalAffiliation {
     start_date?: string;
     end_date?: string;
     facility_affiliation?: string;
+    termination_reason?: string;
+    termination_date?: string;
+    terminated_by?: string;
 }
 
 export type LicenseStatus = 'Active' | 'Expiring Soon' | 'Expired' | 'Not Licensed';

@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { io, Socket } from 'socket.io-client';
+import { getCsrfToken } from '../utils/csrf';
 
 export type RealtimeEventHandler = (data: any) => void;
 
@@ -81,7 +82,7 @@ const useRealtimeStore = create<RealtimeState>()(
             transports: ['websocket', 'polling'],
             withCredentials: true,
             extraHeaders: {
-              'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
+              'X-Frappe-CSRF-Token': getCsrfToken(),
             },
           });
 

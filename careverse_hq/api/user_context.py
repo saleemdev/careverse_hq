@@ -88,6 +88,7 @@ def get_user_company_context():
 					"name": company_doc.name,
 					"company_name": company_doc.company_name,
 					"abbr": company_doc.abbr,
+					"company_logo": company_doc.company_logo if hasattr(company_doc, "company_logo") else None,
 					"country": company_doc.country if hasattr(company_doc, "country") else None,
 					"default_currency": company_doc.default_currency
 				},

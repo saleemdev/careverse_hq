@@ -196,6 +196,14 @@ scheduler_events = {
 # before_request = ["careverse_hq.utils.before_request"]
 # after_request = ["careverse_hq.utils.after_request"]
 
+# CSRF exceptions (kept narrow and guarded by server-side auth + permission checks).
+ignore_csrf = [
+	"careverse_hq.api.affiliations.request_termination_otp",
+	"careverse_hq.api.affiliations.terminate_affiliation",
+	"careverse_hq.api.affiliations.upload_termination_attachment",
+	"careverse_hq.api.affiliations.upload_termination_attachment_base64",
+]
+
 # Job Events
 # ----------
 # before_job = ["careverse_hq.utils.before_job"]

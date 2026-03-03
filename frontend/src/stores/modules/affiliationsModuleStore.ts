@@ -10,6 +10,9 @@ interface Affiliation {
     affiliation_status: string;
     employment_type: string;
     requested_date: string;
+    start_date?: string;
+    end_date?: string;
+    expiry_date?: string;
 }
 
 interface AffiliationsModuleStore {
@@ -35,6 +38,8 @@ interface AffiliationsModuleStore {
         professional_name?: string;  // NEW: Professional name search
         dateFrom?: string;           // NEW: Date range filter start
         dateTo?: string;             // NEW: Date range filter end
+        expiryFrom?: string;         // NEW: Affiliation expiry range start
+        expiryTo?: string;           // NEW: Affiliation expiry range end
         facilities?: string[];       // NEW: Facility filter
     };
     fetchAffiliations: (facilityIds?: string[]) => Promise<void>;
@@ -53,6 +58,8 @@ const useAffiliationsModuleStore = create<AffiliationsModuleStore>((set, get) =>
         professional_name: '',  // NEW
         dateFrom: '',           // NEW
         dateTo: '',             // NEW
+        expiryFrom: '',         // NEW
+        expiryTo: '',           // NEW
         facilities: []          // NEW
     },
     fetchAffiliations: async (facilityIds) => {

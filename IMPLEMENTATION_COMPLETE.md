@@ -104,7 +104,7 @@ Successfully implemented the complete Bulk Facility Affiliation Upload and User 
      - Email (required, validated)
      - Phone (optional)
      - Role (required, dropdown)
-     - County/Department (required, searchable dropdown)
+     - Department/Organization (required, searchable dropdown)
    - Success modal showing temporary password
    - Email notification confirmation
    - Copy password to clipboard functionality
@@ -142,13 +142,13 @@ Successfully implemented the complete Bulk Facility Affiliation Upload and User 
 - Create users with auto-generated secure passwords (12+ chars, mixed)
 - Password reset with new temporary password
 - Update user details (name, phone, status)
-- User permissions management (Department/County access)
+- User permissions management (Department/Organization access)
 - Email notifications for all operations
 
 ✅ **Role Management**
 - Assistant role with appropriate permissions
 - Permission isolation (users only see their own uploads)
-- County/Department boundary enforcement
+- Department/Organization boundary enforcement
 
 ✅ **Email Templates**
 - Professional HTML email templates
@@ -232,8 +232,8 @@ frontend/src/
    - Secure password transmission via email
 
 2. **Permission Enforcement**
-   - User Permissions for county/department isolation
-   - Role-based access control (County Executive, Assistant)
+   - User Permissions for department/organization isolation
+   - Role-based access control (Executive, Assistant)
    - Read-only vs create permissions
    - Users only see their own bulk uploads (if_owner flag)
 
@@ -301,7 +301,7 @@ curl -X POST http://desk.kns.co.ke:8000/api/method/careverse_hq.api.user_managem
 - [x] Create user with optional fields
 - [x] Duplicate email rejection
 - [x] Invalid role rejection
-- [x] Invalid county rejection
+- [x] Invalid organization rejection
 - [x] Password reset functionality
 - [x] Update user details
 - [x] Email sending (check logs)
@@ -378,11 +378,11 @@ curl -X POST http://desk.kns.co.ke:8000/api/method/careverse_hq.api.user_managem
 1. **Setup Phase**
    - [ ] Run `setup_assistant_role()` script
    - [ ] Verify Assistant role permissions
-   - [ ] Verify County Executive permissions
+   - [ ] Verify Executive permissions
    - [ ] Configure email settings if needed
 
 2. **User Management Testing**
-   - [ ] Create test users (County Exec, Assistant)
+   - [ ] Create test users (Executive, Assistant)
    - [ ] Test user login with temp password
    - [ ] Test forced password change
    - [ ] Test password reset
@@ -403,20 +403,20 @@ curl -X POST http://desk.kns.co.ke:8000/api/method/careverse_hq.api.user_managem
 4. **Permission Testing**
    - [ ] Login as Assistant
    - [ ] Verify can access bulk upload
-   - [ ] Verify cannot access other county's data
+   - [ ] Verify cannot access other organization's data
    - [ ] Verify cannot edit affiliations directly
-   - [ ] Login as County Exec
+   - [ ] Login as Executive
    - [ ] Verify can see all features
    - [ ] Verify can create users
    - [ ] Verify can approve affiliations
 
 5. **End-to-End Scenarios**
-   - [ ] County Exec creates Assistant user
+   - [ ] Executive creates Assistant user
    - [ ] Assistant logs in and changes password
    - [ ] Assistant uploads 50 worker affiliations
    - [ ] Monitor status until completion
    - [ ] Verify all affiliations created
-   - [ ] County Exec reviews created affiliations
+   - [ ] Executive reviews created affiliations
 
 ---
 
@@ -467,7 +467,7 @@ curl -X POST http://desk.kns.co.ke:8000/api/method/careverse_hq.api.user_managem
 
 **Issue: Permission denied**
 - Verify user has appropriate role
-- Check User Permissions for county/department
+- Check User Permissions for department/organization
 - Run setup script again if needed
 
 **Issue: CSV validation fails**

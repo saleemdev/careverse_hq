@@ -35,7 +35,10 @@
         html, body {
             font-family: var(--font);
             color: var(--text-main);
-            background: linear-gradient(168deg, #f4f7fb 0%, #f9f8f6 40%, #f5f7fa 100%);
+            background:
+                radial-gradient(58% 46% at 10% 28%, rgba(129, 140, 248, 0.20) 0%, rgba(129, 140, 248, 0) 70%),
+                radial-gradient(42% 34% at 86% 60%, rgba(96, 165, 250, 0.20) 0%, rgba(96, 165, 250, 0) 70%),
+                linear-gradient(168deg, #f4f7fb 0%, #f8faf7 45%, #f4f7fa 100%);
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             min-height: 100vh;
@@ -52,6 +55,41 @@
             overflow: hidden;
         }
 
+        .shell .dot-fx {
+            position: fixed;
+            width: 250px;
+            height: 170px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.58;
+            background-image: radial-gradient(circle, rgba(99, 102, 241, 0.62) 1.55px, transparent 1.55px);
+            background-size: 16px 16px;
+            -webkit-mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.25) 62%, transparent 100%);
+            mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.25) 62%, transparent 100%);
+        }
+
+        .shell .dot-fx.tl {
+            top: 16px;
+            right: 76px;
+            opacity: 0.56;
+        }
+
+        .shell .dot-fx.br {
+            right: -24px;
+            bottom: 86px;
+            width: 230px;
+            height: 160px;
+            opacity: 0.62;
+        }
+
+        .shell .dot-fx.bl {
+            left: -38px;
+            bottom: -8px;
+            width: 230px;
+            height: 150px;
+            opacity: 0.46;
+        }
+
         .shell::before,
         .shell::after {
             content: '';
@@ -63,21 +101,21 @@
         }
 
         .shell::before {
-            width: 320px; height: 320px;
-            top: -90px; right: -60px;
-            background: radial-gradient(circle, rgba(56, 189, 248, 0.24), rgba(56, 189, 248, 0));
+            width: 360px; height: 360px;
+            top: -130px; right: -88px;
+            background: radial-gradient(circle, rgba(129, 140, 248, 0.24), rgba(129, 140, 248, 0));
         }
 
         .shell::after {
-            width: 260px; height: 260px;
-            bottom: -80px; left: -50px;
-            background: radial-gradient(circle, rgba(16, 185, 129, 0.17), rgba(16, 185, 129, 0));
+            width: 300px; height: 300px;
+            bottom: -114px; left: -78px;
+            background: radial-gradient(circle, rgba(96, 165, 250, 0.20), rgba(96, 165, 250, 0));
         }
 
         .shell > * { position: relative; z-index: 1; }
 
         .left {
-            flex: 0 0 50%;
+            flex: 0 0 45%;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -166,16 +204,16 @@
         .l-stats .lbl { font-size: 11px; color: var(--text-light); letter-spacing: 0.3px; text-transform: uppercase; }
 
         .right {
-            flex: 1;
+            flex: 0 0 55%;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 3rem 2rem;
+            padding: 3rem 1rem;
         }
 
         .card {
             width: 100%;
-            max-width: 400px;
+            max-width: 480px;
             background: linear-gradient(145deg, rgba(255,255,255,0.85), rgba(255,255,255,0.60));
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -203,7 +241,7 @@
 
         .mob-logo svg { width: 36px; height: 36px; color: var(--text-light); stroke: currentColor; stroke-width: 1.5; fill: none; }
 
-        .hdr { margin-bottom: 1.75rem; }
+        .hdr { margin-bottom: 2rem; }
         .hdr h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
         .hdr p { color: var(--text-muted); font-size: 13px; line-height: 1.4; }
 
@@ -215,7 +253,7 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .fg { margin-bottom: 1.25rem; position: relative; }
+        .fg { margin-bottom: 1.5rem; position: relative; }
 
         .fc {
             width: 100%;
@@ -358,7 +396,7 @@
         .social-btns {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
         }
 
         .btn-social {
@@ -415,7 +453,18 @@
             height: 18px;
         }
 
-        @media (max-width: 1024px) { .left { flex: 0 0 44%; padding: 3rem; } }
+        @media (min-width: 1920px) {
+            .card { max-width: 520px; }
+            .left { flex: 0 0 40%; }
+            .right { flex: 0 0 60%; }
+        }
+
+        @media (max-width: 1024px) {
+            .left { flex: 0 0 45%; padding: 3rem; }
+            .card { max-width: 420px; }
+            .right { padding: 3rem 1.5rem; }
+            .hdr { margin-bottom: 1.75rem; }
+        }
 
         @media (max-width: 768px) {
             .shell { flex-direction: column; }
@@ -430,6 +479,9 @@
 </head>
 <body>
     <div class="shell">
+        <div class="dot-fx tl" aria-hidden="true"></div>
+        <div class="dot-fx br" aria-hidden="true"></div>
+        <div class="dot-fx bl" aria-hidden="true"></div>
         <div class="left">
             <div>
                 <div class="l-badge">

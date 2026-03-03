@@ -40,6 +40,7 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
         page: 1,
         pageSize: 20,
         search: '',
+        status: 'Active',
         // No default filters - Frappe RBAC handles permissions
     },
     metrics: {
@@ -105,7 +106,7 @@ const useEmployeeStore = create<EmployeeStore>((set, get) => ({
                 page: 1,
                 pageSize: 20,
                 search: '',
-                status: undefined,
+                status: 'Active',
                 company: undefined,
                 facility: undefined,
                 department: undefined,

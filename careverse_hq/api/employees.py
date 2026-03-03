@@ -85,11 +85,14 @@ def get_employees(
         page = max(int(page), 1)
         page_size = max(1, min(int(page_size), 100))  # Max 100 records per page
 
-        # Build filters - NO DEFAULT FILTERS (Frappe RBAC handles permissions)
+        # Build filters.
+        # Default to active employees for operational views.
         filters = {}
 
         if status:
             filters["status"] = status
+        else:
+            filters["status"] = "Active"
 
         if company:
             filters["company"] = company
@@ -319,17 +322,20 @@ def get_employee_detail(id: str):
         if employee.custom_health_professional:
             affiliation_filters.append({"health_professional": employee.custom_health_professional})
 
+        aff_base = [
+            "name", "health_facility", "health_professional_name",
+            "role", "designation", "employment_type", "affiliation_status",
+            "start_date", "end_date", "facility_affiliation",
+        ]
+        aff_meta = frappe.get_meta("Facility Affiliation")
+        aff_fields = aff_base + [f for f in ("termination_reason", "termination_date", "terminated_by") if aff_meta.has_field(f)]
         affiliations = []
         for filter_dict in affiliation_filters:
             try:
                 affs = frappe.get_list(
                     "Facility Affiliation",
                     filters=filter_dict,
-                    fields=[
-                        "name", "health_facility", "health_professional_name",
-                        "role", "designation", "employment_type", "affiliation_status",
-                        "start_date", "end_date", "facility_affiliation"
-                    ],
+                    fields=aff_fields,
                     order_by="start_date desc"
                 )
                 affiliations.extend(affs)

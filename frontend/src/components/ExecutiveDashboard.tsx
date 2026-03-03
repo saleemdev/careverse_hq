@@ -32,7 +32,7 @@ import {
     ArrowRightOutlined,
     SearchOutlined,
 } from '@ant-design/icons';
-import { dashboardApi, employeesApi } from '../services/api';
+import { dashboardApi, employeesApi, affiliationsApi } from '../services/api';
 import { useResponsive } from '../hooks/useResponsive';
 import useFacilityStore from '../stores/facilityStore';
 import useDashboardRealtime from '../hooks/useDashboardRealtime';
@@ -119,11 +119,21 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             // Fetch company overview - no facility filtering, show entire company
             const overviewResponse = await dashboardApi.getCompanyOverview();
 
-            // Fetch affiliation statistics for focused affiliation KPIs
+            // Canonical affiliation counts: align with affiliations module aggregates
+            const affiliationsOverviewResponse = await affiliationsApi.getAffiliationsList({
+                page: 1,
+                pageSize: 1,
+            });
+
+            // Fetch affiliation statistics for distribution breakdowns
             const affiliationStatsResponse = await dashboardApi.getAffiliationStatistics();
 
+            const statusAggregates = affiliationsOverviewResponse.success
+                ? (affiliationsOverviewResponse.data?.status_aggregates || {})
+                : {};
+
             const byStatus = affiliationStatsResponse.success
-                ? (affiliationStatsResponse.data?.by_status || {})
+                ? (affiliationStatsResponse.data?.status_aggregates || affiliationStatsResponse.data?.by_status || {})
                 : {};
             const byEmploymentType = affiliationStatsResponse.success
                 ? (affiliationStatsResponse.data?.by_employment_type || {})
@@ -136,24 +146,44 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 : {};
 
             const totalAffiliations = Number(
-                affiliationStatsResponse.success
-                    ? (affiliationStatsResponse.data?.total ?? Object.values(byStatus).reduce((sum: number, count: any) => sum + Number(count || 0), 0))
-                    : 0
+                statusAggregates.total
+                    ?? (affiliationStatsResponse.success
+                        ? (affiliationStatsResponse.data?.total ?? Object.values(byStatus).reduce((sum: number, count: any) => sum + Number(count || 0), 0))
+                        : 0)
             );
 
-            const confirmedAffiliations = Number(byStatus.Active || 0) + Number(byStatus.Confirmed || 0);
-            const pendingAffiliations = Number(byStatus.Pending || 0);
-            const rejectedAffiliations = Number(byStatus.Rejected || 0);
-            const confirmationRate = totalAffiliations > 0 ? (confirmedAffiliations / totalAffiliations) * 100 : 0;
-            const rejectionRate = totalAffiliations > 0 ? (rejectedAffiliations / totalAffiliations) * 100 : 0;
+            const confirmedAffiliations = Number(
+                statusAggregates.confirmed
+                    ?? (Number(byStatus.Active || 0) + Number(byStatus.Confirmed || 0))
+            );
+            const pendingAffiliations = Number(
+                statusAggregates.pending
+                    ?? Number(byStatus.Pending || 0)
+            );
+            const rejectedAffiliations = Number(
+                statusAggregates.rejected
+                    ?? Number(byStatus.Rejected || 0)
+            );
+
+            const confirmationRate = Number(
+                statusAggregates.confirmation_rate
+                    ?? (totalAffiliations > 0 ? (confirmedAffiliations / totalAffiliations) * 100 : 0)
+            );
+            const rejectionRate = Number(
+                statusAggregates.rejection_rate
+                    ?? (totalAffiliations > 0 ? (rejectedAffiliations / totalAffiliations) * 100 : 0)
+            );
+
+            const normalizedConfirmationRate = Number.isFinite(confirmationRate) ? confirmationRate : 0;
+            const normalizedRejectionRate = Number.isFinite(rejectionRate) ? rejectionRate : 0;
 
             setAffiliationData({
                 total: totalAffiliations,
                 confirmed: confirmedAffiliations,
                 pending: pendingAffiliations,
                 rejected: rejectedAffiliations,
-                confirmation_rate: confirmationRate,
-                rejection_rate: rejectionRate,
+                confirmation_rate: normalizedConfirmationRate,
+                rejection_rate: normalizedRejectionRate,
                 by_employment_type: byEmploymentType,
                 by_professional_cadre: byProfessionalCadre,
                 by_licensing_body: byLicensingBody,
@@ -166,7 +196,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                     pending_affiliations: pendingAffiliations,
                     total_affiliations: totalAffiliations,
                     rejected_affiliations: rejectedAffiliations,
-                    confirmation_rate: confirmationRate,
+                    confirmation_rate: normalizedConfirmationRate,
                     total_assets: overviewResponse.data.total_assets || 0,
                     total_facilities: overviewResponse.data.total_facilities || 0,
                 });
@@ -178,7 +208,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                     pending_affiliations: pendingAffiliations,
                     total_affiliations: totalAffiliations,
                     rejected_affiliations: rejectedAffiliations,
-                    confirmation_rate: confirmationRate,
+                    confirmation_rate: normalizedConfirmationRate,
                 }));
             }
 
@@ -307,12 +337,14 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                     style={{
                         width: '36px',
                         height: '36px',
-                        borderRadius: '9px',
-                        background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                        borderRadius: '10px',
+                        background: 'rgba(24, 144, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(24, 144, 255, 0.2)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: '#fff',
+                        color: '#1890ff',
                         fontSize: '16px',
                     }}
                 >
@@ -398,7 +430,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 </Space>
             </div>
 
-            {/* Section 1: County Overview */}
+            {/* Section 1: Organization Overview */}
             <SectionHeader title="Facility & Affiliation Overview" icon={<BankOutlined />} />
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} lg={6}>

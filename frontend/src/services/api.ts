@@ -1,7 +1,8 @@
 /**
- * API Service for HealthPro ERP Dashboard
- * Manages all API calls to Frappe backend
+ * API Service for Admin Central Dashboard
+ * Manages all API calls to the backend
  */
+import { getCsrfToken, refreshCsrfToken, ensureCsrfToken } from '../utils/csrf';
 
 interface ApiResponse<T = any> {
     success: boolean;
@@ -10,9 +11,13 @@ interface ApiResponse<T = any> {
     error?: string;
 }
 
-// Helper to get CSRF token
-const getCsrfToken = (): string => {
-    return (window as any).csrf_token || '';
+const isCsrfErrorResponse = (response: Response, result: any): boolean => {
+    const payload = JSON.stringify(result || {});
+    return (
+        response.status === 403 ||
+        payload.includes('CSRFTokenError') ||
+        payload.includes('Invalid Request')
+    );
 };
 
 // Base API call helper
@@ -22,22 +27,35 @@ const apiCall = async <T = any>(
     data?: Record<string, any>
 ): Promise<ApiResponse<T>> => {
     try {
+        const csrfToken = method === 'GET' ? getCsrfToken() : await ensureCsrfToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Frappe-CSRF-Token': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+        };
         const options: RequestInit = {
             method,
             credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-Frappe-CSRF-Token': getCsrfToken(),
-            },
+            headers,
         };
 
         if (data && method !== 'GET') {
             options.body = JSON.stringify(data);
         }
 
-        const response = await fetch(endpoint, options);
-        const result = await response.json();
+        let response = await fetch(endpoint, options);
+        let result = await response.json().catch(() => ({}));
+
+        // One automatic retry on CSRF mismatch for write operations
+        if (method !== 'GET' && isCsrfErrorResponse(response, result)) {
+            const freshToken = await refreshCsrfToken();
+            if (freshToken) {
+                headers['X-Frappe-CSRF-Token'] = freshToken;
+                response = await fetch(endpoint, options);
+                result = await response.json().catch(() => ({}));
+            }
+        }
 
         if (!response.ok) {
             return {
@@ -90,6 +108,56 @@ export const frappeCall = async <T = any>(
     const queryString = new URLSearchParams(sanitizedParams).toString();
     const endpoint = `/api/method/${methodName}${queryString ? `?${queryString}` : ''}`;
     return apiCall<T>('GET', endpoint);
+};
+
+const callFrappePostMethod = async <T = any>(
+    methodName: string,
+    args: Record<string, any>
+): Promise<ApiResponse<T>> => {
+    const isCsrfText = (value: any): boolean => {
+        const raw = JSON.stringify(value || {});
+        return raw.includes('CSRFTokenError') || raw.includes('Invalid Request');
+    };
+
+    const getFallbackByGetAllowed = methodName === 'careverse_hq.api.affiliations.request_termination_otp'
+        || methodName === 'careverse_hq.api.affiliations.terminate_affiliation';
+
+    if ((window as any).frappe?.call) {
+        const deskResult = await new Promise<ApiResponse<T>>((resolve) => {
+            (window as any).frappe.call({
+                method: methodName,
+                type: 'POST',
+                args,
+                callback: (r: any) => {
+                    if (r?.exc) {
+                        resolve({ success: false, error: 'Request failed.', data: r as any });
+                        return;
+                    }
+                    const payload = r?.message || r;
+                    if (payload?.status === 'error') {
+                        resolve({ success: false, error: payload?.message || 'Request failed.', data: payload });
+                        return;
+                    }
+                    resolve({ success: true, data: payload?.data || payload });
+                },
+                error: (err: any) => {
+                    resolve({ success: false, error: err?.message || 'Request failed.', data: err as any });
+                },
+            });
+        });
+
+        if (!deskResult.success && getFallbackByGetAllowed && isCsrfText(deskResult.data || deskResult.error)) {
+            return frappeCall<T>(methodName, args);
+        }
+
+        return deskResult;
+    }
+
+    const httpResult = await apiCall<T>('POST', `/api/method/${methodName}`, args);
+    if (!httpResult.success && getFallbackByGetAllowed && isCsrfText(httpResult.error)) {
+        return frappeCall<T>(methodName, args);
+    }
+    return httpResult;
 };
 
 // Dashboard API
@@ -534,6 +602,8 @@ export const affiliationsApi = {
         professional_name?: string;
         dateFrom?: string;
         dateTo?: string;
+        expiryFrom?: string;
+        expiryTo?: string;
     }): Promise<ApiResponse> => {
         const queryParams: Record<string, any> = {};
 
@@ -543,6 +613,8 @@ export const affiliationsApi = {
         if (params.professional_name) queryParams.professional_name = params.professional_name;
         if (params.dateFrom) queryParams.date_from = params.dateFrom;
         if (params.dateTo) queryParams.date_to = params.dateTo;
+        if (params.expiryFrom) queryParams.expiry_from = params.expiryFrom;
+        if (params.expiryTo) queryParams.expiry_to = params.expiryTo;
         if (params.facilities?.length) queryParams.facilities = params.facilities.join(',');
 
         return frappeCall('careverse_hq.api.dashboard.get_affiliations', queryParams);
@@ -577,6 +649,43 @@ export const affiliationsApi = {
     // Get affiliation details
     getAffiliationDetails: async (affiliationId: string): Promise<ApiResponse> => {
         return apiCall('GET', `/api/resource/Facility Affiliation/${encodeURIComponent(affiliationId)}`);
+    },
+
+    // Terminate (unaffiliate) an active/confirmed affiliation
+    terminateAffiliation: async (
+        affiliationId: string,
+        terminationReason: string,
+        terminationDocuments?: string[],
+        otpCode?: string,
+        otpId?: string
+    ): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.affiliations.terminate_affiliation', {
+            affiliation_id: affiliationId,
+            termination_reason: terminationReason,
+            termination_documents: terminationDocuments || [],
+            otp_code: otpCode || '',
+            otp_id: otpId || '',
+        });
+    },
+
+    uploadTerminationAttachmentBase64: async (
+        affiliationId: string,
+        fileName: string,
+        fileContentBase64: string
+    ): Promise<ApiResponse<{ name: string; file_name: string; file_url?: string; stored_as_reference?: boolean }>> => {
+        return callFrappePostMethod('careverse_hq.api.affiliations.upload_termination_attachment_base64', {
+            affiliation_id: affiliationId,
+            file_name: fileName,
+            file_content_base64: fileContentBase64,
+        });
+    },
+
+    requestTerminationOtp: async (
+        affiliationId: string
+    ): Promise<ApiResponse<{ otp_id: string; channel: string; masked_destination: string; destination_source?: string; expires_in_seconds: number }>> => {
+        return frappeCall('careverse_hq.api.affiliations.request_termination_otp', {
+            affiliation_id: affiliationId,
+        });
     },
 };
 

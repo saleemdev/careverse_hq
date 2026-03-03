@@ -1,13 +1,15 @@
-import { Table, Empty } from 'antd';
+import { Table, Empty, Tooltip, Space, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { ProfessionalAffiliation } from '../../../types/modules';
 import { StatusTag } from '../shared/StatusTag';
-import dayjs from 'dayjs';
+import { formatDateHuman } from '../../../utils/dateHelpers';
 
 interface AffiliationsTableProps {
     data?: ProfessionalAffiliation[];
     loading?: boolean;
 }
+
+const { Text } = Typography;
 
 export const AffiliationsTable = ({ data, loading }: AffiliationsTableProps) => {
     const columns: ColumnsType<ProfessionalAffiliation> = [
@@ -44,14 +46,42 @@ export const AffiliationsTable = ({ data, loading }: AffiliationsTableProps) => 
             dataIndex: 'start_date',
             key: 'start_date',
             width: 120,
-            render: (date) => date ? dayjs(date).format('MMM DD, YYYY') : '-',
+            render: (date) => formatDateHuman(date),
         },
         {
             title: 'End Date',
             dataIndex: 'end_date',
             key: 'end_date',
             width: 120,
-            render: (date) => date ? dayjs(date).format('MMM DD, YYYY') : '-',
+            render: (date) => formatDateHuman(date),
+        },
+        {
+            title: 'Termination',
+            key: 'termination',
+            width: 220,
+            render: (_, record) => {
+                if (!record.termination_date && !record.termination_reason) {
+                    return <Text type="secondary">-</Text>;
+                }
+                const dateLabel = record.termination_date
+                    ? formatDateHuman(record.termination_date)
+                    : 'Date not set';
+                return (
+                    <Space direction="vertical" size={2}>
+                        <Text type="secondary" style={{ fontSize: 11 }}>
+                            {dateLabel}
+                            {record.terminated_by ? ` • by ${record.terminated_by}` : ''}
+                        </Text>
+                        {record.termination_reason && (
+                            <Tooltip title={record.termination_reason}>
+                                <Text style={{ fontSize: 11 }} ellipsis>
+                                    {record.termination_reason}
+                                </Text>
+                            </Tooltip>
+                        )}
+                    </Space>
+                );
+            },
         },
     ];
 

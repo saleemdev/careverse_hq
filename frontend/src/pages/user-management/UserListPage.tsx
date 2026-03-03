@@ -26,6 +26,7 @@ import {
     TeamOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { getCsrfToken } from '../../utils/csrf';
 
 const { Title, Text } = Typography;
 
@@ -61,8 +62,9 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    'X-Frappe-CSRF-Token': getCsrfToken()
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     doctype: 'User',
                     fields: ['name', 'email', 'first_name', 'last_name', 'phone', 'enabled', 'last_login'],
@@ -101,8 +103,9 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    'X-Frappe-CSRF-Token': getCsrfToken()
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     user_email: email
                 })
@@ -129,8 +132,9 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    'X-Frappe-CSRF-Token': getCsrfToken()
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     user_email: email,
                     enabled: currentEnabled === 1 ? 0 : 1

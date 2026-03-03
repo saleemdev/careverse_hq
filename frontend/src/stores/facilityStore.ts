@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
+import { getCsrfToken } from '../utils/csrf';
 
 export interface Facility {
 	hie_id: string;
@@ -22,6 +23,7 @@ export interface Company {
 	name: string;
 	company_name: string;
 	abbr: string;
+	company_logo?: string;
 	country?: string;
 	default_currency?: string;
 }
@@ -74,7 +76,7 @@ const useFacilityStore = create<FacilityState>()(
 								credentials: 'include',
 								headers: {
 									'Accept': 'application/json',
-									'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
+									'X-Frappe-CSRF-Token': getCsrfToken(),
 								},
 							}
 						);
@@ -182,7 +184,7 @@ const useFacilityStore = create<FacilityState>()(
 								credentials: 'include',
 								headers: {
 									'Accept': 'application/json',
-									'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
+									'X-Frappe-CSRF-Token': getCsrfToken(),
 								},
 							}
 						);

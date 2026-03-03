@@ -30,6 +30,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import Papa from 'papaparse';
 import useFacilityStore from '../../stores/facilityStore';
 import { useResponsive } from '../../hooks/useResponsive';
+import { getCsrfToken } from '../../utils/csrf';
 
 const { Title, Text } = Typography;
 const { Step } = Steps;
@@ -209,8 +210,9 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token
+                    'X-Frappe-CSRF-Token': getCsrfToken()
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     doc: {
                         doctype: 'Bulk Health Worker Upload',

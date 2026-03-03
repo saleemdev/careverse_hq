@@ -17,8 +17,6 @@ import {
     Breadcrumb,
     theme,
     Tooltip,
-    message,
-    Modal,
 } from 'antd';
 import {
     DashboardOutlined,
@@ -43,6 +41,7 @@ import {
     SafetyCertificateOutlined,
     CloudUploadOutlined,
     ExclamationCircleOutlined,
+    AuditOutlined,
 } from '@ant-design/icons';
 import { useResponsive } from '../hooks/useResponsive';
 import useAuthStore from '../stores/authStore';
@@ -73,16 +72,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
     const { user, logout } = useAuthStore();
     const { company, selectedFacilities } = useFacilityStore();
+    const headerActionButtonStyle = {
+        width: isMobile ? '36px' : '40px',
+        height: isMobile ? '36px' : '40px',
+        fontSize: isMobile ? '16px' : '17px',
+    };
 
-    const confirmLogout = async () => {
-        try {
-            await logout();
-        } catch (error: any) {
-            message.error({
-                content: error.message || 'Logout failed. Please try again.',
-                duration: 5,
-            });
-        }
+    const handleLogout = () => {
+        logout();
     };
 
     // Auto-collapse on tablet
@@ -143,6 +140,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     icon: <ClockCircleOutlined />,
                     label: 'Attendance Records',
                 },
+                {
+                    key: 'e-contracting',
+                    icon: <AuditOutlined />,
+                    label: 'eContracting',
+                },
             ],
         },
         {
@@ -188,7 +190,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     // Handle user menu selection
     const handleUserMenuClick = (e: { key: string }) => {
         if (e.key === 'logout') {
-            confirmLogout();
+            handleLogout();
         } else if (e.key === 'switch-desk') {
             window.location.href = '/app';
         } else {
@@ -217,6 +219,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             'bulk-upload/status': 'Upload Status',
             licenses: 'Licenses',
             attendance: 'Attendance',
+            'e-contracting': 'eContracting',
             'user-management': 'User Management',
             'create-user': 'Create User',
             'edit-user': 'Edit User',
@@ -243,16 +246,31 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     width: '36px',
                     height: '36px',
                     borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #1890ff 0%, #722ed1 100%)',
+                    background: 'rgba(24, 144, 255, 0.18)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(24, 144, 255, 0.30)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#fff',
+                    color: token.colorPrimary,
                     fontSize: '18px',
                     fontWeight: 700,
+                    overflow: 'hidden',
                 }}
             >
-                {company?.abbr?.charAt(0) || 'F'}
+                {company?.company_logo ? (
+                    <img
+                        src={company.company_logo}
+                        alt={`${company.company_name || company.name} logo`}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                        }}
+                    />
+                ) : (
+                    <SafetyCertificateOutlined style={{ fontSize: '18px', color: token.colorPrimary }} />
+                )}
             </div>
             {!collapsed && (
                 <div style={{ marginLeft: '12px' }}>
@@ -363,14 +381,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                             type="text"
                             icon={(isMobile || isTablet) ? <MenuUnfoldOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
                             onClick={() => ((isMobile || isTablet) ? setMobileMenuVisible(true) : setCollapsed(!collapsed))}
-                            style={{ fontSize: '18px', width: '40px', height: '40px' }}
+                            className="header-action-btn header-action-btn--menu"
+                            style={{ ...headerActionButtonStyle, fontSize: '18px' }}
                         />
 
-                        {/* Prominent County Name Badge - Desktop only */}
+                        {/* Prominent Organization Name Badge - Desktop only */}
                         {!isMobile && !isTablet && company && (
                             <div
                                 style={{
-                                    background: 'linear-gradient(135deg, #1890ff 0%, #722ed1 100%)',
+                                    background: 'rgba(24, 144, 255, 0.20)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(24, 144, 255, 0.25)',
                                     padding: '8px 20px',
                                     borderRadius: '8px',
                                     display: 'inline-flex',
@@ -379,11 +400,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                     boxShadow: '0 2px 8px rgba(24, 144, 255, 0.25)',
                                 }}
                             >
-                                <BankOutlined style={{ color: '#fff', fontSize: '16px' }} />
+                                <BankOutlined style={{ color: '#0050b3', fontSize: '16px' }} />
                                 <div>
                                     <Text
                                         style={{
-                                            color: '#fff',
+                                            color: '#0050b3',
                                             fontSize: '14px',
                                             fontWeight: 700,
                                             display: 'block',
@@ -394,23 +415,25 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                     </Text>
                                     <Text
                                         style={{
-                                            color: 'rgba(255, 255, 255, 0.85)',
+                                            color: 'rgba(0, 80, 179, 0.85)',
                                             fontSize: '11px',
                                             display: 'block',
                                             marginTop: '2px',
                                         }}
                                     >
-                                        County Government
+                                        Organization
                                     </Text>
                                 </div>
                             </div>
                         )}
 
-                        {/* Compact County Badge - Tablet */}
+                        {/* Compact Organization Badge - Tablet */}
                         {!isMobile && isTablet && company && (
                             <div
                                 style={{
-                                    background: 'linear-gradient(135deg, #1890ff 0%, #722ed1 100%)',
+                                    background: 'rgba(24, 144, 255, 0.20)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(24, 144, 255, 0.25)',
                                     padding: '6px 12px',
                                     borderRadius: '6px',
                                     display: 'inline-flex',
@@ -419,10 +442,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                     boxShadow: '0 2px 8px rgba(24, 144, 255, 0.25)',
                                 }}
                             >
-                                <BankOutlined style={{ color: '#fff', fontSize: '14px' }} />
+                                <BankOutlined style={{ color: '#0050b3', fontSize: '14px' }} />
                                 <Text
                                     style={{
-                                        color: '#fff',
+                                        color: '#0050b3',
                                         fontSize: '12px',
                                         fontWeight: 700,
                                     }}
@@ -432,7 +455,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                             </div>
                         )}
 
-                        {/* Mobile County Name */}
+                        {/* Mobile Organization Name */}
                         {isMobile && company && (
                             <Text
                                 strong
@@ -486,7 +509,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                         <Button
                                             type="text"
                                             icon={<MedicineBoxOutlined />}
-                                            style={{ width: '36px', height: '36px' }}
+                                            className="header-action-btn"
+                                            style={headerActionButtonStyle}
                                         />
                                     </Badge>
                                 </Tooltip>
@@ -499,12 +523,22 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                         {!isTablet && !isMobile && (
                             <>
                                 <Tooltip title="Search">
-                                    <Button type="text" icon={<SearchOutlined />} style={{ width: '40px', height: '40px' }} />
+                                    <Button
+                                        type="text"
+                                        icon={<SearchOutlined />}
+                                        className="header-action-btn"
+                                        style={headerActionButtonStyle}
+                                    />
                                 </Tooltip>
 
                                 <Tooltip title="Notifications">
                                     <Badge count={0} showZero size="small">
-                                        <Button type="text" icon={<BellOutlined />} style={{ width: '40px', height: '40px' }} />
+                                        <Button
+                                            type="text"
+                                            icon={<BellOutlined />}
+                                            className="header-action-btn"
+                                            style={headerActionButtonStyle}
+                                        />
                                     </Badge>
                                 </Tooltip>
                             </>
@@ -516,7 +550,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                 type="text"
                                 icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />}
                                 onClick={onToggleTheme}
-                                style={{ width: '36px', height: '36px' }}
+                                className="header-action-btn"
+                                style={headerActionButtonStyle}
                             />
                         </Tooltip>
 
@@ -526,7 +561,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                             trigger={['click']}
                             placement="bottomRight"
                         >
-                            <Space style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: '8px' }}>
+                            <Space className="header-user-trigger" style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: '8px' }}>
                                 <Avatar
                                     size="default"
                                     src={user?.user_image}

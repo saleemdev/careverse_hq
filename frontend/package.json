@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build --base=/assets/careverse_hq/admin-central/ && npm run copy-html-entry",
     "lint": "eslint .",
+    "test:e2e": "playwright test",
     "preview": "vite preview",
     "copy-html-entry": "cp ../careverse_hq/public/admin-central/index.html ../careverse_hq/www/admin-central.html"
   },
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.58.2",
     "@types/leaflet": "^1.9.21",
     "@types/lodash": "^4.17.23",
     "@types/node": "^24.10.1",
