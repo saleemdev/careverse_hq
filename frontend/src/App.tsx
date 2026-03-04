@@ -19,9 +19,11 @@ import EmptyState from './components/shared/EmptyState/EmptyState';
 import BulkUploadListPage from './pages/affiliations/BulkUploadListPage';
 import BulkUploadPage from './pages/affiliations/BulkUploadPage';
 import BulkUploadDetailView from './pages/affiliations/BulkUploadDetailView';
+import UserManagementPage from './pages/user-management/UserManagementPage';
 import UserListPage from './pages/user-management/UserListPage';
 import CreateUserPage from './pages/user-management/CreateUserPage';
 import EditUserPage from './pages/user-management/EditUserPage';
+import ProfilePage from './pages/profile/ProfilePage';
 import { getCsrfToken, setCsrfToken } from './utils/csrf';
 import './App.css';
 
@@ -31,6 +33,7 @@ const ROUTE_FAVICONS: Record<string, string> = {
   licenses: DEFAULT_FAVICON,
   affiliations: DEFAULT_FAVICON,
 };
+const ENABLE_USER_MGMT_REFACTOR = import.meta.env.VITE_ENABLE_USER_MGMT_REFACTOR !== 'false';
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -207,7 +210,10 @@ function App() {
       let route = parts[0];
       let id = null;
 
-      if (parts.length === 3) {
+      if (parts[0] === 'user-management' && parts.length === 3 && parts[2] === 'security') {
+        route = 'user-management/security';
+        id = parts[1];
+      } else if (parts.length === 3) {
         // e.g., #bulk-upload/status/JOB-001
         route = `${parts[0]}/${parts[1]}`;
         id = parts[2];
@@ -216,8 +222,11 @@ function App() {
         // Check if second part looks like an ID or is a subpath
         if (parts[0] === 'bulk-upload' && (parts[1] === 'new' || parts[1] === 'status')) {
           route = `${parts[0]}/${parts[1]}`;
-        } else if (parts[0] === 'user-management' && (parts[1] === 'create' || parts[1] === 'edit')) {
-          route = `${parts[0]}/${parts[1]}`;
+        } else if (parts[0] === 'user-management' && parts[1] === 'new') {
+          route = 'user-management/new';
+        } else if (parts[0] === 'user-management') {
+          route = 'user-management';
+          id = parts[1];
         } else {
           // Second part is an ID
           id = parts[1];
@@ -256,12 +265,12 @@ function App() {
       borderRadiusLG: 12,
       borderRadiusXS: 4,
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-      fontSize: 13,
-      fontSizeLG: 15,
-      fontSizeXL: 18,
-      lineHeight: 1.5,
-      controlHeight: 30,
-      controlHeightLG: 36,
+      fontSize: 12,
+      fontSizeLG: 14,
+      fontSizeXL: 16,
+      lineHeight: 1.45,
+      controlHeight: 28,
+      controlHeightLG: 34,
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
       boxShadowSecondary: '0 4px 16px rgba(0, 0, 0, 0.08)',
       colorBgLayout: isDarkMode ? '#141414' : '#f5f7fa',
@@ -286,15 +295,15 @@ function App() {
         itemActiveBg: isDarkMode ? '#1890ff1a' : '#e6f4ff',
         subMenuItemBg: 'transparent',
         itemMarginBlock: 2,
-        itemHeight: 36,
-        itemFontSize: 13,
+        itemHeight: 34,
+        itemFontSize: 12,
         itemBorderRadius: 8,
       },
       Card: {
         borderRadiusLG: 12,
-        headerHeight: 46,
-        headerFontSize: 15,
-        bodyPadding: 16,
+        headerHeight: 42,
+        headerFontSize: 14,
+        bodyPadding: 14,
         boxShadowTertiary: '0 2px 8px rgba(0, 0, 0, 0.06)',
       },
       Button: {
@@ -414,8 +423,27 @@ function App() {
 
       // User Management routes
       case 'user-management':
+        if (ENABLE_USER_MGMT_REFACTOR) {
+          return <UserManagementPage navigateToRoute={navigateToRoute} selectedUserId={currentDetailId} />;
+        }
         return <UserListPage navigateToRoute={navigateToRoute} />;
 
+      case 'user-management/new':
+        if (ENABLE_USER_MGMT_REFACTOR) {
+          return <UserManagementPage navigateToRoute={navigateToRoute} viewMode="create" />;
+        }
+        return <CreateUserPage navigateToRoute={navigateToRoute} />;
+
+      case 'user-management/security':
+        if (ENABLE_USER_MGMT_REFACTOR) {
+          return <UserManagementPage navigateToRoute={navigateToRoute} selectedUserId={currentDetailId} viewMode="security" />;
+        }
+        if (currentDetailId) {
+          return <EditUserPage userId={currentDetailId} navigateToRoute={navigateToRoute} />;
+        }
+        return <UserListPage navigateToRoute={navigateToRoute} />;
+
+      // Legacy user management routes kept for gradual migration
       case 'create-user':
         return <CreateUserPage navigateToRoute={navigateToRoute} />;
 
@@ -424,6 +452,9 @@ function App() {
           return <EditUserPage userId={currentDetailId} navigateToRoute={navigateToRoute} />;
         }
         return <UserListPage navigateToRoute={navigateToRoute} />;
+
+      case 'profile':
+        return <ProfilePage navigateToRoute={navigateToRoute} />;
 
       // Placeholder routes for modules under development
       case 'budget-overview':
@@ -478,9 +509,17 @@ function App() {
 
   // Show empty state if no Company permission
   if (isAuthenticated && !hasCompanyPermission) {
+    if (currentRoute === 'profile') {
+      return (
+        <ConfigProvider theme={themeConfig} locale={enUS}>
+          <ProfilePage navigateToRoute={navigateToRoute} showStandaloneHeader />
+        </ConfigProvider>
+      );
+    }
+
     return (
       <ConfigProvider theme={themeConfig} locale={enUS}>
-        <CompanyPermissionRequired />
+        <CompanyPermissionRequired onNavigate={navigateToRoute} />
       </ConfigProvider>
     );
   }

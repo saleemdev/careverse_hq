@@ -64,13 +64,15 @@ const apiCall = async <T = any>(
             };
         }
 
-        // Frappe wraps responses in { message: { status: "success", data: {...} } }
-        // Extract the nested data field if it exists
-        const apiResponse = result.message || result;
-        const finalData = apiResponse.data || apiResponse;
-
-        console.log(`[API] ${endpoint} - Raw result:`, result);
-        console.log(`[API] ${endpoint} - Extracted data:`, finalData);
+        // Frappe can return either { status, data, message } or { message: { status, data } }
+        // Prefer result.data when present so { status, data, message } is handled correctly
+        const apiResponse = result.message ?? result;
+        const finalData =
+            (result.data !== undefined && result.data !== null)
+                ? result.data
+                : (typeof apiResponse === 'object' && apiResponse !== null && apiResponse.data !== undefined)
+                    ? apiResponse.data
+                    : apiResponse;
 
         return {
             success: true,
@@ -133,12 +135,18 @@ const callFrappePostMethod = async <T = any>(
                         resolve({ success: false, error: 'Request failed.', data: r as any });
                         return;
                     }
-                    const payload = r?.message || r;
+                    const payload = r?.message ?? r;
                     if (payload?.status === 'error') {
                         resolve({ success: false, error: payload?.message || 'Request failed.', data: payload });
                         return;
                     }
-                    resolve({ success: true, data: payload?.data || payload });
+                    // Prefer r.data when server returns { status, data, message }; else payload.data or payload
+                    const data = (r?.data !== undefined && r?.data !== null)
+                        ? r.data
+                        : (typeof payload === 'object' && payload?.data !== undefined)
+                            ? payload.data
+                            : payload;
+                    resolve({ success: true, data });
                 },
                 error: (err: any) => {
                     resolve({ success: false, error: err?.message || 'Request failed.', data: err as any });
@@ -702,6 +710,209 @@ export const userContextApi = {
     },
 };
 
+// Profile API
+export const profileApi = {
+    getMyProfile: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.user_context.get_my_profile');
+    },
+
+    uploadMyAvatar: async (
+        file: File,
+        userDocname?: string
+    ): Promise<ApiResponse<{ file_url: string; file_name: string }>> => {
+        try {
+            const csrfToken = await ensureCsrfToken();
+            const formData = new FormData();
+            formData.append('file', file);
+            if (userDocname) {
+                formData.append('doctype', 'User');
+                formData.append('docname', userDocname);
+            }
+            formData.append('is_private', '0');
+
+            const response = await fetch('/api/method/upload_file', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'X-Frappe-CSRF-Token': csrfToken,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                return {
+                    success: false,
+                    error: result?.message || result?.exc || 'Failed to upload avatar file',
+                };
+            }
+
+            const payload = result?.message || result;
+            return {
+                success: true,
+                data: {
+                    file_url: payload?.file_url,
+                    file_name: payload?.file_name || file.name,
+                },
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                error: error?.message || 'Failed to upload avatar file',
+            };
+        }
+    },
+
+    setMyAvatar: async (fileUrl: string): Promise<ApiResponse<{ user_image: string }>> => {
+        return callFrappePostMethod('careverse_hq.api.user_context.set_my_profile_avatar', {
+            file_url: fileUrl,
+        });
+    },
+
+    uploadMyAvatarBase64: async (
+        fileName: string,
+        fileContentBase64: string
+    ): Promise<ApiResponse<{ user_image: string; file_name: string }>> => {
+        return callFrappePostMethod('careverse_hq.api.user_context.upload_my_profile_avatar', {
+            file_name: fileName,
+            file_content_base64: fileContentBase64,
+        });
+    },
+};
+
+export interface UserScopePermission {
+    name?: string;
+    allow: 'Company';
+    for_value: string;
+    is_default?: number;
+    apply_to_all_doctypes?: number;
+    applicable_for?: string | null;
+}
+
+export interface UserManagementUser {
+    id: string;
+    name: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    full_name?: string;
+    phone?: string;
+    enabled: number;
+    last_login?: string;
+    must_reset_password?: number;
+    roles: string[];
+    scopes?: UserScopePermission[];
+    scope_summary?: {
+        companies: number;
+        total: number;
+    };
+}
+
+export interface UserManagementListResponse {
+    items: UserManagementUser[];
+    pagination: {
+        page: number;
+        page_size: number;
+        total: number;
+        total_pages: number;
+    };
+}
+
+export interface UserManagementReferenceData {
+    roles: string[];
+    companies: string[];
+}
+
+export const userManagementApi = {
+    getReferenceData: async (): Promise<ApiResponse<UserManagementReferenceData>> => {
+        return callFrappePostMethod<UserManagementReferenceData>('careverse_hq.api.admin_user_management.get_reference_data', {});
+    },
+
+    listUsers: async (params: {
+        filters?: {
+            search?: string;
+            status?: 'enabled' | 'disabled' | '';
+            role?: string;
+            company?: string;
+        };
+        page?: number;
+        page_size?: number;
+        sort?: string;
+    }): Promise<ApiResponse<UserManagementListResponse>> => {
+        return callFrappePostMethod<UserManagementListResponse>('careverse_hq.api.admin_user_management.list_users', {
+            filters: params.filters || {},
+            page: params.page || 1,
+            page_size: params.page_size || 20,
+            sort: params.sort || 'creation desc',
+        });
+    },
+
+    getUserDetail: async (userId: string): Promise<ApiResponse<{ user: UserManagementUser }>> => {
+        return callFrappePostMethod<{ user: UserManagementUser }>('careverse_hq.api.admin_user_management.get_user_detail', {
+            user_id: userId,
+        });
+    },
+
+    createUser: async (payload: {
+        first_name: string;
+        last_name: string;
+        email: string;
+        phone?: string;
+        roles: string[];
+        scopes: UserScopePermission[];
+    }, deliveryMode: 'email_only' | 'display_only' | 'email_and_display' = 'email_only'): Promise<ApiResponse<{ user: UserManagementUser; temp_password?: string }>> => {
+        return callFrappePostMethod<{ user: UserManagementUser; temp_password?: string }>('careverse_hq.api.admin_user_management.create_user', {
+            payload,
+            delivery_mode: deliveryMode,
+        });
+    },
+
+    updateUserProfile: async (userId: string, payload: {
+        first_name?: string;
+        last_name?: string;
+        phone?: string;
+    }): Promise<ApiResponse<{ user: UserManagementUser }>> => {
+        return callFrappePostMethod<{ user: UserManagementUser }>('careverse_hq.api.admin_user_management.update_user_profile', {
+            user_id: userId,
+            payload,
+        });
+    },
+
+    updateUserStatus: async (userId: string, enabled: number, reason?: string): Promise<ApiResponse<{ user: UserManagementUser }>> => {
+        return callFrappePostMethod<{ user: UserManagementUser }>('careverse_hq.api.admin_user_management.update_user_status', {
+            user_id: userId,
+            enabled,
+            reason: reason || '',
+        });
+    },
+
+    updateUserRoles: async (userId: string, roles: string[]): Promise<ApiResponse<{ user: UserManagementUser }>> => {
+        return callFrappePostMethod<{ user: UserManagementUser }>('careverse_hq.api.admin_user_management.update_user_roles', {
+            user_id: userId,
+            roles,
+        });
+    },
+
+    updateUserScopePermissions: async (userId: string, scopes: UserScopePermission[]): Promise<ApiResponse<{ user: UserManagementUser }>> => {
+        return callFrappePostMethod<{ user: UserManagementUser }>('careverse_hq.api.admin_user_management.update_user_scope_permissions', {
+            user_id: userId,
+            scopes,
+        });
+    },
+
+    resetUserPassword: async (
+        userId: string,
+        deliveryMode: 'email_only' | 'display_only' | 'email_and_display' = 'email_only'
+    ): Promise<ApiResponse<{ user_id: string; delivery_mode: string; temp_password?: string }>> => {
+        return callFrappePostMethod<{ user_id: string; delivery_mode: string; temp_password?: string }>('careverse_hq.api.admin_user_management.reset_user_password', {
+            user_id: userId,
+            delivery_mode: deliveryMode,
+        });
+    },
+};
+
 // Companies API
 export const companiesApi = {
     // Get list of companies
@@ -790,6 +1001,71 @@ export const mockData = {
     },
 };
 
+// Bulk upload (affiliation) API – canonical submission and job listing
+export const bulkUploadApi = {
+    /**
+     * Submit bulk health worker records via canonical backend API.
+     * Uses facility_fid (Health Facility hie_id) and enqueues background processing.
+     */
+    createUpload: async (args: {
+        facility_fid: string;
+        records: Array<{
+            identification_type: string;
+            identification_number: string;
+            registration_number?: string;
+            regulator?: string;
+            employment_type: string;
+            designation: string;
+            start_date: string;
+            end_date?: string;
+        }>;
+    }): Promise<ApiResponse<{ job_id: string; total_records: number }>> => {
+        const result = await callFrappePostMethod<{ job_id: string; total_records: number }>(
+            'careverse_hq.api.bulk_health_worker_onboarding.upload_bulk_health_workers',
+            {
+                facility_fid: args.facility_fid,
+                records: JSON.stringify(args.records),
+            }
+        );
+        if (!result.success) {
+            return result;
+        }
+        const data = result.data as any;
+        const jobId = data?.job_id ?? data?.data?.job_id;
+        if (!jobId) {
+            return {
+                success: false,
+                error: 'Server did not return job_id',
+            };
+        }
+        return {
+            success: true,
+            data: {
+                job_id: String(jobId),
+                total_records: typeof data?.total_records === 'number' ? data.total_records : (data?.data?.total_records ?? args.records.length),
+            },
+        };
+    },
+
+    listJobs: async (params: { page?: number; per_page?: number } = {}): Promise<ApiResponse<{ jobs: any[] }>> => {
+        const queryParams: Record<string, string> = {};
+        if (params.page != null) queryParams.page = String(params.page);
+        if (params.per_page != null) queryParams.per_page = String(params.per_page);
+        const query = new URLSearchParams(queryParams).toString();
+        const endpoint = `/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_bulk_upload_jobs${query ? `?${query}` : ''}`;
+        const res = await apiCall<{ jobs: any[] }>('GET', endpoint);
+        if (!res.success) return res;
+        const raw = res.data as any;
+        const jobs = raw?.jobs ?? raw?.data?.jobs ?? [];
+        return { success: true, data: { jobs } };
+    },
+
+    getJobDetails: async (jobId: string): Promise<ApiResponse<any>> => {
+        const endpoint = `/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_bulk_upload_job_details?job_id=${encodeURIComponent(jobId)}`;
+        return apiCall('GET', endpoint);
+    },
+};
+
 // Licenses API
 export const licensesApi = {
     /**
@@ -820,6 +1096,8 @@ export default {
     healthProfessionals: healthProfessionalsApi,
     employees: employeesApi,
     affiliations: affiliationsApi,
+    profile: profileApi,
+    userManagement: userManagementApi,
     companies: companiesApi,
     licenses: licensesApi,
     mock: mockData,

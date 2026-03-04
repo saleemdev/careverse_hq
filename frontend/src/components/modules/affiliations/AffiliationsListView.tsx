@@ -93,6 +93,8 @@ const AffiliationsListView: React.FC = () => {
     const [uploadedFiles, setUploadedFiles] = useState<TerminationAttachment[]>([]);
     const [otpSession, setOtpSession] = useState<TerminationOtpSession | null>(null);
     const [otpCountdown, setOtpCountdown] = useState(0);
+    const [otpResendCooldown, setOtpResendCooldown] = useState(0);
+    const [otpVerifyError, setOtpVerifyError] = useState('');
     const [otpPrereqError, setOtpPrereqError] = useState('');
     const [hpDetail, setHpDetail] = useState<any | null>(null);
     const [hpLoading, setHpLoading] = useState(false);
@@ -152,6 +154,8 @@ const AffiliationsListView: React.FC = () => {
         setTerminateStep('details');
         setOtpSession(null);
         setOtpCountdown(0);
+        setOtpResendCooldown(0);
+        setOtpVerifyError('');
         setOtpPrereqError('');
         terminateForm.resetFields();
         setUploadedFiles([]);
@@ -166,6 +170,14 @@ const AffiliationsListView: React.FC = () => {
         return () => window.clearInterval(timer);
     }, [terminateModalVisible, terminateStep, otpCountdown]);
 
+    useEffect(() => {
+        if (!terminateModalVisible || terminateStep !== 'otp' || otpResendCooldown <= 0) return;
+        const timer = window.setInterval(() => {
+            setOtpResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
+        return () => window.clearInterval(timer);
+    }, [terminateModalVisible, terminateStep, otpResendCooldown]);
+
     const handleRequestTerminationOtp = async () => {
         if (!terminateTarget?.name) {
             message.error('Invalid affiliation selected.');
@@ -178,6 +190,7 @@ const AffiliationsListView: React.FC = () => {
             const response = await affiliationsApi.requestTerminationOtp(terminateTarget.name);
             if (!response.success || !response.data) {
                 const err = response.error || 'Failed to send OTP.';
+                setOtpVerifyError('');
                 if (err.includes('No OTP phone found for current user')) {
                     setOtpPrereqError(err);
                     Modal.warning({
@@ -199,7 +212,9 @@ const AffiliationsListView: React.FC = () => {
             };
             setOtpSession(session);
             setOtpPrereqError('');
+            setOtpVerifyError('');
             setOtpCountdown(session.expiresInSeconds);
+            setOtpResendCooldown(30);
             setTerminateStep('otp');
             message.success(`Verification code sent to ${session.maskedDestination}.`);
         } catch (error: any) {
@@ -297,6 +312,7 @@ const AffiliationsListView: React.FC = () => {
             );
 
             if (!response.success) {
+                setOtpVerifyError(response.error || 'Failed to verify OTP.');
                 message.error(response.error || 'Failed to terminate affiliation.');
                 return;
             }
@@ -307,6 +323,8 @@ const AffiliationsListView: React.FC = () => {
             setTerminateStep('details');
             setOtpSession(null);
             setOtpCountdown(0);
+            setOtpResendCooldown(0);
+            setOtpVerifyError('');
             setUploadedFiles([]);
             terminateForm.resetFields();
             setDetailModalVisible(false);
@@ -411,6 +429,7 @@ const AffiliationsListView: React.FC = () => {
             case 'confirmed': return 'success';
             case 'pending': return 'warning';
             case 'rejected': return 'error';
+            case 'terminated': return 'error';
             case 'inactive': return 'default';
             default: return 'processing';
         }
@@ -437,8 +456,8 @@ const AffiliationsListView: React.FC = () => {
                         <UserOutlined />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <Text strong style={{ fontSize: '14px' }}>{record.health_professional_name}</Text>
-                        <Text type="secondary" style={{ fontSize: '12px' }}>{record.employment_type || 'Contract'}</Text>
+                        <Text strong style={{ fontSize: '13px' }}>{record.health_professional_name}</Text>
+                        <Text type="secondary" style={{ fontSize: '11px' }}>{record.employment_type || 'Contract'}</Text>
                     </div>
                 </Space>
             ),
@@ -458,12 +477,12 @@ const AffiliationsListView: React.FC = () => {
                     <Space direction="vertical" size={0}>
                         <Space>
                             <MedicineBoxOutlined style={{ color: token.colorTextDescription }} />
-                            <Text strong style={{ fontSize: '14px' }}>
+                            <Text strong style={{ fontSize: '13px' }}>
                                 {facilityName}
                             </Text>
                         </Space>
                         {facilityId && (
-                            <Text type="secondary" style={{ fontSize: '11px', marginLeft: 22 }}>
+                            <Text type="secondary" style={{ fontSize: '10px', marginLeft: 22 }}>
                                 ID: {facilityId}
                             </Text>
                         )}
@@ -477,7 +496,7 @@ const AffiliationsListView: React.FC = () => {
             key: 'date',
             width: 150,
             render: (date: string) => (
-                <Text style={{ fontSize: '13px' }}>{formatDateHuman(date)}</Text>
+                <Text style={{ fontSize: '12px' }}>{formatDateHuman(date)}</Text>
             )
         },
         {
@@ -543,14 +562,14 @@ const AffiliationsListView: React.FC = () => {
     return (
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
             {/* Metric Section */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
                 <Col xs={12} sm={8} lg={4}>
                     <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>TOTAL REQUESTS</Text>}
                             value={statusAggregates?.total || total}
                             prefix={<LinkOutlined style={{ color: token.colorPrimary, marginRight: 8 }} />}
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
+                            valueStyle={{ fontSize: 18, fontWeight: 600 }}
                         />
                     </Card>
                 </Col>
@@ -560,7 +579,7 @@ const AffiliationsListView: React.FC = () => {
                             title={<Text type="secondary" style={{ fontSize: 12 }}>PENDING REVIEW</Text>}
                             value={statusAggregates?.pending || 0}
                             prefix={<ClockCircleOutlined style={{ color: '#faad14', marginRight: 8 }} />}
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
+                            valueStyle={{ fontSize: 18, fontWeight: 600 }}
                         />
                     </Card>
                 </Col>
@@ -570,7 +589,7 @@ const AffiliationsListView: React.FC = () => {
                             title={<Text type="secondary" style={{ fontSize: 12 }}>CONFIRMED</Text>}
                             value={statusAggregates?.confirmed || 0}
                             prefix={<CheckCircleOutlined style={{ color: '#52c41a', marginRight: 8 }} />}
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
+                            valueStyle={{ fontSize: 18, fontWeight: 600 }}
                         />
                     </Card>
                 </Col>
@@ -580,7 +599,7 @@ const AffiliationsListView: React.FC = () => {
                             title={<Text type="secondary" style={{ fontSize: 12 }}>REJECTION RATE</Text>}
                             value={statusAggregates?.rejection_rate || 0}
                             suffix="%"
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
+                            valueStyle={{ fontSize: 18, fontWeight: 600 }}
                         />
                     </Card>
                 </Col>
@@ -590,7 +609,7 @@ const AffiliationsListView: React.FC = () => {
                             title={<Text type="secondary" style={{ fontSize: 12 }}>REJECTED</Text>}
                             value={statusAggregates?.rejected || 0}
                             prefix={<CloseCircleOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />}
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
+                            valueStyle={{ fontSize: 18, fontWeight: 600 }}
                         />
                     </Card>
                 </Col>
@@ -600,7 +619,17 @@ const AffiliationsListView: React.FC = () => {
                             title={<Text type="secondary" style={{ fontSize: 12 }}>CONFIRMATION RATE</Text>}
                             value={statusAggregates?.confirmation_rate ?? statusAggregates?.approval_rate ?? 0}
                             suffix="%"
-                            valueStyle={{ fontSize: 20, fontWeight: 700 }}
+                            valueStyle={{ fontSize: 18, fontWeight: 600 }}
+                        />
+                    </Card>
+                </Col>
+                <Col xs={12} sm={8} lg={4}>
+                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                        <Statistic
+                            title={<Text type="secondary" style={{ fontSize: 12 }}>TERMINATED</Text>}
+                            value={statusAggregates?.terminated ?? statusAggregates?.inactive ?? 0}
+                            prefix={<CloseCircleOutlined style={{ color: token.colorError, marginRight: 8 }} />}
+                            valueStyle={{ fontSize: 18, fontWeight: 600 }}
                         />
                     </Card>
                 </Col>
@@ -624,19 +653,22 @@ const AffiliationsListView: React.FC = () => {
                                 suffixIcon={<FilterOutlined style={{ color: token.colorTextPlaceholder }} />}
                             >
                                 <Select.Option value="Pending">
-                                    <Tag color="orange" style={{ fontSize: '11px' }}>Pending</Tag>
+                                    <Tag color="orange" style={{ fontSize: '10px' }}>Pending</Tag>
                                 </Select.Option>
                                 <Select.Option value="Confirmed">
-                                    <Tag color="green" style={{ fontSize: '11px' }}>Confirmed (Active + Confirmed)</Tag>
+                                    <Tag color="green" style={{ fontSize: '10px' }}>Confirmed (Active + Confirmed)</Tag>
                                 </Select.Option>
                                 <Select.Option value="Rejected">
-                                    <Tag color="red" style={{ fontSize: '11px' }}>Rejected</Tag>
+                                    <Tag color="red" style={{ fontSize: '10px' }}>Rejected</Tag>
                                 </Select.Option>
                                 <Select.Option value="Expired">
-                                    <Tag color="default" style={{ fontSize: '11px' }}>Expired</Tag>
+                                    <Tag color="default" style={{ fontSize: '10px' }}>Expired</Tag>
                                 </Select.Option>
                                 <Select.Option value="Inactive">
-                                    <Tag color="default" style={{ fontSize: '11px' }}>Inactive</Tag>
+                                    <Tag color="default" style={{ fontSize: '10px' }}>Inactive</Tag>
+                                </Select.Option>
+                                <Select.Option value="Terminated">
+                                    <Tag color="red" style={{ fontSize: '10px' }}>Terminated</Tag>
                                 </Select.Option>
                             </Select>
 
@@ -1016,6 +1048,8 @@ const AffiliationsListView: React.FC = () => {
                     setTerminateStep('details');
                     setOtpSession(null);
                     setOtpCountdown(0);
+                    setOtpResendCooldown(0);
+                    setOtpVerifyError('');
                     setOtpPrereqError('');
                     setUploadedFiles([]);
                     terminateForm.resetFields();
@@ -1169,6 +1203,14 @@ const AffiliationsListView: React.FC = () => {
                                         OTP recipient (masked): {otpSession.maskedDestination}
                                     </Text>
                                 )}
+                                {otpVerifyError && (
+                                    <Alert
+                                        type="error"
+                                        showIcon
+                                        message="OTP verification failed"
+                                        description={otpVerifyError}
+                                    />
+                                )}
                                 <Form.Item
                                     label="Verification code"
                                     name="otp_code"
@@ -1182,15 +1224,16 @@ const AffiliationsListView: React.FC = () => {
                                         placeholder="Enter 5-digit code"
                                         maxLength={5}
                                         inputMode="numeric"
+                                        onChange={() => setOtpVerifyError('')}
                                     />
                                 </Form.Item>
                                 <Button
                                     onClick={handleRequestTerminationOtp}
                                     loading={requestingOtp}
-                                    disabled={uploadingAttachment}
+                                    disabled={uploadingAttachment || otpResendCooldown > 0}
                                     style={{ alignSelf: 'flex-start' }}
                                 >
-                                    Resend OTP
+                                    {otpResendCooldown > 0 ? `Resend OTP (${otpResendCooldown}s)` : 'Resend OTP'}
                                 </Button>
                             </Space>
                         </Card>

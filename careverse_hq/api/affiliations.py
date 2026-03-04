@@ -25,6 +25,7 @@ from .response import api_response
 TERMINATION_OTP_TTL_SECONDS = 300
 TERMINATION_OTP_MAX_ATTEMPTS = 5
 TERMINATION_OTP_DIGITS = 5
+TERMINATION_OTP_RESEND_COOLDOWN_SECONDS = 30
 
 
 def _parse_documents(value: Optional[Any]) -> List[str]:
@@ -98,8 +99,19 @@ def _append_termination_document_reference(affiliation_doc, reference: str) -> N
     affiliation_doc.set("termination_documents", json.dumps(current_list))
 
 
+def _safe_file_name(file_name: Optional[str]) -> str:
+    raw = (file_name or "").strip()
+    if raw:
+        return raw
+    return f"attachment-{int(time.time())}.bin"
+
+
 def _otp_cache_key(otp_id: str) -> str:
     return f"careverse_hq:termination_otp:{otp_id}"
+
+
+def _otp_cooldown_key(user: str, affiliation_id: str) -> str:
+    return f"careverse_hq:termination_otp:cooldown:{user}:{affiliation_id}"
 
 
 def _mask_phone(phone: str) -> str:
@@ -219,6 +231,15 @@ def request_termination_otp(affiliation_id: Optional[str] = None):
                 status_code=400,
             )
 
+        cooldown_key = _otp_cooldown_key(frappe.session.user, affiliation_id)
+        cooldown_active = frappe.cache().get_value(cooldown_key)
+        if cooldown_active:
+            return api_response(
+                success=False,
+                message=f"Please wait {TERMINATION_OTP_RESEND_COOLDOWN_SECONDS} seconds before requesting another OTP.",
+                status_code=429,
+            )
+
         sms_gateway_url = frappe.db.get_single_value("SMS Settings", "sms_gateway_url")
         if not sms_gateway_url:
             return api_response(
@@ -259,6 +280,11 @@ def request_termination_otp(affiliation_id: Optional[str] = None):
             _otp_cache_key(otp_id),
             json.dumps(payload),
             expires_in_sec=TERMINATION_OTP_TTL_SECONDS,
+        )
+        frappe.cache().set_value(
+            cooldown_key,
+            "1",
+            expires_in_sec=TERMINATION_OTP_RESEND_COOLDOWN_SECONDS,
         )
 
         return api_response(
@@ -384,6 +410,14 @@ def terminate_affiliation(
         _set_if_field(affiliation_doc, "end_date", today())
 
         affiliation_doc.save()
+        try:
+            affiliation_doc.add_comment(
+                "Comment",
+                f"Termination confirmed via OTP by user {frappe.session.user}.",
+            )
+        except Exception:
+            # Comment/audit note should not block core termination workflow.
+            pass
 
         employee_name = affiliation_doc.get("employee")
         employee_status = None
@@ -486,16 +520,25 @@ def upload_termination_attachment(affiliation_id: Optional[str] = None):
                 status_code=400,
             )
 
+        safe_name = _safe_file_name(getattr(uploaded, "filename", None))
+        file_content = uploaded.stream.read() if getattr(uploaded, "stream", None) else None
+        if not file_content:
+            return api_response(
+                success=False,
+                message="Uploaded file is empty.",
+                status_code=400,
+            )
+
         try:
             file_doc = save_file(
-                uploaded.filename,
-                uploaded.stream.read(),
+                safe_name,
+                file_content,
                 "Facility Affiliation",
                 affiliation_id,
                 is_private=1,
             )
             _append_termination_document_reference(
-                target_doc, file_doc.file_url or file_doc.file_name or uploaded.filename
+                target_doc, file_doc.file_url or file_doc.file_name or safe_name
             )
             target_doc.save()
             frappe.db.commit()
@@ -507,16 +550,17 @@ def upload_termination_attachment(affiliation_id: Optional[str] = None):
             }
         except Exception as save_err:
             # Environment fallback when file-type detection deps (e.g. libmagic) are missing.
-            if "libmagic" in str(save_err).lower():
+            save_err_text = str(save_err).lower()
+            if "libmagic" in save_err_text or "expected string or bytes-like object" in save_err_text or "nonetype" in save_err_text:
                 affiliation_doc = frappe.get_doc("Facility Affiliation", affiliation_id)
                 _append_termination_document_reference(
-                    affiliation_doc, f"attachment:{uploaded.filename}"
+                    affiliation_doc, f"attachment:{safe_name}"
                 )
                 affiliation_doc.save()
                 frappe.db.commit()
                 file_data = {
-                    "name": uploaded.filename,
-                    "file_name": uploaded.filename,
+                    "name": safe_name,
+                    "file_name": safe_name,
                     "file_url": "",
                     "stored_as_reference": True,
                 }
@@ -565,7 +609,7 @@ def upload_termination_attachment_base64(
             )
 
         affiliation_id = (affiliation_id or "").strip()
-        file_name = (file_name or "").strip() or "attachment.bin"
+        file_name = _safe_file_name(file_name)
         file_content_base64 = (file_content_base64 or "").strip()
 
         if not affiliation_id:
@@ -604,6 +648,12 @@ def upload_termination_attachment_base64(
                 message="Invalid base64 file content.",
                 status_code=400,
             )
+        if not file_bytes:
+            return api_response(
+                success=False,
+                message="Uploaded file is empty.",
+                status_code=400,
+            )
 
         try:
             file_doc = save_file(
@@ -625,7 +675,8 @@ def upload_termination_attachment_base64(
                 "stored_as_reference": False,
             }
         except Exception as save_err:
-            if "libmagic" in str(save_err).lower():
+            save_err_text = str(save_err).lower()
+            if "libmagic" in save_err_text or "expected string or bytes-like object" in save_err_text or "nonetype" in save_err_text:
                 _append_termination_document_reference(
                     target_doc, f"attachment:{file_name}"
                 )

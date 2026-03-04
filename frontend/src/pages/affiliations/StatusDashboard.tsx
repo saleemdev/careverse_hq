@@ -1,3 +1,7 @@
+/**
+ * @deprecated Use BulkUploadDetailView for bulk-upload/status routes.
+ * This component is kept for reference only; routing uses BulkUploadDetailView.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Card,
@@ -283,7 +287,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
             render: (record: BulkUploadItem) => {
                 const error = record.verification_error || record.onboarding_error;
                 return error ? (
-                    <Text type="danger" style={{ fontSize: 12 }}>{error}</Text>
+                    <Text type="danger" style={{ fontSize: 11 }}>{error}</Text>
                 ) : (
                     <Text type="secondary">-</Text>
                 );
@@ -293,16 +297,16 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
 
     if (loading && !job) {
         return (
-            <div style={{ padding: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+            <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '320px' }}>
                 <Spin size="large" />
             </div>
         );
     }
 
     return (
-        <div style={{ padding: '24px' }}>
+        <div style={{ padding: '20px' }}>
             {/* Breadcrumb */}
-            <Breadcrumb style={{ marginBottom: 24 }}>
+            <Breadcrumb style={{ marginBottom: 16 }}>
                 <Breadcrumb.Item>
                     <HomeOutlined />
                 </Breadcrumb.Item>
@@ -323,7 +327,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                     border: '1px solid rgba(255, 255, 255, 0.18)',
                     borderRadius: 16,
                     boxShadow: '0 12px 40px rgba(31, 38, 135, 0.1)',
-                    marginBottom: 24
+                    marginBottom: 16
                 }}
             >
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -333,7 +337,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                         backdropFilter: 'blur(8px)',
                         WebkitBackdropFilter: 'blur(8px)',
                         borderRadius: 12,
-                        padding: 16,
+                        padding: 12,
                         border: '1px solid rgba(0, 0, 0, 0.04)'
                     }}>
                         <Space direction="vertical" size={4} style={{ width: '100%' }}>
@@ -375,7 +379,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                                     job?.status === 'Processing' ? <SyncOutlined spin /> :
                                     <ClockCircleOutlined />
                                 }
-                                style={{ fontSize: 14, padding: '4px 12px' }}
+                                style={{ fontSize: 12, padding: '2px 10px' }}
                             >
                                 {job?.status || 'Pending'}
                             </Tag>
@@ -399,7 +403,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                                 '100%': 'rgba(24, 144, 255, 1)'
                             }}
                             trailColor="rgba(0, 0, 0, 0.04)"
-                            strokeWidth={10}
+                            strokeWidth={8}
                             status={
                                 job?.status === 'Completed' ? 'success' :
                                 job?.status === 'Failed' ? 'exception' :
@@ -437,13 +441,13 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                             prefix={
                                 <FileTextOutlined style={{
                                     color: token.colorPrimary,
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     opacity: 0.7
                                 }} />
                             }
                             valueStyle={{
                                 color: token.colorText,
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: 600
                             }}
                         />
@@ -464,13 +468,13 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                             prefix={
                                 <CheckCircleOutlined style={{
                                     color: token.colorSuccess,
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     opacity: 0.7
                                 }} />
                             }
                             valueStyle={{
                                 color: token.colorText,
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: 600
                             }}
                         />
@@ -491,13 +495,13 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                             prefix={
                                 <CheckCircleOutlined style={{
                                     color: token.colorSuccess,
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     opacity: 0.7
                                 }} />
                             }
                             valueStyle={{
                                 color: token.colorText,
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: 600
                             }}
                         />
@@ -518,13 +522,13 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                             prefix={
                                 <ClockCircleOutlined style={{
                                     color: token.colorWarning,
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     opacity: 0.7
                                 }} />
                             }
                             valueStyle={{
                                 color: token.colorText,
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: 600
                             }}
                         />
@@ -545,13 +549,13 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                             prefix={
                                 <CloseCircleOutlined style={{
                                     color: token.colorError,
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     opacity: 0.7
                                 }} />
                             }
                             valueStyle={{
                                 color: token.colorText,
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: 600
                             }}
                         />
@@ -572,13 +576,13 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                             prefix={
                                 <CloseCircleOutlined style={{
                                     color: token.colorError,
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     opacity: 0.7
                                 }} />
                             }
                             valueStyle={{
                                 color: token.colorText,
-                                fontSize: 24,
+                                fontSize: 20,
                                 fontWeight: 600
                             }}
                         />
@@ -597,7 +601,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                     <div style={{
                         background: 'rgba(255, 255, 255, 0.3)',
                         margin: '-24px -24px 0',
-                        padding: '16px 24px',
+                        padding: '12px 16px',
                         backdropFilter: 'blur(8px)',
                         WebkitBackdropFilter: 'blur(8px)',
                         borderBottom: '1px solid rgba(0, 0, 0, 0.04)',
@@ -607,7 +611,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({ jobId, navigateToRout
                         flexWrap: 'wrap',
                         gap: 12
                     }}>
-                        <Text strong style={{ fontSize: 16 }}>Upload Records</Text>
+                        <Text strong style={{ fontSize: 14 }}>Upload Records</Text>
                         <Select
                             value={filter}
                             onChange={setFilter}

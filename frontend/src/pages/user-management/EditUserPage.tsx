@@ -209,7 +209,7 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
 
     if (loading) {
         return (
-            <div style={{ padding: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+            <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '320px' }}>
                 <Spin size="large" />
             </div>
         );
@@ -217,7 +217,7 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
 
     if (!user) {
         return (
-            <div style={{ padding: '24px' }}>
+            <div style={{ padding: '20px' }}>
                 <Card>
                     <Text>User not found</Text>
                 </Card>
@@ -226,9 +226,9 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
     }
 
     return (
-        <div style={{ padding: '24px', maxWidth: 800, margin: '0 auto' }}>
+        <div style={{ padding: '20px', maxWidth: 760, margin: '0 auto' }}>
             {/* Breadcrumb */}
-            <Breadcrumb style={{ marginBottom: 24 }}>
+            <Breadcrumb style={{ marginBottom: 16 }}>
                 <Breadcrumb.Item>
                     <HomeOutlined />
                 </Breadcrumb.Item>
@@ -253,11 +253,11 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'flex-start',
-                    marginBottom: 32
+                    marginBottom: 20
                 }}>
                     <div>
-                        <Title level={2} style={{ margin: 0, marginBottom: 8 }}>
-                            <EditOutlined style={{ marginRight: 12, color: token.colorPrimary }} />
+                        <Title level={3} style={{ margin: 0, marginBottom: 4 }}>
+                            <EditOutlined style={{ marginRight: 10, color: token.colorPrimary }} />
                             Edit User
                         </Title>
                         <Text type="secondary">
@@ -288,7 +288,7 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                         label="Email"
                         name="email"
                     >
-                        <Input size="large" disabled />
+                        <Input disabled />
                     </Form.Item>
 
                     <Form.Item
@@ -296,7 +296,7 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                         name="first_name"
                         rules={[{ required: true, message: 'Please enter first name' }]}
                     >
-                        <Input size="large" placeholder="Enter first name" />
+                        <Input placeholder="Enter first name" />
                     </Form.Item>
 
                     <Form.Item
@@ -304,14 +304,14 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                         name="last_name"
                         rules={[{ required: true, message: 'Please enter last name' }]}
                     >
-                        <Input size="large" placeholder="Enter last name" />
+                        <Input placeholder="Enter last name" />
                     </Form.Item>
 
                     <Form.Item
                         label="Phone Number"
                         name="phone"
                     >
-                        <Input size="large" placeholder="+254712345678" />
+                        <Input placeholder="+254712345678" />
                     </Form.Item>
 
                     <Form.Item
@@ -320,7 +320,6 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                         rules={[{ required: true, message: 'Please select status' }]}
                     >
                         <Select
-                            size="large"
                             options={[
                                 { label: 'Enabled', value: 1 },
                                 { label: 'Disabled', value: 0 }
@@ -329,7 +328,7 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                     </Form.Item>
 
                     {/* Actions */}
-                    <Form.Item style={{ marginTop: 32, marginBottom: 0 }}>
+                    <Form.Item style={{ marginTop: 20, marginBottom: 0 }}>
                         <Space size="middle">
                             <Button
                                 icon={<ArrowLeftOutlined />}
@@ -343,7 +342,6 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                                 htmlType="submit"
                                 icon={<SaveOutlined />}
                                 loading={submitting}
-                                size="large"
                             >
                                 Save Changes
                             </Button>
@@ -373,7 +371,7 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                         <Text
                             strong
                             style={{
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontFamily: 'monospace',
                                 wordBreak: 'break-all'
                             }}
@@ -381,7 +379,7 @@ const EditUserPage: React.FC<EditUserPageProps> = ({ userId, navigateToRoute }) 
                             {tempPassword}
                         </Text>
                     </Card>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
                         The user will be required to change this password upon first login.
                     </Text>
                 </Space>

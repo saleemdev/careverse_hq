@@ -51,6 +51,99 @@
   border-color: var(--border-color-light);
 }
 
+/* Profile Page */
+.profile-page {
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  background: var(--bg-secondary);
+  min-height: calc(100vh - 64px);
+}
+
+.profile-page.loading-state {
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-hero-card,
+.profile-section-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--border-color-light) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-standalone-header {
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--border-color-light) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-standalone-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.profile-standalone-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+}
+
+.profile-label {
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.profile-avatar-shell {
+  width: 104px;
+  height: 104px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-primary) 86%, var(--color-primary) 14%);
+  border: 1px solid color-mix(in srgb, var(--border-color) 65%, var(--color-primary) 35%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-avatar.ant-avatar {
+  background: var(--color-primary);
+}
+
+.profile-action-panel {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.profile-primary-action.ant-btn {
+  background: var(--gradient-primary);
+  border: none;
+  color: #fff;
+}
+
+.profile-role-tag.ant-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.permission-row {
+  border-radius: var(--radius-md);
+  padding-inline: 8px;
+}
+
+.permission-row:hover {
+  background: color-mix(in srgb, var(--bg-primary) 88%, var(--color-primary) 12%);
+}
+
 /* Dashboard Specific Styles */
 .dashboard-container {
   padding: var(--spacing-lg);
@@ -61,37 +154,37 @@
 /* KPI Card Styles */
 .kpi-card {
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   border: none;
   transition: all var(--transition-base);
 }
 
 .kpi-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-xl);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .kpi-card .kpi-icon {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .kpi-card .kpi-value {
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 700;
   line-height: 1.1;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .kpi-card .kpi-title {
-  font-size: 13px;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.35px;
   color: var(--text-tertiary);
 }
 
@@ -100,19 +193,19 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 32px 0 20px;
+  margin: 24px 0 14px;
 }
 
 .section-header .section-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   background: var(--gradient-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 /* Approval Cards */
@@ -121,14 +214,14 @@
   border-radius: 10px;
   border: 1px solid rgba(102, 126, 234, 0.2);
   text-align: center;
-  padding: 20px;
+  padding: 16px;
   cursor: pointer;
   transition: all var(--transition-base);
 }
 
 .approval-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
   border-color: rgba(102, 126, 234, 0.4);
 }
 
@@ -316,6 +409,19 @@
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
+  .profile-page {
+    padding: var(--spacing-md);
+  }
+
+  .profile-standalone-header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .profile-action-panel {
+    justify-content: flex-start;
+  }
+
   .dashboard-container {
     padding: var(--spacing-md);
   }

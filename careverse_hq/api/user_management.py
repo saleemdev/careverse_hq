@@ -10,6 +10,7 @@ import string
 from typing import Dict, Any, Optional
 from careverse_hq.api.utils import api_response
 from careverse_hq.api.permissions_manager import _create_user_permissions
+from careverse_hq.api import admin_user_management
 
 
 def generate_temp_password(length=12):
@@ -54,181 +55,59 @@ def create_team_user(**kwargs):
     Returns:
         dict: API response with user details and temporary password
     """
-    try:
-        # Get parameters
-        first_name = kwargs.get("first_name")
-        last_name = kwargs.get("last_name")
-        email = kwargs.get("email")
-        phone = kwargs.get("phone")
-        role = kwargs.get("role")
-        county = kwargs.get("county")
-        health_facilities = kwargs.get("health_facilities", [])
-
-        # Validate required fields
-        if not first_name:
-            return api_response(
-                success=False,
-                message="First name is required",
-                status_code=400
-            )
-
-        if not last_name:
-            return api_response(
-                success=False,
-                message="Last name is required",
-                status_code=400
-            )
-
-        if not email:
-            return api_response(
-                success=False,
-                message="Email is required",
-                status_code=400
-            )
-
-        if not role:
-            return api_response(
-                success=False,
-                message="Role is required",
-                status_code=400
-            )
-
-        if not county:
-            return api_response(
-                success=False,
-                message="County is required",
-                status_code=400
-            )
-
-        # Check if user already exists
-        if frappe.db.exists("User", email):
-            return api_response(
-                success=False,
-                message=f"User with email {email} already exists",
-                status_code=409
-            )
-
-        # Check if role exists
-        if not frappe.db.exists("Role", role):
-            return api_response(
-                success=False,
-                message=f"Role '{role}' does not exist",
-                status_code=400
-            )
-
-        # Check if county/department exists
-        if not frappe.db.exists("Department", county):
-            return api_response(
-                success=False,
-                message=f"Department/County '{county}' does not exist",
-                status_code=400
-            )
-
-        # Generate temporary password
-        temp_password = generate_temp_password()
-
-        # Create User account
-        user = frappe.get_doc({
-            "doctype": "User",
-            "email": email,
-            "first_name": first_name,
-            "last_name": last_name,
-            "phone": phone,
-            "new_password": temp_password,
-            "enabled": 1,
-            "user_type": "System User",
-            "send_welcome_email": 0,
-            "must_reset_password": 1  # Force password change on first login
-        })
-
-        # Add role
-        user.append("roles", {"role": role})
-
-        # Insert user
-        user.insert(ignore_permissions=True)
-        frappe.db.commit()
-
-        # Create User Permissions for county
-        permissions = [
+    payload = {
+        "first_name": kwargs.get("first_name"),
+        "last_name": kwargs.get("last_name"),
+        "email": kwargs.get("email"),
+        "phone": kwargs.get("phone"),
+        "roles": [kwargs.get("role")] if kwargs.get("role") else [],
+        "scopes": [],
+    }
+    actor_company_permissions = frappe.get_all(
+        "User Permission",
+        filters={"user": frappe.session.user, "allow": "Company"},
+        fields=["for_value", "is_default"],
+        order_by="is_default desc, creation asc",
+        limit=1,
+    )
+    if actor_company_permissions:
+        payload["scopes"].append(
             {
-                "doctype": "Department",
-                "values": [county]
+                "allow": "Company",
+                "for_value": actor_company_permissions[0].get("for_value"),
+                "apply_to_all_doctypes": 1,
+                "is_default": 0,
             }
-        ]
-
-        # Add specific facility permissions if provided
-        if health_facilities and len(health_facilities) > 0:
-            permissions.append({
-                "doctype": "Health Facility",
-                "values": health_facilities
-            })
-
-        # Create permissions synchronously for immediate feedback
-        _create_user_permissions(
-            user=user.email,
-            permissions=permissions,
-            apply_to_all_doctypes=True,
-            is_default=False
         )
 
-        # Send email with login credentials
-        try:
-            send_user_credentials_email(
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                temp_password=temp_password,
-                role=role,
-                county=county
-            )
-        except Exception as email_error:
-            frappe.log_error(
-                title="User Credentials Email Failed",
-                message=f"Failed to send email to {email}: {str(email_error)}"
-            )
-            # Don't fail the user creation if email fails
+    result = admin_user_management.create_user(payload=payload, delivery_mode="email_and_display")
+    if not result.get("success"):
+        err = result.get("error", {}) or {}
+        return api_response(success=False, message=err.get("message", "Failed to create user"), status_code=frappe.local.response.http_status_code or 400)
 
-        # Return success response
-        return api_response(
-            success=True,
-            data={
-                "user": {
-                    "name": user.name,
-                    "email": user.email,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "phone": user.phone,
-                    "role": role,
-                    "county": county,
-                    "enabled": user.enabled
-                },
-                "temp_password": temp_password
+    data = (result.get("data") or {})
+    user = (data.get("user") or {})
+    scopes = user.get("scopes") or []
+    companies = [s["for_value"] for s in scopes if s.get("allow") == "Company"]
+    roles = user.get("roles") or []
+    return api_response(
+        success=True,
+        data={
+            "user": {
+                "name": user.get("name"),
+                "email": user.get("email"),
+                "first_name": user.get("first_name"),
+                "last_name": user.get("last_name"),
+                "phone": user.get("phone"),
+                "role": roles[0] if roles else None,
+                "county": companies[0] if companies else None,
+                "enabled": user.get("enabled"),
             },
-            message="User created successfully",
-            status_code=201
-        )
-
-    except frappe.ValidationError as ve:
-        frappe.log_error(
-            title="User Creation Validation Error",
-            message=f"Validation error creating user: {str(ve)}"
-        )
-        return api_response(
-            success=False,
-            message=str(ve),
-            status_code=400
-        )
-
-    except Exception as e:
-        frappe.log_error(
-            title="User Creation Error",
-            message=f"Error creating user: {str(e)}\n{frappe.get_traceback()}"
-        )
-        return api_response(
-            success=False,
-            message=f"Error creating user: {str(e)}",
-            status_code=500
-        )
+            "temp_password": data.get("temp_password"),
+        },
+        message="User created successfully",
+        status_code=201,
+    )
 
 
 @frappe.whitelist()
@@ -242,70 +121,22 @@ def reset_user_password(**kwargs):
     Returns:
         dict: API response with new temporary password
     """
-    try:
-        user_email = kwargs.get("user_email")
+    user_email = kwargs.get("user_email")
+    result = admin_user_management.reset_user_password(user_id=user_email, delivery_mode="email_and_display")
+    if not result.get("success"):
+        err = result.get("error", {}) or {}
+        return api_response(success=False, message=err.get("message", "Failed to reset password"), status_code=frappe.local.response.http_status_code or 400)
 
-        if not user_email:
-            return api_response(
-                success=False,
-                message="User email is required",
-                status_code=400
-            )
-
-        # Check if user exists
-        if not frappe.db.exists("User", user_email):
-            return api_response(
-                success=False,
-                message=f"User {user_email} does not exist",
-                status_code=404
-            )
-
-        # Get user
-        user = frappe.get_doc("User", user_email)
-
-        # Generate new temporary password
-        temp_password = generate_temp_password()
-
-        # Update password
-        user.new_password = temp_password
-        user.must_reset_password = 1
-        user.save(ignore_permissions=True)
-        frappe.db.commit()
-
-        # Send email with new password
-        try:
-            send_password_reset_email(
-                email=user.email,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                temp_password=temp_password
-            )
-        except Exception as email_error:
-            frappe.log_error(
-                title="Password Reset Email Failed",
-                message=f"Failed to send email to {user.email}: {str(email_error)}"
-            )
-
-        return api_response(
-            success=True,
-            data={
-                "email": user.email,
-                "temp_password": temp_password
-            },
-            message="Password reset successfully",
-            status_code=200
-        )
-
-    except Exception as e:
-        frappe.log_error(
-            title="Password Reset Error",
-            message=f"Error resetting password: {str(e)}\n{frappe.get_traceback()}"
-        )
-        return api_response(
-            success=False,
-            message=f"Error resetting password: {str(e)}",
-            status_code=500
-        )
+    data = result.get("data") or {}
+    return api_response(
+        success=True,
+        data={
+            "email": user_email,
+            "temp_password": data.get("temp_password"),
+        },
+        message="Password reset successfully",
+        status_code=200,
+    )
 
 
 @frappe.whitelist()
@@ -324,85 +155,53 @@ def update_user(**kwargs):
     Returns:
         dict: API response with updated user details
     """
-    try:
-        user_email = kwargs.get("user_email")
+    user_email = kwargs.get("user_email")
+    if not user_email:
+        return api_response(success=False, message="User email is required", status_code=400)
 
-        if not user_email:
-            return api_response(
-                success=False,
-                message="User email is required",
-                status_code=400
-            )
-
-        # Check if user exists
-        if not frappe.db.exists("User", user_email):
-            return api_response(
-                success=False,
-                message=f"User {user_email} does not exist",
-                status_code=404
-            )
-
-        # Get user
-        user = frappe.get_doc("User", user_email)
-
-        # Update fields if provided
-        if "first_name" in kwargs:
-            user.first_name = kwargs.get("first_name")
-
-        if "last_name" in kwargs:
-            user.last_name = kwargs.get("last_name")
-
-        if "phone" in kwargs:
-            user.phone = kwargs.get("phone")
-
-        if "enabled" in kwargs:
-            user.enabled = int(kwargs.get("enabled"))
-
-        # Update role if provided
-        if "role" in kwargs:
-            new_role = kwargs.get("role")
-            if frappe.db.exists("Role", new_role):
-                # Remove old roles (except system roles)
-                system_roles = ["All", "Guest"]
-                user.roles = [r for r in user.roles if r.role in system_roles]
-                # Add new role
-                user.append("roles", {"role": new_role})
-            else:
-                return api_response(
-                    success=False,
-                    message=f"Role '{new_role}' does not exist",
-                    status_code=400
-                )
-
-        user.save(ignore_permissions=True)
-        frappe.db.commit()
-
-        return api_response(
-            success=True,
-            data={
-                "user": {
-                    "name": user.name,
-                    "email": user.email,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "phone": user.phone,
-                    "enabled": user.enabled
-                }
-            },
-            message="User updated successfully",
-            status_code=200
+    if "enabled" in kwargs:
+        result = admin_user_management.update_user_status(
+            user_id=user_email,
+            enabled=int(kwargs.get("enabled")),
+            reason=kwargs.get("reason") or "",
         )
+        if not result.get("success"):
+            err = result.get("error", {}) or {}
+            return api_response(success=False, message=err.get("message", "Failed to update user"), status_code=frappe.local.response.http_status_code or 400)
 
-    except Exception as e:
-        frappe.log_error(
-            title="User Update Error",
-            message=f"Error updating user: {str(e)}\n{frappe.get_traceback()}"
-        )
-        return api_response(
-            success=False,
-            message=f"Error updating user: {str(e)}",
-            status_code=500
-        )
+    profile_payload = {}
+    for key in ("first_name", "last_name", "phone"):
+        if key in kwargs:
+            profile_payload[key] = kwargs.get(key)
+    if profile_payload:
+        result = admin_user_management.update_user_profile(user_id=user_email, payload=profile_payload)
+        if not result.get("success"):
+            err = result.get("error", {}) or {}
+            return api_response(success=False, message=err.get("message", "Failed to update user"), status_code=frappe.local.response.http_status_code or 400)
+
+    if "role" in kwargs and kwargs.get("role"):
+        result = admin_user_management.update_user_roles(user_id=user_email, roles=[kwargs.get("role")])
+        if not result.get("success"):
+            err = result.get("error", {}) or {}
+            return api_response(success=False, message=err.get("message", "Failed to update role"), status_code=frappe.local.response.http_status_code or 400)
+
+    detail = admin_user_management.get_user_detail(user_id=user_email)
+    user = (detail.get("data") or {}).get("user") or {}
+    return api_response(
+        success=True,
+        data={
+            "user": {
+                "name": user.get("name"),
+                "email": user.get("email"),
+                "first_name": user.get("first_name"),
+                "last_name": user.get("last_name"),
+                "phone": user.get("phone"),
+                "enabled": user.get("enabled"),
+            }
+        },
+        message="User updated successfully",
+        status_code=200,
+    )
 
 
 def send_user_credentials_email(email, first_name, last_name, temp_password, role, county):

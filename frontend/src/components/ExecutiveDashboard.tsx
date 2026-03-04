@@ -164,6 +164,11 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 statusAggregates.rejected
                     ?? Number(byStatus.Rejected || 0)
             );
+            const terminatedAffiliations = Number(
+                statusAggregates.terminated
+                    ?? statusAggregates.inactive
+                    ?? (Number(byStatus.Terminated || 0) + Number(byStatus.Inactive || 0))
+            );
 
             const confirmationRate = Number(
                 statusAggregates.confirmation_rate
@@ -182,6 +187,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 confirmed: confirmedAffiliations,
                 pending: pendingAffiliations,
                 rejected: rejectedAffiliations,
+                terminated: terminatedAffiliations,
                 confirmation_rate: normalizedConfirmationRate,
                 rejection_rate: normalizedRejectionRate,
                 by_employment_type: byEmploymentType,
@@ -196,6 +202,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                     pending_affiliations: pendingAffiliations,
                     total_affiliations: totalAffiliations,
                     rejected_affiliations: rejectedAffiliations,
+                    terminated_affiliations: terminatedAffiliations,
                     confirmation_rate: normalizedConfirmationRate,
                     total_assets: overviewResponse.data.total_assets || 0,
                     total_facilities: overviewResponse.data.total_facilities || 0,
@@ -208,6 +215,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                     pending_affiliations: pendingAffiliations,
                     total_affiliations: totalAffiliations,
                     rejected_affiliations: rejectedAffiliations,
+                    terminated_affiliations: terminatedAffiliations,
                     confirmation_rate: normalizedConfirmationRate,
                 }));
             }
@@ -235,8 +243,8 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             setError(errorMessage);
 
             // Fallback to partially empty data if error occurs
-            setCompanyData((prev: any) => prev || { health_professionals_total: 0, pending_affiliations: 0, total_affiliations: 0, total_facilities: 0 });
-            setAffiliationData((prev: any) => prev || { total: 0, confirmed: 0, pending: 0, rejected: 0, confirmation_rate: 0, rejection_rate: 0, by_employment_type: {}, by_professional_cadre: {}, by_licensing_body: {} });
+            setCompanyData((prev: any) => prev || { health_professionals_total: 0, pending_affiliations: 0, total_affiliations: 0, terminated_affiliations: 0, total_facilities: 0 });
+            setAffiliationData((prev: any) => prev || { total: 0, confirmed: 0, pending: 0, rejected: 0, terminated: 0, confirmation_rate: 0, rejection_rate: 0, by_employment_type: {}, by_professional_cadre: {}, by_licensing_body: {} });
         } finally {
             setLoading(false);
         }
@@ -284,7 +292,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ flex: 1 }}>
-                    <Text type="secondary" style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    <Text type="secondary" style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                         {title}
                     </Text>
                     <div style={{ fontSize: isMobile ? '24px' : isTablet ? '26px' : '28px', fontWeight: 700, color, marginTop: '6px', lineHeight: 1.1 }}>
@@ -292,7 +300,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                     </div>
                     {subtitle && (
                         <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <Text type="secondary" style={{ fontSize: '11px' }}>{subtitle}</Text>
+                            <Text type="secondary" style={{ fontSize: '10px' }}>{subtitle}</Text>
                         </div>
                     )}
                     {actionLabel && onActionClick && (
@@ -319,7 +327,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '20px',
+                        fontSize: '18px',
                         color,
                     }}
                 >
@@ -345,7 +353,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: '#1890ff',
-                        fontSize: '16px',
+                        fontSize: '15px',
                     }}
                 >
                     {icon}
@@ -369,6 +377,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             confirmed: (Number(status.Active || 0) + Number(status.Confirmed || 0)),
             pending: Number(status.Pending || 0),
             rejected: Number(status.Rejected || 0),
+            terminated: (Number(status.Terminated || 0) + Number(status.Inactive || 0)),
         }))
         .sort((a, b) => b.total - a.total);
 
@@ -379,6 +388,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             confirmed: (Number(status.Active || 0) + Number(status.Confirmed || 0)),
             pending: Number(status.Pending || 0),
             rejected: Number(status.Rejected || 0),
+            terminated: (Number(status.Terminated || 0) + Number(status.Inactive || 0)),
         }))
         .sort((a, b) => b.total - a.total);
 
@@ -416,7 +426,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 </div>
                 <Space style={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
                     {!isMobile && (
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                        <Text type="secondary" style={{ fontSize: '11px' }}>
                             Updated: {lastRefresh.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </Text>
                     )}
@@ -524,6 +534,12 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                                     <Title level={4} style={{ margin: 0, color: '#ff4d4f' }}>{affiliationData?.rejected || 0}</Title>
                                 </div>
                             </Col>
+                            <Col span={24}>
+                                <div style={{ background: '#fafafa', borderRadius: 10, padding: 12 }}>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>TERMINATED</Text>
+                                    <Title level={4} style={{ margin: 0, color: '#8c8c8c' }}>{affiliationData?.terminated || 0}</Title>
+                                </div>
+                            </Col>
                         </Row>
                         <div style={{ marginBottom: 10 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -613,6 +629,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                                     const affiliatedPercent = entry.total ? (entry.confirmed / entry.total) * 100 : 0;
                                     const pendingPercent = entry.total ? (entry.pending / entry.total) * 100 : 0;
                                     const rejectedPercent = entry.total ? (entry.rejected / entry.total) * 100 : 0;
+                                    const terminatedPercent = entry.total ? (entry.terminated / entry.total) * 100 : 0;
 
                                     return (
                                         <div
@@ -686,6 +703,21 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                                                         trailColor={token.colorBgLayout}
                                                     />
                                                 </div>
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Text style={{ fontSize: 12 }}>Terminated</Text>
+                                                        <Text strong style={{ fontSize: 12, color: '#8c8c8c' }}>
+                                                            {entry.terminated} ({terminatedPercent.toFixed(0)}%)
+                                                        </Text>
+                                                    </div>
+                                                    <Progress
+                                                        percent={Number(terminatedPercent.toFixed(1))}
+                                                        showInfo={false}
+                                                        strokeColor="#8c8c8c"
+                                                        size={['100%', 8]}
+                                                        trailColor={token.colorBgLayout}
+                                                    />
+                                                </div>
                                             </Space>
                                         </div>
                                     );
@@ -734,6 +766,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                                     const affiliatedPercent = entry.total ? (entry.confirmed / entry.total) * 100 : 0;
                                     const pendingPercent = entry.total ? (entry.pending / entry.total) * 100 : 0;
                                     const rejectedPercent = entry.total ? (entry.rejected / entry.total) * 100 : 0;
+                                    const terminatedPercent = entry.total ? (entry.terminated / entry.total) * 100 : 0;
 
                                     return (
                                         <div
@@ -803,6 +836,21 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                                                         percent={Number(rejectedPercent.toFixed(1))}
                                                         showInfo={false}
                                                         strokeColor="#ff4d4f"
+                                                        size={['100%', 8]}
+                                                        trailColor={token.colorBgLayout}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Text style={{ fontSize: 12 }}>Terminated</Text>
+                                                        <Text strong style={{ fontSize: 12, color: '#8c8c8c' }}>
+                                                            {entry.terminated} ({terminatedPercent.toFixed(0)}%)
+                                                        </Text>
+                                                    </div>
+                                                    <Progress
+                                                        percent={Number(terminatedPercent.toFixed(1))}
+                                                        showInfo={false}
+                                                        strokeColor="#8c8c8c"
                                                         size={['100%', 8]}
                                                         trailColor={token.colorBgLayout}
                                                     />
@@ -908,12 +956,12 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                                             }
                                             title={
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingRight: '16px' }}>
-                                                    <Text strong style={{ fontSize: '15px' }}>{item.facility_name}</Text>
+                                                    <Text strong style={{ fontSize: '13px' }}>{item.facility_name}</Text>
                                                 </div>
                                             }
                                             description={
                                                 <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                                                    <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
+                                                    <div style={{ display: 'flex', gap: '8px', fontSize: '11px' }}>
                                                         <Text type="secondary">{item.regulator}</Text>
                                                         <Text type="secondary">•</Text>
                                                         <Text type="secondary">{item.license_type}</Text>
@@ -931,7 +979,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                                                                 />
                                                             </div>
                                                         </Tooltip>
-                                                        <Text style={{ color: statusColor, fontSize: '12px', fontWeight: 500 }}>
+                                                        <Text style={{ color: statusColor, fontSize: '11px', fontWeight: 500 }}>
                                                             {daysDiff < 0 ? `${Math.abs(daysDiff)} days overdue` : `${daysDiff} days left`}
                                                         </Text>
                                                     </div>

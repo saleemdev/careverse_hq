@@ -27,6 +27,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { getCsrfToken } from '../../utils/csrf';
+import { getBulkJobStatusColor, getProgressFromItems } from '../../utils/bulkUploadStatusHelpers';
 
 const { Title, Text } = Typography;
 
@@ -154,37 +155,8 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
         return () => clearInterval(interval);
     }, [autoRefresh, job, fetchJobDetails]);
 
-    // Calculate progress
-    const getProgress = () => {
-        if (!job || !job.items.length) return { percentage: 0, processed: 0, total: 0 };
-
-        const total = job.items.length;
-        const verified = job.items.filter(i => i.verification_status === 'Verified').length;
-        const verificationFailed = job.items.filter(i => i.verification_status === 'Failed').length;
-        const processed = verified + verificationFailed;
-        const percentage = Math.round((processed / total) * 100);
-
-        return { percentage, processed, total };
-    };
-
-    // Get status color
-    const getStatusColor = (status: string) => {
-        switch (status?.toLowerCase()) {
-            case 'completed':
-            case 'verified':
-            case 'success':
-                return 'success';
-            case 'pending':
-            case 'queued':
-                return 'default';
-            case 'processing':
-                return 'processing';
-            case 'failed':
-                return 'error';
-            default:
-                return 'default';
-        }
-    };
+    const getProgress = () => getProgressFromItems(job?.items ?? []);
+    const getStatusColor = (status: string) => getBulkJobStatusColor(status);
 
     // Get progress status for progress bar
     const getProgressStatus = () => {

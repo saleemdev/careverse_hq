@@ -18,18 +18,14 @@ import {
     SearchOutlined,
     ReloadOutlined,
     EyeOutlined,
-    ClockCircleOutlined,
-    CheckCircleOutlined,
-    CloseCircleOutlined,
-    SyncOutlined,
     CloudUploadOutlined,
-    FileTextOutlined,
     FilterOutlined
 } from '@ant-design/icons';
 import type { ColumnsType, FilterValue, SorterResult } from 'antd/es/table/interface';
 import type { TablePaginationConfig } from 'antd/es/table';
 import EmptyState from '../../components/shared/EmptyState/EmptyState';
-import { getCsrfToken } from '../../utils/csrf';
+import { bulkUploadApi } from '../../services/api';
+import { getBulkJobStatusProps, getProgressFromSummary } from '../../utils/bulkUploadStatusHelpers';
 
 const { Title, Text } = Typography;
 
@@ -74,37 +70,15 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
         });
     };
 
-    // Fetch all bulk upload jobs
+    // Fetch all bulk upload jobs (canonical API; normalizes response shape)
     const fetchJobs = useCallback(async () => {
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            params.append('page', '1');
-            params.append('per_page', '100');
-
-            const response = await fetch(
-                `/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_bulk_upload_jobs?${params.toString()}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Frappe-CSRF-Token': getCsrfToken()
-                    },
-                    credentials: 'include'
-                }
-            );
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch upload jobs');
-            }
-
-            const result = await response.json();
-
-            if (result.status === 'success') {
-                setJobs(result.data.jobs || []);
+            const result = await bulkUploadApi.listJobs({ page: 1, per_page: 100 });
+            if (result.success && result.data?.jobs) {
+                setJobs(result.data.jobs);
             } else {
-                throw new Error(result.message || 'Failed to fetch upload jobs');
+                throw new Error((result as any).error || 'Failed to fetch upload jobs');
             }
         } catch (error: any) {
             console.error('Error fetching jobs:', error);
@@ -117,25 +91,8 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
         fetchJobs();
     }, [fetchJobs]);
 
-    // Get status properties
-    const getStatusProps = (status: string) => {
-        const statusMap = {
-            completed: { color: 'success', icon: <CheckCircleOutlined /> },
-            processing: { color: 'processing', icon: <SyncOutlined spin /> },
-            queued: { color: 'default', icon: <ClockCircleOutlined /> },
-            failed: { color: 'error', icon: <CloseCircleOutlined /> }
-        };
-        return statusMap[status?.toLowerCase() as keyof typeof statusMap] ||
-               { color: 'default', icon: <FileTextOutlined /> };
-    };
-
-    // Calculate progress
-    const getProgress = (job: BulkUploadJob) => {
-        if (!job.total_records || job.total_records === 0) return 0;
-        const pending = job.pending || 0;
-        const processed = job.total_records - pending;
-        return Math.round((processed / job.total_records) * 100);
-    };
+    const getStatusProps = (status: string) => getBulkJobStatusProps(status);
+    const getProgress = (job: BulkUploadJob) => getProgressFromSummary(job);
 
     // Get unique values for filters - memoized to prevent filter dropdown issues
     const statusFilters = useMemo(() => {
@@ -196,7 +153,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                     >
                         {name}
                     </Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
                         {formatDateTime(record.upload_date)}
                     </Text>
                 </Space>
@@ -215,7 +172,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
             sortOrder: sortedInfo.columnKey === 'facility_name' ? sortedInfo.order : null,
             render: (facility_name: string, record: BulkUploadJob) => (
                 <Space direction="vertical" size={0}>
-                    <Text strong style={{ fontSize: 14 }}>
+                    <Text strong style={{ fontSize: 13 }}>
                         {(facility_name || '').trim() || 'Unknown Facility'}
                     </Text>
                     {(record.facility_id || record.facility) && (
@@ -243,7 +200,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
             sorter: (a, b) => (a.total_records || 0) - (b.total_records || 0),
             sortOrder: sortedInfo.columnKey === 'total_records' ? sortedInfo.order : null,
             render: (count: number) => (
-                <Text strong style={{ fontSize: 15, color: token.colorPrimary }}>
+                <Text strong style={{ fontSize: 14, color: token.colorPrimary }}>
                     {count?.toLocaleString() || 0}
                 </Text>
             )
@@ -307,7 +264,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                         style={{
                             borderRadius: 6,
                             padding: '2px 10px',
-                            fontSize: 12,
+                            fontSize: 11,
                             border: 'none'
                         }}
                     >
@@ -341,26 +298,26 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                 <Col xs={24} md={12} lg={8}>
                     <Text type="secondary" style={{ fontSize: 11 }}>Submitted By</Text>
                     <div>
-                        <Text style={{ fontSize: 13 }}>{record.uploaded_by || '-'}</Text>
+                        <Text style={{ fontSize: 12 }}>{record.uploaded_by || '-'}</Text>
                     </div>
                     <div style={{ marginTop: 6 }}>
                         <Text type="secondary" style={{ fontSize: 11 }}>Facility Reference</Text>
                     </div>
                     <div>
-                        <Text style={{ fontSize: 12 }}>{record.facility_id || record.facility || '-'}</Text>
+                        <Text style={{ fontSize: 11 }}>{record.facility_id || record.facility || '-'}</Text>
                     </div>
                 </Col>
 
                 <Col xs={24} md={12} lg={8}>
                     <Text type="secondary" style={{ fontSize: 11 }}>Timeline</Text>
                     <div>
-                        <Text style={{ fontSize: 12 }}>Uploaded: {formatDateTime(record.upload_date)}</Text>
+                        <Text style={{ fontSize: 11 }}>Uploaded: {formatDateTime(record.upload_date)}</Text>
                     </div>
                     <div>
-                        <Text style={{ fontSize: 12 }}>Started: {formatDateTime(record.started_at)}</Text>
+                        <Text style={{ fontSize: 11 }}>Started: {formatDateTime(record.started_at)}</Text>
                     </div>
                     <div>
-                        <Text style={{ fontSize: 12 }}>Completed: {formatDateTime(record.completed_at)}</Text>
+                        <Text style={{ fontSize: 11 }}>Completed: {formatDateTime(record.completed_at)}</Text>
                     </div>
                 </Col>
 
@@ -382,36 +339,36 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
 
     return (
         <div style={{
-            padding: '32px 24px',
+            padding: '20px',
             background: `
                 radial-gradient(circle at 20% 30%, rgba(24, 144, 255, 0.02) 0%, transparent 50%),
                 radial-gradient(circle at 80% 70%, rgba(24, 144, 255, 0.015) 0%, transparent 50%),
                 ${token.colorBgLayout}
             `,
-            minHeight: '100vh'
+                minHeight: '100%'
         }}>
             {/* Header Section - Proximity & Continuity */}
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 14 }}>
                 <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'flex-start',
                     marginBottom: 0,
                     flexWrap: 'wrap',
-                    gap: 16
+                    gap: 12
                 }}>
                     <div>
                         <Title
-                            level={2}
+                            level={3}
                             style={{
                                 margin: 0,
-                                marginBottom: 8,
-                                fontSize: 28,
+                                marginBottom: 4,
+                                fontSize: 22,
                                 fontWeight: 600,
                                 color: token.colorText,
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: 12
+                                gap: 10
                             }}
                         >
                             <CloudUploadOutlined style={{
@@ -423,9 +380,9 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                         <Text
                             type="secondary"
                             style={{
-                                fontSize: 14,
+                                fontSize: 12,
                                 display: 'block',
-                                marginTop: 4
+                                marginTop: 2
                             }}
                         >
                             Upload and validate health worker data in bulk
@@ -434,13 +391,12 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                     <Button
                         type="primary"
                         icon={<PlusOutlined />}
-                        size="large"
                         onClick={() => navigateToRoute('bulk-upload/new')}
                         style={{
                             borderRadius: 8,
-                            height: 44,
-                            paddingLeft: 24,
-                            paddingRight: 24,
+                            height: 38,
+                            paddingLeft: 16,
+                            paddingRight: 16,
                             fontWeight: 500,
                             boxShadow: `0 4px 12px ${token.colorPrimary}25`
                         }}
@@ -454,7 +410,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
             <Card
                 bordered={false}
                 style={{
-                    borderRadius: 16,
+                    borderRadius: 14,
                     background: 'rgba(255, 255, 255, 0.7)',
                     backdropFilter: 'blur(18px) saturate(180%)',
                     WebkitBackdropFilter: 'blur(18px) saturate(180%)',
@@ -465,7 +421,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
             >
                 {/* Search and Filter Bar */}
                 <div style={{
-                    padding: '20px 24px',
+                    padding: '14px 16px',
                     borderBottom: `1px solid ${token.colorBorderSecondary}`
                 }}>
                     <Space
@@ -482,7 +438,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                             onChange={(e) => setSearchText(e.target.value)}
                             allowClear
                             style={{
-                                width: 320,
+                                width: 280,
                                 borderRadius: 8
                             }}
                         />
@@ -509,7 +465,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                 </div>
 
                 {/* Table */}
-                <div style={{ padding: 24 }}>
+                <div style={{ padding: 16 }}>
                     {jobs.length === 0 && !loading ? (
                         <EmptyState
                             type="no-data"
@@ -534,7 +490,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                                 pageSize: 20,
                                 showSizeChanger: true,
                                 showTotal: (total) => (
-                                    <Text type="secondary" style={{ fontSize: 13 }}>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
                                         {total} {total === 1 ? 'job' : 'jobs'}
                                     </Text>
                                 ),
@@ -559,7 +515,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                 .ant-table-thead > tr > th {
                     background: ${token.colorBgContainer} !important;
                     font-weight: 600;
-                    font-size: 13px;
+                    font-size: 12px;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
                     color: ${token.colorTextSecondary} !important;

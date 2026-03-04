@@ -26,25 +26,21 @@ import {
     CloudUploadOutlined,
     HomeOutlined
 } from '@ant-design/icons';
-import type { UploadFile } from 'antd/es/upload/interface';
+import type { UploadFile, RcFile } from 'antd/es/upload/interface';
 import Papa from 'papaparse';
 import useFacilityStore from '../../stores/facilityStore';
 import { useResponsive } from '../../hooks/useResponsive';
-import { getCsrfToken } from '../../utils/csrf';
+import { bulkUploadApi } from '../../services/api';
+import {
+    validateBulkUploadRecords,
+    normalizeRecordsForSubmit,
+    type CSVRecord,
+    BULK_UPLOAD_MAX_RECORDS,
+    ALLOWED_EMPLOYMENT_TYPES,
+} from '../../utils/bulkUploadCsv';
 
 const { Title, Text } = Typography;
 const { Step } = Steps;
-
-interface CSVRecord {
-    identification_type: string;
-    identification_number: string;
-    registration_number?: string;
-    regulator?: string;
-    employment_type: string;
-    designation: string;
-    start_date: string;
-    end_date?: string;
-}
 
 interface BulkUploadPageProps {
     navigateToRoute: (route: string, id?: string) => void;
@@ -60,21 +56,12 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
 
-    const { facilities } = useFacilityStore();
+    const { availableFacilities: facilities } = useFacilityStore();
     const primaryCtaStyle: React.CSSProperties = {
         backgroundColor: '#1677ff',
         borderColor: '#1677ff',
         boxShadow: '0 4px 10px rgba(22, 119, 255, 0.2)'
     };
-
-    // Required CSV columns
-    const requiredColumns = [
-        'identification_type',
-        'identification_number',
-        'employment_type',
-        'designation',
-        'start_date'
-    ];
 
     // Generate CSV template
     const generateCSVTemplate = () => {
@@ -94,7 +81,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
             '12345678',
             'A12345',
             'NCK',
-            'Full-time Employee',
+            ALLOWED_EMPLOYMENT_TYPES[0],
             'Nurse',
             '2025-03-01',
             '2026-03-01'
@@ -113,51 +100,8 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
         message.success('CSV template downloaded successfully');
     };
 
-    // Validate CSV structure
-    const validateCSV = (records: any[]): string[] => {
-        const errors: string[] = [];
-
-        if (records.length === 0) {
-            errors.push('CSV file is empty');
-            return errors;
-        }
-
-        if (records.length > 500) {
-            errors.push('Maximum 500 records allowed per upload');
-        }
-
-        // Check required columns
-        const firstRecord = records[0];
-        const missingColumns = requiredColumns.filter(col => !(col in firstRecord));
-
-        if (missingColumns.length > 0) {
-            errors.push(`Missing required columns: ${missingColumns.join(', ')}`);
-        }
-
-        // Validate each record
-        records.forEach((record, index) => {
-            if (!record.identification_type) {
-                errors.push(`Row ${index + 1}: identification_type is required`);
-            }
-            if (!record.identification_number) {
-                errors.push(`Row ${index + 1}: identification_number is required`);
-            }
-            if (!record.employment_type) {
-                errors.push(`Row ${index + 1}: employment_type is required`);
-            }
-            if (!record.designation) {
-                errors.push(`Row ${index + 1}: designation is required`);
-            }
-            if (!record.start_date) {
-                errors.push(`Row ${index + 1}: start_date is required`);
-            }
-        });
-
-        return errors.slice(0, 10); // Show only first 10 errors
-    };
-
     // Handle file upload
-    const handleFileUpload = useCallback((file: UploadFile) => {
+    const handleFileUpload = useCallback((file: RcFile) => {
         const reader = new FileReader();
 
         reader.onload = (e) => {
@@ -167,15 +111,15 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                 header: true,
                 skipEmptyLines: true,
                 complete: (results) => {
-                    const records = results.data as CSVRecord[];
-                    const errors = validateCSV(records);
+                    const records = (results.data || []) as Record<string, unknown>[];
+                    const errors = validateBulkUploadRecords(records);
 
                     if (errors.length > 0) {
                         setValidationErrors(errors);
                         setCsvRecords([]);
                         message.error('CSV validation failed');
                     } else {
-                        setCsvRecords(records);
+                        setCsvRecords(normalizeRecordsForSubmit(records));
                         setValidationErrors([]);
                         message.success(`Successfully parsed ${records.length} records`);
                     }
@@ -183,73 +127,50 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
             });
         };
 
-        if (file.originFileObj) {
-            reader.readAsText(file.originFileObj);
-        }
+        reader.readAsText(file);
 
         return false; // Prevent auto upload
     }, []);
 
-    // Submit bulk upload
+    // Submit bulk upload (canonical API; duplicate submit guarded)
     const handleSubmit = async () => {
+        if (submitting) return;
         if (!selectedFacility) {
             message.error('Please select a facility');
             return;
         }
-
         if (csvRecords.length === 0) {
             message.error('Please upload a valid CSV file');
             return;
         }
 
         setSubmitting(true);
-
         try {
-            // Create Bulk Health Worker Upload document
-            const response = await fetch('/api/method/frappe.client.insert', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': getCsrfToken()
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    doc: {
-                        doctype: 'Bulk Health Worker Upload',
-                        facility: selectedFacility,
-                        uploaded_by: (window as any).frappe?.session?.user,
-                        status: 'Queued',
-                        items: csvRecords.map(record => ({
-                            identification_type: record.identification_type,
-                            identification_number: record.identification_number,
-                            registration_number: record.registration_number || '',
-                            regulator: record.regulator || '',
-                            employment_type: record.employment_type,
-                            designation: record.designation,
-                            start_date: record.start_date,
-                            end_date: record.end_date || ''
-                        }))
-                    }
-                })
+            const payload = normalizeRecordsForSubmit(
+                csvRecords as unknown as Record<string, unknown>[]
+            );
+
+            const result = await bulkUploadApi.createUpload({
+                facility_fid: selectedFacility,
+                records: payload,
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to submit bulk upload');
+            if (!result.success) {
+                message.error(result.error || 'Failed to submit bulk upload');
+                return;
             }
 
-            const result = await response.json();
-            const jobId = result.data.name;
+            const jobId = result.data?.job_id;
+            if (!jobId) {
+                message.error('Server did not return job ID');
+                return;
+            }
 
             message.success('Bulk upload submitted successfully!');
-
-            // Navigate to status dashboard
-            setTimeout(() => {
-                navigateToRoute('bulk-upload/status', jobId);
-            }, 1000);
-
+            navigateToRoute('bulk-upload/status', jobId);
         } catch (error: any) {
             console.error('Bulk upload error:', error);
-            message.error(error.message || 'Failed to submit bulk upload');
+            message.error(error?.message || 'Failed to submit bulk upload');
         } finally {
             setSubmitting(false);
         }
@@ -312,15 +233,15 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             >
                                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                     <Alert
-                                        message="Use the official template and keep to max 500 rows."
+                                        message={`Use the official template. Max ${BULK_UPLOAD_MAX_RECORDS} rows per file.`}
                                         type="info"
                                         showIcon
                                         style={{ borderRadius: 8 }}
                                     />
                                     <ul style={{ margin: 0, paddingLeft: 18, color: token.colorTextSecondary, fontSize: 13 }}>
                                         <li>Fill all required columns</li>
-                                        <li>Use valid identification numbers</li>
-                                        <li>Use date format `YYYY-MM-DD`</li>
+                                        <li>employment_type: e.g. {ALLOWED_EMPLOYMENT_TYPES.slice(0, 3).join(', ')}</li>
+                                        <li>Dates in YYYY-MM-DD format</li>
                                     </ul>
                                     <Button
                                         icon={<DownloadOutlined />}
@@ -417,9 +338,9 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                                             filterOption={(input, option) =>
                                                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                                             }
-                                            options={facilities.map(f => ({
+                                            options={(facilities || []).map(f => ({
                                                 label: f.facility_name,
-                                                value: f.name
+                                                value: f.hie_id
                                             }))}
                                         />
                                     </Space>
@@ -433,10 +354,10 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                                                 <Statistic title="Total" value={csvRecords.length} />
                                             </Col>
                                             <Col span={8}>
-                                                <Statistic title="Full-time" value={csvRecords.filter(r => r.employment_type === 'Full-time').length} />
+                                                <Statistic title="Full-time" value={csvRecords.filter(r => r.employment_type === 'Full-time Employee').length} />
                                             </Col>
                                             <Col span={8}>
-                                                <Statistic title="Other" value={csvRecords.filter(r => r.employment_type !== 'Full-time').length} />
+                                                <Statistic title="Other" value={csvRecords.filter(r => r.employment_type !== 'Full-time Employee').length} />
                                             </Col>
                                         </Row>
                                         <Button
@@ -457,7 +378,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                         </Row>
 
                         <Card
-                            title={<Text strong style={{ fontSize: 15 }}>Data Preview</Text>}
+                            title={<Text strong style={{ fontSize: 13 }}>Data Preview</Text>}
                             size="small"
                             style={{ borderRadius: 12 }}
                         >
@@ -518,7 +439,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                         <CloudUploadOutlined style={{ marginRight: 12, color: token.colorPrimary }} />
                         Bulk Facility Affiliation Upload
                     </Title>
-                    <Text type="secondary" style={{ fontSize: isMobile ? 13 : 14 }}>
+                    <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13 }}>
                         Upload multiple health worker affiliations at once using a CSV file
                     </Text>
                 </div>
@@ -600,10 +521,10 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                     background: #1f7ae0 !important;
                     border-color: #1f7ae0 !important;
                     color: #ffffff !important;
-                    font-size: 15px !important;
+                    font-size: 13px !important;
                     font-weight: 600 !important;
-                    height: 44px !important;
-                    padding-inline: 18px !important;
+                    height: 40px !important;
+                    padding-inline: 16px !important;
                     box-shadow: 0 4px 10px rgba(31, 122, 224, 0.25) !important;
                 }
                 .bulk-upload-action-cta.ant-btn-primary:hover,

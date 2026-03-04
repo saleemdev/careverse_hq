@@ -345,13 +345,15 @@ def get_affiliations(
             # "Confirmed" on UI represents approved affiliations in either Active or Confirmed state
             if status_lookup == "confirmed":
                 filters["affiliation_status"] = ["in", ["Active", "Confirmed"]]
+            elif status_lookup in {"terminated", "inactive"}:
+                # Terminated affiliations are persisted as Inactive in some flows.
+                filters["affiliation_status"] = ["in", ["Inactive", "Terminated"]]
             else:
                 normalized_status_map = {
                     "pending": "Pending",
                     "active": "Active",
                     "rejected": "Rejected",
                     "expired": "Expired",
-                    "inactive": "Inactive",
                 }
                 filters["affiliation_status"] = normalized_status_map.get(status_lookup, status)
 
@@ -484,6 +486,7 @@ def get_affiliations(
         confirmed_raw_count = status_counts.get("Confirmed", 0)
         confirmed_count = active_count + confirmed_raw_count
         rejected_count = status_counts.get("Rejected", 0)
+        terminated_count = status_counts.get("Inactive", 0) + status_counts.get("Terminated", 0)
         total_count_for_rate = sum(status_counts.values())
 
         status_aggregates = {
@@ -494,6 +497,7 @@ def get_affiliations(
             "rejected": rejected_count,
             "expired": status_counts.get("Expired", 0),
             "inactive": status_counts.get("Inactive", 0),
+            "terminated": terminated_count,
             "confirmation_rate": round((confirmed_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
             "rejection_rate": round((rejected_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
             # Backward compatibility for older frontend clients
@@ -893,6 +897,7 @@ def get_affiliation_statistics(
                         "rejected": 0,
                         "expired": 0,
                         "inactive": 0,
+                        "terminated": 0,
                         "confirmation_rate": 0.0,
                         "rejection_rate": 0.0,
                         "approval_rate": 0.0
@@ -942,6 +947,7 @@ def get_affiliation_statistics(
         confirmed_raw_count = by_status.get("Confirmed", 0)
         confirmed_count = active_count + confirmed_raw_count
         rejected_count = by_status.get("Rejected", 0)
+        terminated_count = by_status.get("Inactive", 0) + by_status.get("Terminated", 0)
         total_count_for_rate = len(affiliations)
 
         status_aggregates = {
@@ -952,6 +958,7 @@ def get_affiliation_statistics(
             "rejected": rejected_count,
             "expired": by_status.get("Expired", 0),
             "inactive": by_status.get("Inactive", 0),
+            "terminated": terminated_count,
             "confirmation_rate": round((confirmed_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
             "rejection_rate": round((rejected_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,
             "approval_rate": round((confirmed_count / total_count_for_rate) * 100, 1) if total_count_for_rate else 0.0,

@@ -128,9 +128,9 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
     };
 
     return (
-        <div style={{ padding: '24px', maxWidth: 800, margin: '0 auto' }}>
+        <div style={{ padding: '20px', maxWidth: 760, margin: '0 auto' }}>
             {/* Breadcrumb */}
-            <Breadcrumb style={{ marginBottom: 24 }}>
+            <Breadcrumb style={{ marginBottom: 16 }}>
                 <Breadcrumb.Item>
                     <HomeOutlined />
                 </Breadcrumb.Item>
@@ -151,9 +151,9 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                 }}
             >
                 {/* Header */}
-                <div style={{ marginBottom: 32 }}>
-                    <Title level={2} style={{ margin: 0, marginBottom: 8 }}>
-                        <UserAddOutlined style={{ marginRight: 12, color: token.colorPrimary }} />
+                <div style={{ marginBottom: 20 }}>
+                    <Title level={3} style={{ margin: 0, marginBottom: 4 }}>
+                        <UserAddOutlined style={{ marginRight: 10, color: token.colorPrimary }} />
                         Create New User
                     </Title>
                     <Text type="secondary">
@@ -182,7 +182,7 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                         name="first_name"
                         rules={[{ required: true, message: 'Please enter first name' }]}
                     >
-                        <Input size="large" placeholder="Enter first name" />
+                        <Input placeholder="Enter first name" />
                     </Form.Item>
 
                     <Form.Item
@@ -190,7 +190,7 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                         name="last_name"
                         rules={[{ required: true, message: 'Please enter last name' }]}
                     >
-                        <Input size="large" placeholder="Enter last name" />
+                        <Input placeholder="Enter last name" />
                     </Form.Item>
 
                     <Form.Item
@@ -201,14 +201,14 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                             { type: 'email', message: 'Please enter a valid email' }
                         ]}
                     >
-                        <Input size="large" placeholder="user@example.com" />
+                        <Input placeholder="user@example.com" />
                     </Form.Item>
 
                     <Form.Item
                         label="Phone Number"
                         name="phone"
                     >
-                        <Input size="large" placeholder="+254712345678" />
+                        <Input placeholder="+254712345678" />
                     </Form.Item>
 
                     <Form.Item
@@ -217,7 +217,6 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                         rules={[{ required: true, message: 'Please select a role' }]}
                     >
                         <Select
-                            size="large"
                             placeholder="Select user role"
                             options={[
                                 { label: 'County Executive', value: 'County Executive' },
@@ -233,7 +232,6 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                         rules={[{ required: true, message: 'Please select a county/department' }]}
                     >
                         <Select
-                            size="large"
                             placeholder="Select county or department"
                             showSearch
                             filterOption={(input, option) =>
@@ -247,7 +245,7 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                     </Form.Item>
 
                     {/* Actions */}
-                    <Form.Item style={{ marginTop: 32, marginBottom: 0 }}>
+                    <Form.Item style={{ marginTop: 20, marginBottom: 0 }}>
                         <Space size="middle">
                             <Button
                                 icon={<ArrowLeftOutlined />}
@@ -261,7 +259,6 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                                 htmlType="submit"
                                 icon={<CheckCircleOutlined />}
                                 loading={submitting}
-                                size="large"
                             >
                                 Create User
                             </Button>
@@ -274,7 +271,7 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
             <Modal
                 title={
                     <Space>
-                        <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: 24 }} />
+                        <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: 20 }} />
                         <span>User Created Successfully</span>
                     </Space>
                 }
@@ -307,7 +304,7 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
                             <Text
                                 strong
                                 style={{
-                                    fontSize: 18,
+                                    fontSize: 15,
                                     fontFamily: 'monospace',
                                     wordBreak: 'break-all'
                                 }}

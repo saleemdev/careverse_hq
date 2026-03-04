@@ -4,16 +4,35 @@
  * Light, friendly design with header - user is logged in!
  */
 
-import { Button, Typography, Space, Avatar, Dropdown } from 'antd';
-import { BankOutlined, ReloadOutlined, LogoutOutlined, MailOutlined, UserOutlined, SettingOutlined, BellOutlined } from '@ant-design/icons';
+import { Button, Typography, Space, Avatar, Dropdown, theme } from 'antd';
+import { BankOutlined, ReloadOutlined, LogoutOutlined, MailOutlined, UserOutlined, BellOutlined, LinkOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import useAuthStore from '../stores/authStore';
 import { useResponsive } from '../hooks/useResponsive';
+import useFacilityStore from '../stores/facilityStore';
 
 const { Title, Paragraph, Text } = Typography;
 
-const CompanyPermissionRequired: React.FC = () => {
+interface CompanyPermissionRequiredProps {
+	onNavigate?: (route: string, id?: string) => void;
+}
+
+const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ onNavigate }) => {
 	const { user, logout } = useAuthStore();
+	const { company } = useFacilityStore();
 	const { isMobile, isTablet } = useResponsive();
+	const { token } = theme.useToken();
+	const handleUserMenuClick = ({ key }: { key: string }) => {
+		if (key === 'logout') {
+			handleLogout();
+			return;
+		}
+		if (key === 'switch-desk') {
+			window.location.assign('/app');
+			return;
+		}
+		onNavigate?.(key);
+	};
+
 
 	const handleLogout = () => {
 		logout();
@@ -22,8 +41,6 @@ const CompanyPermissionRequired: React.FC = () => {
 	// Compact, responsive sizing
 	const cardMaxWidth = isMobile ? '100%' : isTablet ? '520px' : '580px';
 	const cardPadding = isMobile ? '24px 20px' : isTablet ? '32px 28px' : '36px 32px';
-	const iconSize = isMobile ? 60 : isTablet ? 68 : 76;
-	const iconFontSize = isMobile ? 30 : isTablet ? 34 : 38;
 
 	// Get user initials for avatar
 	const getInitials = () => {
@@ -95,25 +112,34 @@ const CompanyPermissionRequired: React.FC = () => {
 					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 						<div
 							style={{
-								width: '32px',
-								height: '32px',
+								width: '36px',
+								height: '36px',
 								borderRadius: '8px',
-								background: 'rgba(24, 144, 255, 0.12)',
+								background: 'rgba(24, 144, 255, 0.18)',
 								backdropFilter: 'blur(12px)',
 								WebkitBackdropFilter: 'blur(12px)',
-								border: '1px solid rgba(24, 144, 255, 0.15)',
+								border: '1px solid rgba(24, 144, 255, 0.30)',
 								display: 'flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								color: '#1890ff',
+								color: token.colorPrimary,
 								fontWeight: 'bold',
 								fontSize: '16px',
+								overflow: 'hidden',
 							}}
 						>
-							F
+							{company?.company_logo ? (
+								<img
+									src={company.company_logo}
+									alt={`${company.company_name || company.name} logo`}
+									style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+								/>
+							) : (
+								<SafetyCertificateOutlined style={{ fontSize: '16px', color: token.colorPrimary }} />
+							)}
 						</div>
 						{!isMobile && (
-							<Text strong style={{ fontSize: '16px', color: '#1e293b' }}>
+							<Text strong style={{ fontSize: '14px', color: '#1e293b' }}>
 								F360 Central
 							</Text>
 						)}
@@ -125,10 +151,8 @@ const CompanyPermissionRequired: React.FC = () => {
 							<Button
 								type="text"
 								icon={<BellOutlined />}
-								style={{
-									color: '#64748b',
-									borderRadius: '8px',
-								}}
+								className="header-action-btn"
+								style={{ width: '38px', height: '38px', fontSize: '15px' }}
 							/>
 						)}
 
@@ -138,12 +162,12 @@ const CompanyPermissionRequired: React.FC = () => {
 									{
 										key: 'profile',
 										icon: <UserOutlined />,
-										label: 'Profile',
+										label: 'My Profile',
 									},
 									{
-										key: 'settings',
-										icon: <SettingOutlined />,
-										label: 'Settings',
+										key: 'switch-desk',
+										icon: <LinkOutlined />,
+										label: 'Switch to Desk',
 									},
 									{
 										type: 'divider',
@@ -155,15 +179,12 @@ const CompanyPermissionRequired: React.FC = () => {
 										danger: true,
 									},
 								],
-									onClick: ({ key }) => {
-										if (key === 'logout') {
-											handleLogout();
-										}
-									},
-								}}
+								onClick: handleUserMenuClick,
+							}}
 							placement="bottomRight"
 						>
 							<div
+								className="header-user-trigger"
 								style={{
 									display: 'flex',
 									alignItems: 'center',
@@ -174,14 +195,6 @@ const CompanyPermissionRequired: React.FC = () => {
 									background: 'rgba(255, 255, 255, 0.8)',
 									border: '1px solid rgba(0, 0, 0, 0.06)',
 									transition: 'all 0.2s',
-								}}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.background = 'rgba(255, 255, 255, 1)';
-									e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)';
-									e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)';
 								}}
 							>
 								<Avatar
@@ -202,7 +215,7 @@ const CompanyPermissionRequired: React.FC = () => {
 									<Text
 										strong
 										style={{
-											fontSize: '14px',
+											fontSize: '12px',
 											color: '#1e293b',
 											maxWidth: '120px',
 											overflow: 'hidden',
@@ -256,7 +269,7 @@ const CompanyPermissionRequired: React.FC = () => {
 								display: 'inline-flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								fontSize: '20px',
+								fontSize: '18px',
 								color: '#1890ff',
 							}}
 						>

@@ -195,7 +195,7 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
                         {record.first_name} {record.last_name}
                     </Text>
                     <br />
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
                         {record.email}
                     </Text>
                 </div>
@@ -281,9 +281,9 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
     ];
 
     return (
-        <div style={{ padding: '24px' }}>
+        <div style={{ padding: '20px' }}>
             {/* Breadcrumb */}
-            <Breadcrumb style={{ marginBottom: 24 }}>
+            <Breadcrumb style={{ marginBottom: 16 }}>
                 <Breadcrumb.Item>
                     <HomeOutlined />
                 </Breadcrumb.Item>
@@ -305,13 +305,13 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: 24,
+                    marginBottom: 16,
                     flexWrap: 'wrap',
-                    gap: 16
+                    gap: 12
                 }}>
                     <div>
-                        <Title level={2} style={{ margin: 0, marginBottom: 8 }}>
-                            <TeamOutlined style={{ marginRight: 12, color: token.colorPrimary }} />
+                        <Title level={3} style={{ margin: 0, marginBottom: 4 }}>
+                            <TeamOutlined style={{ marginRight: 10, color: token.colorPrimary }} />
                             User Management
                         </Title>
                         <Text type="secondary">
@@ -321,7 +321,6 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
                     <Button
                         type="primary"
                         icon={<UserAddOutlined />}
-                        size="large"
                         onClick={() => navigateToRoute('create-user')}
                     >
                         Create User
@@ -392,11 +391,11 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
                 <Space direction="vertical" style={{ width: '100%' }}>
                     <Text>The user's password has been reset. Please share the following temporary password with them:</Text>
                     <Card style={{ background: token.colorBgContainer, marginTop: 16 }}>
-                        <Text strong style={{ fontSize: 16, fontFamily: 'monospace' }}>
+                        <Text strong style={{ fontSize: 14, fontFamily: 'monospace' }}>
                             {tempPassword}
                         </Text>
                     </Card>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
                         The user will be required to change this password upon first login.
                     </Text>
                 </Space>

@@ -88,6 +88,15 @@ def upload_bulk_health_workers(**kwargs):
                 status_code=400,
             )
 
+        # Enforce server-side record limit (align with frontend)
+        max_records = 500
+        if len(records) > max_records:
+            return api_response(
+                success=False,
+                message=f"Maximum {max_records} records allowed per upload. Received {len(records)}.",
+                status_code=400,
+            )
+
         # Validate all records before creating job
         validation_errors = []
         for idx, record in enumerate(records, start=1):
@@ -713,16 +722,9 @@ def process_bulk_upload(upload_id):
     Args:
         upload_id (str): Bulk Health Worker Upload document name
     """
-    frappe.log_error(
-        "Bulk Upload Job Started",
-        f"Processing bulk upload job {upload_id}",
-    )
+    logger = frappe.logger("careverse_hq.bulk_upload")
+    logger.info("Bulk upload job started: %s", upload_id)
     try:
-        # Get parent document
-        frappe.log_error(
-            "Bulk Upload Job Processing",
-            f"Processing bulk upload job {upload_id}",
-        )
         parent_doc = frappe.get_doc("Bulk Health Worker Upload", upload_id)
 
         # Update status to Processing
@@ -774,15 +776,13 @@ def process_bulk_upload(upload_id):
         )
         frappe.db.commit()
 
-        frappe.log_error(
-            "Bulk Upload Job Completed",
-            f"Bulk upload job {upload_id} completed successfully",
-        )
+        logger.info("Bulk upload job completed: %s", upload_id)
 
     except Exception:
+        logger.exception("process_bulk_upload failed for job %s", upload_id)
         frappe.log_error(
-            f"process_bulk_upload failed for job {upload_id}",
-            frappe.get_traceback(),
+            title=f"Bulk upload failed: {upload_id}",
+            message=frappe.get_traceback(),
         )
 
         # Update parent status to Failed
@@ -1072,7 +1072,10 @@ def _verify_with_hwr(identification_type, identification_number):
     Returns:
         tuple: (hwr_data, error)
     """
-    from .utils import fetch_hwr_practitioner
+    try:
+        from healthpro_erp.api.utils import fetch_hwr_practitioner
+    except ImportError:
+        return None, {"message": "HWR verification unavailable (healthpro_erp not installed)"}
 
     try:
         # Call HWR API using identification details

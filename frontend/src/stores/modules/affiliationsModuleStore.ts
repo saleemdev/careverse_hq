@@ -27,6 +27,7 @@ interface AffiliationsModuleStore {
         rejected: number;
         expired: number;
         inactive: number;
+        terminated?: number;
         confirmation_rate: number;
         rejection_rate: number;
         approval_rate?: number;

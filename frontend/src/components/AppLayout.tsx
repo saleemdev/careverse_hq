@@ -169,11 +169,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             label: 'My Profile',
         },
         {
-            key: 'settings',
-            icon: <SettingOutlined />,
-            label: 'Settings',
-        },
-        {
             key: 'switch-desk',
             icon: <LinkOutlined />,
             label: 'Switch to Desk',
@@ -221,11 +216,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             attendance: 'Attendance',
             'e-contracting': 'eContracting',
             'user-management': 'User Management',
+            'user-management/new': 'Create User',
+            'user-management/security': 'User Security',
             'create-user': 'Create User',
             'edit-user': 'Edit User',
+            profile: 'My Profile',
         };
         return routes[currentRoute] || 'Dashboard';
     };
+
+    const selectedMenuKey = currentRoute.startsWith('user-management')
+        ? 'user-management'
+        : currentRoute;
 
     // Sidebar logo
     const renderLogo = () => (
@@ -253,7 +255,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: token.colorPrimary,
-                    fontSize: '18px',
+                    fontSize: '16px',
                     fontWeight: 700,
                     overflow: 'hidden',
                 }}
@@ -269,15 +271,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                         }}
                     />
                 ) : (
-                    <SafetyCertificateOutlined style={{ fontSize: '18px', color: token.colorPrimary }} />
+                    <SafetyCertificateOutlined style={{ fontSize: '16px', color: token.colorPrimary }} />
                 )}
             </div>
             {!collapsed && (
                 <div style={{ marginLeft: '12px' }}>
-                    <Title level={5} style={{ margin: 0, color: token.colorText, lineHeight: 1.2, fontSize: '14px' }}>
+                    <Title level={5} style={{ margin: 0, color: token.colorText, lineHeight: 1.2, fontSize: '13px' }}>
                         F360 Central
                     </Title>
-                    <Text type="secondary" style={{ fontSize: '10px' }}>Administration</Text>
+                    <Text type="secondary" style={{ fontSize: '9px' }}>Administration</Text>
                 </div>
             )}
         </div>
@@ -308,12 +310,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             {renderLogo()}
             <Menu
                 mode="inline"
-                selectedKeys={[currentRoute]}
+                selectedKeys={[selectedMenuKey]}
                 items={menuItems}
                 onClick={handleMenuClick}
                 style={{
                     border: 'none',
-                    fontSize: '13px',
+                    fontSize: '12px',
                 }}
             />
         </Sider>
@@ -333,12 +335,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             {renderLogo()}
             <Menu
                 mode="inline"
-                selectedKeys={[currentRoute]}
+                selectedKeys={[selectedMenuKey]}
                 items={menuItems}
                 onClick={handleMenuClick}
                 style={{
                     border: 'none',
-                    fontSize: '13px',
+                    fontSize: '12px',
                 }}
             />
         </Drawer>
@@ -382,7 +384,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                             icon={(isMobile || isTablet) ? <MenuUnfoldOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
                             onClick={() => ((isMobile || isTablet) ? setMobileMenuVisible(true) : setCollapsed(!collapsed))}
                             className="header-action-btn header-action-btn--menu"
-                            style={{ ...headerActionButtonStyle, fontSize: '18px' }}
+                            style={{ ...headerActionButtonStyle, fontSize: '16px' }}
                         />
 
                         {/* Prominent Organization Name Badge - Desktop only */}
@@ -400,12 +402,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                     boxShadow: '0 2px 8px rgba(24, 144, 255, 0.25)',
                                 }}
                             >
-                                <BankOutlined style={{ color: '#0050b3', fontSize: '16px' }} />
+                                <BankOutlined style={{ color: '#0050b3', fontSize: '14px' }} />
                                 <div>
                                     <Text
                                         style={{
                                             color: '#0050b3',
-                                            fontSize: '14px',
+                                            fontSize: '13px',
                                             fontWeight: 700,
                                             display: 'block',
                                             lineHeight: 1,
@@ -416,7 +418,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                     <Text
                                         style={{
                                             color: 'rgba(0, 80, 179, 0.85)',
-                                            fontSize: '11px',
+                                            fontSize: '10px',
                                             display: 'block',
                                             marginTop: '2px',
                                         }}
@@ -442,11 +444,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                     boxShadow: '0 2px 8px rgba(24, 144, 255, 0.25)',
                                 }}
                             >
-                                <BankOutlined style={{ color: '#0050b3', fontSize: '14px' }} />
+                                <BankOutlined style={{ color: '#0050b3', fontSize: '13px' }} />
                                 <Text
                                     style={{
                                         color: '#0050b3',
-                                        fontSize: '12px',
+                                        fontSize: '11px',
                                         fontWeight: 700,
                                     }}
                                 >
@@ -460,7 +462,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                             <Text
                                 strong
                                 style={{
-                                    fontSize: '14px',
+                                    fontSize: '13px',
                                     color: token.colorPrimary,
                                 }}
                             >
@@ -480,43 +482,45 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     </Space>
 
                     <Space size="middle">
-                        {/* Facility Context Switcher - All devices */}
-                        {isMobile ? (
-                            <Dropdown
-                                trigger={['click']}
-                                placement="bottomRight"
-                                dropdownRender={() => (
-                                    <div style={{
-                                        background: token.colorBgElevated,
-                                        borderRadius: '8px',
-                                        padding: '12px',
-                                        boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                                        minWidth: '280px',
-                                    }}>
-                                        <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginBottom: '8px' }}>
-                                            Filter by Facility
-                                        </Text>
-                                        <FacilityContextSwitcher variant="minimal" showLabel={false} />
-                                    </div>
-                                )}
-                            >
-                                <Tooltip title="Facility Filter">
-                                    <Badge
-                                        count={selectedFacilities.length > 0 ? selectedFacilities.length : 0}
-                                        size="small"
-                                        offset={[-2, 2]}
-                                    >
-                                        <Button
-                                            type="text"
-                                            icon={<MedicineBoxOutlined />}
-                                            className="header-action-btn"
-                                            style={headerActionButtonStyle}
-                                        />
-                                    </Badge>
-                                </Tooltip>
-                            </Dropdown>
-                        ) : (
-                            <FacilityContextSwitcher variant="compact" showLabel={false} />
+                        {/* Facility Context Switcher - hidden on Executive Dashboard */}
+                        {currentRoute !== 'dashboard' && (
+                            isMobile ? (
+                                <Dropdown
+                                    trigger={['click']}
+                                    placement="bottomRight"
+                                    dropdownRender={() => (
+                                        <div style={{
+                                            background: token.colorBgElevated,
+                                            borderRadius: '8px',
+                                            padding: '12px',
+                                            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                                            minWidth: '280px',
+                                        }}>
+                                        <Text type="secondary" style={{ fontSize: '10px', display: 'block', marginBottom: '8px' }}>
+                                                Filter by Facility
+                                            </Text>
+                                            <FacilityContextSwitcher variant="minimal" showLabel={false} />
+                                        </div>
+                                    )}
+                                >
+                                    <Tooltip title="Facility Filter">
+                                        <Badge
+                                            count={selectedFacilities.length > 0 ? selectedFacilities.length : 0}
+                                            size="small"
+                                            offset={[-2, 2]}
+                                        >
+                                            <Button
+                                                type="text"
+                                                icon={<MedicineBoxOutlined />}
+                                                className="header-action-btn"
+                                                style={headerActionButtonStyle}
+                                            />
+                                        </Badge>
+                                    </Tooltip>
+                                </Dropdown>
+                            ) : (
+                                <FacilityContextSwitcher variant="compact" showLabel={false} />
+                            )
                         )}
 
                         {/* Secondary Actions - Desktop Only */}
@@ -574,10 +578,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                 </Avatar>
                                 {!isMobile && (
                                     <div style={{ lineHeight: 1.2 }}>
-                                        <Text strong style={{ fontSize: '13px', display: 'block' }}>
+                                        <Text strong style={{ fontSize: '12px', display: 'block' }}>
                                             {user?.full_name || user?.name || 'User'}
                                         </Text>
-                                        <Text type="secondary" style={{ fontSize: '11px' }}>Administrator</Text>
+                                        <Text type="secondary" style={{ fontSize: '10px' }}>Administrator</Text>
                                     </div>
                                 )}
                             </Space>

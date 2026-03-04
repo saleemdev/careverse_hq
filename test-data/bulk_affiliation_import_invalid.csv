@@ -1,0 +1,5 @@
+identification_type,identification_number,registration_number,regulator,employment_type,designation,start_date,end_date
+National ID,12345678,A12345,NCK,Full-time Employee,Nurse,2025-03-01,2026-03-01
+Passport,P1234567,,COC,InvalidEmployment,Clinical Officer,04/10/2025,2025-12-31
+National ID,87654321,C24680,KMPDC,,Medical Officer,2025-02-15,
+,99999,D13579,PPB,Consultant,Pharmacist,2025-01-20,2025-11-20
