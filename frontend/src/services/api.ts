@@ -404,7 +404,47 @@ export const hrApi = {
     }): Promise<ApiResponse> => {
         const queryParams: Record<string, any> = { ...params };
         if (params.facilities?.length) queryParams.facilities = params.facilities.join(',');
+        if (params.pageSize != null) queryParams.page_size = params.pageSize;
+        delete queryParams.pageSize;
         return frappeCall('careverse_hq.api.dashboard.get_leave_applications', queryParams);
+    },
+
+    // Get single leave application detail for HR review/approval
+    getLeaveApplicationDetail: async (name: string): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.dashboard.get_leave_application_detail', { name });
+    },
+
+    // Approve leave application (submit)
+    approveLeaveApplication: async (name: string): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.dashboard.approve_leave_application', { name });
+    },
+
+    // Reject leave application
+    rejectLeaveApplication: async (name: string): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.dashboard.reject_leave_application', { name });
+    },
+};
+
+// Facility Claims API – summary + paginated list for Claim Record.
+// Backend returns mock data when Claim Record doctype is missing; switches to real DB automatically
+// when the doctype exists (or set site_config claims_use_mock=1 to keep using mock for testing).
+export const claimsApi = {
+    getFacilityClaims: async (params: {
+        facilities?: string[];
+        page?: number;
+        page_size?: number;
+        status?: string;
+        date_from?: string;
+        date_to?: string;
+    }): Promise<ApiResponse> => {
+        const queryParams: Record<string, any> = {};
+        if (params.facilities?.length) queryParams.facilities = params.facilities.join(',');
+        if (params.page != null) queryParams.page = params.page;
+        if (params.page_size != null) queryParams.page_size = params.page_size;
+        if (params.status) queryParams.status = params.status;
+        if (params.date_from) queryParams.date_from = params.date_from;
+        if (params.date_to) queryParams.date_to = params.date_to;
+        return frappeCall('careverse_hq.api.claims.get_facility_claims', queryParams);
     },
 };
 

@@ -4,7 +4,7 @@
  * Filters updates based on facility context and handles data merging
  */
 
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import useRealtimeStore from '../stores/realtimeStore';
 import useFacilityStore from '../stores/facilityStore';
 
@@ -70,13 +70,12 @@ export const useDashboardRealtime = (
   const { onApprovalUpdate, onBudgetUpdate, onAttendanceUpdate, onCompanyUpdate, onError, enabled = true } =
     options;
 
-  // Realtime and facility stores
+  // Realtime and facility stores (single source of truth: getSelectedFacilityIds)
   const { socket, isConnected, isConnecting, connectionError, subscribe, unsubscribe } =
     useRealtimeStore();
-  const { company, selectedFacilities, isAllFacilities } = useFacilityStore();
-
-  // Get selected facility IDs for filtering
-  const selectedFacilityIds = useMemo(() => selectedFacilities.map((f) => f.hie_id), [selectedFacilities]);
+  const company = useFacilityStore((s) => s.company);
+  const isAllFacilities = useFacilityStore((s) => s.isAllFacilities);
+  const selectedFacilityIds = useFacilityStore((s) => s.getSelectedFacilityIds());
 
   // Check if update is relevant to current facility context
   const isUpdateRelevant = useCallback(
@@ -105,87 +104,80 @@ export const useDashboardRealtime = (
     [company?.name, selectedFacilityIds, isAllFacilities]
   );
 
+  // Safe invoke: never let a callback throw and break the hook
+  const safeInvoke = useCallback(<T>(fn: ((arg: T) => void) | undefined, arg: T) => {
+    try {
+      fn?.(arg);
+    } catch (err) {
+      console.error('[Dashboard Realtime] Handler callback threw:', err);
+    }
+  }, []);
+
   // Handle incoming updates
   const handleDashboardUpdate = useCallback(
     (data: DashboardMetricsUpdate) => {
-      console.log('[Dashboard Realtime] Received update:', data);
-
-      // Filter out irrelevant updates
-      if (!isUpdateRelevant(data)) {
-        console.log('[Dashboard Realtime] Update not relevant to current facility context, ignoring');
-        return;
-      }
-
-      // Dispatch updates to specific handlers
-      if (data.approval_metrics && onApprovalUpdate) {
-        console.log('[Dashboard Realtime] Applying approval metrics update');
-        onApprovalUpdate(data.approval_metrics);
-      }
-
-      if (data.budget_metrics && onBudgetUpdate) {
-        console.log('[Dashboard Realtime] Applying budget metrics update');
-        onBudgetUpdate(data.budget_metrics);
-      }
-
-      if (data.attendance_metrics && onAttendanceUpdate) {
-        console.log('[Dashboard Realtime] Applying attendance metrics update');
-        onAttendanceUpdate(data.attendance_metrics);
-      }
-
-      if (data.company_metrics && onCompanyUpdate) {
-        console.log('[Dashboard Realtime] Applying company metrics update');
-        onCompanyUpdate(data.company_metrics);
+      try {
+        console.log('[Dashboard Realtime] Received update:', data);
+        if (!isUpdateRelevant(data)) {
+          console.log('[Dashboard Realtime] Update not relevant to current facility context, ignoring');
+          return;
+        }
+        if (data.approval_metrics && onApprovalUpdate) {
+          safeInvoke(onApprovalUpdate, data.approval_metrics);
+        }
+        if (data.budget_metrics && onBudgetUpdate) {
+          safeInvoke(onBudgetUpdate, data.budget_metrics);
+        }
+        if (data.attendance_metrics && onAttendanceUpdate) {
+          safeInvoke(onAttendanceUpdate, data.attendance_metrics);
+        }
+        if (data.company_metrics && onCompanyUpdate) {
+          safeInvoke(onCompanyUpdate, data.company_metrics);
+        }
+      } catch (err) {
+        console.error('[Dashboard Realtime] handleDashboardUpdate error:', err);
       }
     },
-    [isUpdateRelevant, onApprovalUpdate, onBudgetUpdate, onAttendanceUpdate, onCompanyUpdate]
+    [isUpdateRelevant, onApprovalUpdate, onBudgetUpdate, onAttendanceUpdate, onCompanyUpdate, safeInvoke]
   );
 
   // Handle approval-specific updates
   const handleApprovalUpdate = useCallback(
     (data: any) => {
-      console.log('[Dashboard Realtime] Received approval update:', data);
-
-      if (!isUpdateRelevant({ ...data, company })) {
-        return;
-      }
-
-      if (onApprovalUpdate) {
-        onApprovalUpdate(data);
+      try {
+        if (!isUpdateRelevant({ ...data, company })) return;
+        safeInvoke(onApprovalUpdate, data);
+      } catch (err) {
+        console.error('[Dashboard Realtime] handleApprovalUpdate error:', err);
       }
     },
-    [isUpdateRelevant, company, onApprovalUpdate]
+    [isUpdateRelevant, company, onApprovalUpdate, safeInvoke]
   );
 
   // Handle budget-specific updates
   const handleBudgetUpdate = useCallback(
     (data: any) => {
-      console.log('[Dashboard Realtime] Received budget update:', data);
-
-      if (!isUpdateRelevant({ ...data, company })) {
-        return;
-      }
-
-      if (onBudgetUpdate) {
-        onBudgetUpdate(data);
+      try {
+        if (!isUpdateRelevant({ ...data, company })) return;
+        safeInvoke(onBudgetUpdate, data);
+      } catch (err) {
+        console.error('[Dashboard Realtime] handleBudgetUpdate error:', err);
       }
     },
-    [isUpdateRelevant, company, onBudgetUpdate]
+    [isUpdateRelevant, company, onBudgetUpdate, safeInvoke]
   );
 
   // Handle attendance-specific updates
   const handleAttendanceUpdate = useCallback(
     (data: any) => {
-      console.log('[Dashboard Realtime] Received attendance update:', data);
-
-      if (!isUpdateRelevant({ ...data, company })) {
-        return;
-      }
-
-      if (onAttendanceUpdate) {
-        onAttendanceUpdate(data);
+      try {
+        if (!isUpdateRelevant({ ...data, company })) return;
+        safeInvoke(onAttendanceUpdate, data);
+      } catch (err) {
+        console.error('[Dashboard Realtime] handleAttendanceUpdate error:', err);
       }
     },
-    [isUpdateRelevant, company, onAttendanceUpdate]
+    [isUpdateRelevant, company, onAttendanceUpdate, safeInvoke]
   );
 
   // Subscribe to realtime events on mount (if enabled)
@@ -212,17 +204,28 @@ export const useDashboardRealtime = (
     };
   }, [enabled, socket, subscribe, handleDashboardUpdate, handleApprovalUpdate, handleBudgetUpdate, handleAttendanceUpdate]);
 
-  // Log connection status changes
+  // Keep latest onError in a ref so we don't need it in deps (avoids infinite loop when caller sets state in onError)
+  const onErrorRef = useRef(onError);
+  const lastReportedErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  // Log connection status changes; report each new error only once (no loop when onError triggers re-render)
   useEffect(() => {
     if (isConnected) {
       console.log('[Dashboard Realtime] Socket connected');
-    } else if (connectionError) {
+      lastReportedErrorRef.current = null;
+    } else if (connectionError && connectionError !== lastReportedErrorRef.current) {
       console.warn('[Dashboard Realtime] Connection error:', connectionError);
-      if (onError) {
-        onError(connectionError);
+      lastReportedErrorRef.current = connectionError;
+      try {
+        onErrorRef.current?.(connectionError);
+      } catch (err) {
+        console.error('[Dashboard Realtime] onError callback threw:', err);
       }
     }
-  }, [isConnected, connectionError, onError]);
+  }, [isConnected, connectionError]);
 
   return {
     isConnected,

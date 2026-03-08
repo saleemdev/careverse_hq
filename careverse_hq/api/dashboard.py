@@ -537,6 +537,8 @@ def get_leave_applications(
         user = frappe.session.user
         if not company:
             company = get_user_company(user)
+        if not company:
+            return api_response(success=False, message="Company context required", status_code=403)
 
         filters = {"company": company, "docstatus": ["<", 2]}
         if status:
@@ -545,16 +547,27 @@ def get_leave_applications(
         if facilities:
             facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
             valid_facility_ids = validate_user_facilities(user, company, facility_ids)
-            if valid_facility_ids:
-                employee_ids = frappe.get_all(
-                    "Employee",
-                    filters={"company": company, "custom_facility_id": ["in", valid_facility_ids]},
-                    pluck="name"
-                )
-                if employee_ids:
-                    filters["employee"] = ["in", employee_ids]
-                else:
-                    return api_response(success=True, data=[])
+            if not valid_facility_ids:
+                return api_response(success=True, data={
+                    "items": [],
+                    "total_count": 0,
+                    "page": int(page),
+                    "page_size": int(page_size),
+                })
+            employee_ids = frappe.get_all(
+                "Employee",
+                filters={"company": company, "custom_facility_id": ["in", valid_facility_ids]},
+                pluck="name"
+            )
+            if employee_ids:
+                filters["employee"] = ["in", employee_ids]
+            else:
+                return api_response(success=True, data={
+                    "items": [],
+                    "total_count": 0,
+                    "page": int(page),
+                    "page_size": int(page_size),
+                })
 
         offset = (int(page) - 1) * int(page_size)
 
@@ -582,6 +595,111 @@ def get_leave_applications(
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Get Leave Applications API Error")
         return api_response(success=False, message=str(e), status_code=500)
+
+
+def _check_leave_application_access(docname: str, user: str, company: str, facility_ids: Optional[List[str]] = None):
+    """
+    Load Leave Application doc and verify the current user has access (same company;
+    optionally scoped to facilities). Returns (doc, None) on success or (None, error_message).
+    """
+    if not docname:
+        return None, "Leave application name is required"
+    try:
+        doc = frappe.get_doc("Leave Application", docname)
+    except Exception:
+        return None, "Leave application not found"
+    if doc.company != company:
+        return None, "You do not have permission to access this leave application"
+    if facility_ids is not None and facility_ids:
+        emp = frappe.db.get_value(
+            "Employee",
+            doc.employee,
+            ["custom_facility_id"],
+            as_dict=True,
+        )
+        facility_id = emp.get("custom_facility_id") if isinstance(emp, dict) else None
+        if facility_id and facility_id not in facility_ids:
+            return None, "You do not have permission to access this leave application"
+    return doc, None
+
+
+@frappe.whitelist()
+def get_leave_application_detail(name: Optional[str] = None):
+    """Get full details of a single leave application for HR review/approval."""
+    if not name:
+        return api_response(success=False, message="Leave application name is required", status_code=400)
+    try:
+        user = frappe.session.user
+        company = get_user_company(user)
+        if not company:
+            return api_response(success=False, message="Company context required", status_code=403)
+        doc, err = _check_leave_application_access(name, user, company, facility_ids=None)
+        if err:
+            return api_response(success=False, message=err, status_code=403)
+        # Return serializable fields for HR view
+        fields_to_send = [
+            "name", "employee", "employee_name", "leave_type", "from_date", "to_date",
+            "total_leave_days", "status", "docstatus", "company",
+            "reason_for_leave", "leave_approver", "posting_date", "modified", "modified_by",
+        ]
+        data = {k: getattr(doc, k, None) for k in fields_to_send if hasattr(doc, k)}
+        return api_response(success=True, data=data)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Leave Application Detail API Error")
+        return api_response(success=False, message=str(e), status_code=500)
+
+
+@frappe.whitelist()
+def approve_leave_application(name: Optional[str] = None):
+    """Approve a leave application (submit the document)."""
+    if not name:
+        return api_response(success=False, message="Leave application name is required", status_code=400)
+    try:
+        user = frappe.session.user
+        company = get_user_company(user)
+        if not company:
+            return api_response(success=False, message="Company context required", status_code=403)
+        doc, err = _check_leave_application_access(name, user, company, facility_ids=None)
+        if err:
+            return api_response(success=False, message=err, status_code=403)
+        if doc.docstatus == 1:
+            return api_response(success=True, data={"status": "Approved"}, message="Already approved")
+        if doc.docstatus == 2:
+            return api_response(success=False, message="Cannot approve a cancelled leave application", status_code=400)
+        doc.submit()
+        return api_response(success=True, data={"status": "Approved"}, message="Leave application approved")
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Approve Leave Application API Error")
+        return api_response(success=False, message=str(e), status_code=500)
+
+
+@frappe.whitelist()
+def reject_leave_application(name: Optional[str] = None):
+    """Reject a leave application: set status to Rejected (draft) or cancel if already submitted."""
+    if not name:
+        return api_response(success=False, message="Leave application name is required", status_code=400)
+    try:
+        user = frappe.session.user
+        company = get_user_company(user)
+        if not company:
+            return api_response(success=False, message="Company context required", status_code=403)
+        doc, err = _check_leave_application_access(name, user, company, facility_ids=None)
+        if err:
+            return api_response(success=False, message=err, status_code=403)
+        if doc.docstatus == 2:
+            return api_response(success=True, data={"status": "Cancelled"}, message="Already cancelled")
+        if doc.docstatus == 1:
+            doc.cancel()
+            return api_response(success=True, data={"status": "Cancelled"}, message="Leave application rejected")
+        # Draft (Open): mark as Rejected without submitting
+        doc.status = "Rejected"
+        doc.save()
+        return api_response(success=True, data={"status": "Rejected"}, message="Leave application rejected")
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Reject Leave Application API Error")
+        return api_response(success=False, message=str(e), status_code=500)
+
+
 @frappe.whitelist()
 def get_purchase_orders(
     company: Optional[str] = None,

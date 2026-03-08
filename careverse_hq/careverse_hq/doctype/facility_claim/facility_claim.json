@@ -1,0 +1,195 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "field:claim_id",
+ "creation": "2026-03-08 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "claim_id",
+  "client",
+  "client_name",
+  "claim_status",
+  "claim_upstream_error_group",
+  "claim_upstream_response",
+  "section_break_details",
+  "scheme_id",
+  "insurer",
+  "diagnoses",
+  "interventions",
+  "column_break_dates",
+  "date_start",
+  "date_end",
+  "claim_subtype",
+  "claim_type",
+  "use",
+  "claim_amount",
+  "section_break_facility",
+  "facility",
+  "facility_name",
+  "county",
+  "sub_county"
+ ],
+ "fields": [
+  {
+   "fieldname": "claim_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Claim ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "client",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Client ID"
+  },
+  {
+   "fieldname": "client_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Client Name"
+  },
+  {
+   "fieldname": "claim_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Claim Status",
+   "options": "pending\napproved\nrejected"
+  },
+  {
+   "fieldname": "claim_upstream_error_group",
+   "fieldtype": "Data",
+   "label": "Claim Upstream Error Group",
+   "description": "Rejection reason or error group when claim is rejected"
+  },
+  {
+   "fieldname": "claim_upstream_response",
+   "fieldtype": "Data",
+   "label": "Claim Upstream Response"
+  },
+  {
+   "fieldname": "section_break_details",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "scheme_id",
+   "fieldtype": "Data",
+   "label": "Scheme ID"
+  },
+  {
+   "fieldname": "insurer",
+   "fieldtype": "Data",
+   "label": "Insurer"
+  },
+  {
+   "fieldname": "diagnoses",
+   "fieldtype": "Small Text",
+   "label": "Diagnoses"
+  },
+  {
+   "fieldname": "interventions",
+   "fieldtype": "Small Text",
+   "label": "Interventions"
+  },
+  {
+   "fieldname": "column_break_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date_start",
+   "fieldtype": "Date",
+   "label": "Date Start"
+  },
+  {
+   "fieldname": "date_end",
+   "fieldtype": "Date",
+   "label": "Date End"
+  },
+  {
+   "fieldname": "claim_subtype",
+   "fieldtype": "Data",
+   "label": "Claim Subtype"
+  },
+  {
+   "fieldname": "claim_type",
+   "fieldtype": "Data",
+   "label": "Claim Type"
+  },
+  {
+   "fieldname": "use",
+   "fieldtype": "Data",
+   "label": "Use",
+   "description": "e.g. claim, preauthorization"
+  },
+  {
+   "fieldname": "claim_amount",
+   "fieldtype": "Currency",
+   "label": "Claim Amount",
+   "options": "KES"
+  },
+  {
+   "fieldname": "section_break_facility",
+   "fieldtype": "Section Break",
+   "label": "Facility"
+  },
+  {
+   "fieldname": "facility",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Health Facility",
+   "options": "Health Facility"
+  },
+  {
+   "fieldname": "facility_name",
+   "fieldtype": "Data",
+   "fetch_from": "facility.facility_name",
+   "in_list_view": 1,
+   "label": "Facility Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "county",
+   "fieldtype": "Data",
+   "fetch_from": "facility.county",
+   "label": "County",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sub_county",
+   "fieldtype": "Data",
+   "fetch_from": "facility.sub_county",
+   "label": "Sub County",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Careverse Hq",
+ "name": "Facility Claim",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

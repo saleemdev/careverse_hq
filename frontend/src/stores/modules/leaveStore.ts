@@ -55,7 +55,12 @@ const useLeaveStore = create<LeaveStore>((set, get) => ({
         }
     },
     setFilters: (newFilters) => {
-        set((state) => ({ filters: { ...state.filters, ...newFilters, page: 1 } }));
+        set((state) => {
+            const merged = { ...state.filters, ...newFilters };
+            const filterChanged = 'status' in newFilters;
+            if (filterChanged) merged.page = 1;
+            return { filters: merged };
+        });
     },
 }));
 

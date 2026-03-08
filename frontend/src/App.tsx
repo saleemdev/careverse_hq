@@ -24,6 +24,8 @@ import UserListPage from './pages/user-management/UserListPage';
 import CreateUserPage from './pages/user-management/CreateUserPage';
 import EditUserPage from './pages/user-management/EditUserPage';
 import ProfilePage from './pages/profile/ProfilePage';
+import LeaveApplicationsListView from './components/modules/hr/LeaveApplicationsListView';
+import ClaimsListView from './components/modules/claims/ClaimsListView';
 import { getCsrfToken, setCsrfToken } from './utils/csrf';
 import './App.css';
 
@@ -456,11 +458,18 @@ function App() {
       case 'profile':
         return <ProfilePage navigateToRoute={navigateToRoute} />;
 
+      // HR: Leave Applications (Admin Central visibility for approvals)
+      case 'leave-summary':
+        return <LeaveApplicationsListView />;
+
+      // Facility Claims (Claim Record – summary + paginated list)
+      case 'claims':
+        return <ClaimsListView />;
+
       // Placeholder routes for modules under development
       case 'budget-overview':
       case 'account-balances':
       case 'financial-reports':
-      case 'leave-summary':
       case 'hr-reports':
       default:
         return (

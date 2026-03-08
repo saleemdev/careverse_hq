@@ -64,10 +64,9 @@ def get_user_company_context():
 		# Get company details
 		company_doc = frappe.get_doc("Company", company_name)
 
-		# Get facilities for this company (filtered by organization_company)
-		facilities = frappe.get_all(
+		# Health Facility list: no filters — Frappe User Permissions on Health Facility apply
+		facilities = frappe.get_list(
 			"Health Facility",
-			filters={"organization_company": company_name},
 			fields=[
 				"hie_id",
 				"facility_name",
@@ -152,10 +151,9 @@ def get_facilities_for_company(company: str):
 				status_code=403
 			)
 
-		# Get facilities for this company
-		facilities = frappe.get_all(
+		# Health Facility list: no filters — Frappe User Permissions on Health Facility apply
+		facilities = frappe.get_list(
 			"Health Facility",
-			filters={"organization_company": company},
 			fields=[
 				"hie_id",
 				"facility_name",

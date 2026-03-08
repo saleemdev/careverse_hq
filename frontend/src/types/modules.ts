@@ -263,3 +263,47 @@ export interface AccountTypesOverview {
     Expense: AccountBalance;
     Equity: AccountBalance;
 }
+
+/** Facility claim – key fields for list/summary and detail */
+export interface FacilityClaim {
+    name: string;
+    claim_id: string;
+    client: string;
+    client_name: string;
+    claim_status: string;
+    /** Claim upstream error group (from API) */
+    claim_upstream_error_group?: string;
+    /** Claim upstream response (from API) */
+    claim_upstream_response?: string;
+    scheme_id: string;
+    insurer: string;
+    diagnoses: string;
+    interventions: string;
+    date_start: string;
+    date_end: string;
+    claim_subtype: string;
+    claim_type: string;
+    /** e.g. claim, preauthorization */
+    use?: string;
+    claim_amount: number;
+    facility: string;
+    facility_name: string;
+    county?: string;
+    sub_county?: string;
+    creation?: string;
+    modified?: string;
+}
+
+export interface FacilityClaimsSummary {
+    total_count: number;
+    by_status: Record<string, number>;
+    total_amount: number;
+}
+
+export interface FacilityClaimsResponse {
+    summary: FacilityClaimsSummary;
+    total_count: number;
+    page: number;
+    page_size: number;
+    items: FacilityClaim[];
+}

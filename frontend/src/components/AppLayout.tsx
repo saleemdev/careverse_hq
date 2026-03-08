@@ -42,11 +42,11 @@ import {
     CloudUploadOutlined,
     ExclamationCircleOutlined,
     AuditOutlined,
+    FileTextOutlined,
 } from '@ant-design/icons';
 import { useResponsive } from '../hooks/useResponsive';
 import useAuthStore from '../stores/authStore';
 import useFacilityStore from '../stores/facilityStore';
-import FacilityContextSwitcher from './FacilityContextSwitcher';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -71,7 +71,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     const [collapsed, setCollapsed] = useState(false);
     const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
     const { user, logout } = useAuthStore();
-    const { company, selectedFacilities } = useFacilityStore();
+    const { company } = useFacilityStore();
     const headerActionButtonStyle = {
         width: isMobile ? '36px' : '40px',
         height: isMobile ? '36px' : '40px',
@@ -134,6 +134,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     key: 'licenses',
                     icon: <SafetyCertificateOutlined />,
                     label: 'Licenses',
+                },
+                {
+                    key: 'leave-summary',
+                    icon: <CalendarOutlined />,
+                    label: 'Leave Applications',
+                },
+                {
+                    key: 'claims',
+                    icon: <FileTextOutlined />,
+                    label: 'Claims',
                 },
                 {
                     key: 'attendance',
@@ -213,6 +223,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             'bulk-upload/new': 'New Upload',
             'bulk-upload/status': 'Upload Status',
             licenses: 'Licenses',
+            'leave-summary': 'Leave Applications',
             attendance: 'Attendance',
             'e-contracting': 'eContracting',
             'user-management': 'User Management',
@@ -482,47 +493,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                     </Space>
 
                     <Space size="middle">
-                        {/* Facility Context Switcher - hidden on Executive Dashboard */}
-                        {currentRoute !== 'dashboard' && (
-                            isMobile ? (
-                                <Dropdown
-                                    trigger={['click']}
-                                    placement="bottomRight"
-                                    dropdownRender={() => (
-                                        <div style={{
-                                            background: token.colorBgElevated,
-                                            borderRadius: '8px',
-                                            padding: '12px',
-                                            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                                            minWidth: '280px',
-                                        }}>
-                                        <Text type="secondary" style={{ fontSize: '10px', display: 'block', marginBottom: '8px' }}>
-                                                Filter by Facility
-                                            </Text>
-                                            <FacilityContextSwitcher variant="minimal" showLabel={false} />
-                                        </div>
-                                    )}
-                                >
-                                    <Tooltip title="Facility Filter">
-                                        <Badge
-                                            count={selectedFacilities.length > 0 ? selectedFacilities.length : 0}
-                                            size="small"
-                                            offset={[-2, 2]}
-                                        >
-                                            <Button
-                                                type="text"
-                                                icon={<MedicineBoxOutlined />}
-                                                className="header-action-btn"
-                                                style={headerActionButtonStyle}
-                                            />
-                                        </Badge>
-                                    </Tooltip>
-                                </Dropdown>
-                            ) : (
-                                <FacilityContextSwitcher variant="compact" showLabel={false} />
-                            )
-                        )}
-
                         {/* Secondary Actions - Desktop Only */}
                         {!isTablet && !isMobile && (
                             <>

@@ -38,10 +38,13 @@ interface RealtimeState {
   _removeSubscription: (event: string, handler?: RealtimeEventHandler) => void;
 }
 
+// Subscriptions kept outside Zustand state so add/remove don't trigger re-renders (avoids React #185).
+let subscriptionsList: RealtimeSubscription[] = [];
+
 const useRealtimeStore = create<RealtimeState>()(
   devtools(
     (set, get) => ({
-      // Initial State
+      // Initial State (subscriptions live in subscriptionsList, not here)
       socket: null,
       isConnected: false,
       isConnecting: false,
@@ -88,56 +91,68 @@ const useRealtimeStore = create<RealtimeState>()(
 
           // Handle connection
           newSocket.on('connect', () => {
-            console.log('[Realtime] Socket connected:', newSocket.id);
-            set({
-              socket: newSocket,
-              isConnected: true,
-              isConnecting: false,
-              connectionError: null,
-              lastDisconnectReason: undefined,
-            });
-
-            // Re-subscribe to all active subscriptions on reconnect
-            const subscriptions = get().subscriptions;
-            console.log(
-              `[Realtime] Re-subscribing to ${subscriptions.length} events after reconnect...`
-            );
-            subscriptions.forEach(({ event, handler }) => {
-              newSocket.off(event); // Remove old handler
-              newSocket.on(event, handler);
-            });
+            try {
+              console.log('[Realtime] Socket connected:', newSocket.id);
+              set({
+                socket: newSocket,
+                isConnected: true,
+                isConnecting: false,
+                connectionError: null,
+                lastDisconnectReason: undefined,
+              });
+              subscriptionsList.forEach(({ event, handler }) => {
+                try {
+                  newSocket.off(event);
+                  newSocket.on(event, handler);
+                } catch (e) {
+                  console.warn('[Realtime] Re-subscribe error for', event, e);
+                }
+              });
+            } catch (e) {
+              console.error('[Realtime] connect handler error:', e);
+            }
           });
 
-          // Handle connection error
+          // Handle connection error (non-fatal: dashboard still works)
           newSocket.on('connect_error', (error) => {
-            console.error('[Realtime] Connection error:', error);
-            set({
-              connectionError: error.message || 'Connection error',
-              isConnecting: false,
-            });
+            try {
+              console.error('[Realtime] Connection error:', error);
+              set({
+                connectionError: error?.message || 'Connection error',
+                isConnecting: false,
+              });
+            } catch (e) {
+              console.error('[Realtime] connect_error handler error:', e);
+            }
           });
 
           // Handle disconnection
           newSocket.on('disconnect', (reason) => {
-            console.warn('[Realtime] Socket disconnected:', reason);
-            set({
-              isConnected: false,
-              lastDisconnectReason: reason,
-            });
-
-            // Log reconnection attempts for debugging
-            if (reason !== 'io client namespace disconnect') {
-              console.log('[Realtime] Will attempt to reconnect...');
+            try {
+              console.warn('[Realtime] Socket disconnected:', reason);
+              set({
+                isConnected: false,
+                lastDisconnectReason: reason,
+              });
+              if (reason !== 'io client namespace disconnect') {
+                console.log('[Realtime] Will attempt to reconnect...');
+              }
+            } catch (e) {
+              console.error('[Realtime] disconnect handler error:', e);
             }
           });
 
           // Handle unexpected errors
           newSocket.on('error', (error) => {
-            console.error('[Realtime] Socket error:', error);
-            set({
-              connectionError:
-                typeof error === 'string' ? error : error?.message || 'Unknown error',
-            });
+            try {
+              console.error('[Realtime] Socket error:', error);
+              set({
+                connectionError:
+                  typeof error === 'string' ? error : (error as Error)?.message || 'Unknown error',
+              });
+            } catch (e) {
+              console.error('[Realtime] error handler error:', e);
+            }
           });
 
           set({
@@ -147,10 +162,14 @@ const useRealtimeStore = create<RealtimeState>()(
           });
         } catch (error: any) {
           console.error('[Realtime] Failed to initialize Socket.IO:', error);
-          set({
-            connectionError: error.message || 'Failed to initialize Socket.IO',
-            isConnecting: false,
-          });
+          try {
+            set({
+              connectionError: error?.message || 'Failed to initialize Socket.IO',
+              isConnecting: false,
+            });
+          } catch (e) {
+            console.error('[Realtime] set after init error:', e);
+          }
         }
       },
 
@@ -164,6 +183,7 @@ const useRealtimeStore = create<RealtimeState>()(
 
         console.log('[Realtime] Disconnecting socket...');
         socket.disconnect();
+        subscriptionsList = [];
         set({
           socket: null,
           isConnected: false,
@@ -176,7 +196,7 @@ const useRealtimeStore = create<RealtimeState>()(
        * Returns an unsubscribe function
        */
       subscribe: (event: string, handler: RealtimeEventHandler) => {
-        const { socket, subscriptions } = get();
+        const { socket } = get();
 
         // Ensure socket is initialized
         if (!socket) {
@@ -184,21 +204,22 @@ const useRealtimeStore = create<RealtimeState>()(
           return () => { }; // Return no-op unsubscribe
         }
 
-        // Check if already subscribed to this event
-        const alreadySubscribed = subscriptions.some((s) => s.event === event);
-
         // Register handler
         socket.off(event); // Remove any old handler to avoid duplicates
         socket.on(event, (data) => {
-          console.log(`[Realtime] Received event "${event}":`, data);
-          handler(data);
+          try {
+            console.log(`[Realtime] Received event "${event}":`, data);
+            handler(data);
+          } catch (err) {
+            console.error(`[Realtime] Event "${event}" handler threw:`, err);
+          }
         });
 
-        // Store subscription info
+        // Store subscription info (outside state to avoid re-render loop on unsubscribe)
         get()._addSubscription(event, handler);
 
         console.log(
-          `[Realtime] Subscribed to "${event}" (total subscriptions: ${subscriptions.length + 1})`
+          `[Realtime] Subscribed to "${event}" (total subscriptions: ${subscriptionsList.length})`
         );
 
         // Return unsubscribe function
@@ -225,13 +246,14 @@ const useRealtimeStore = create<RealtimeState>()(
        * Unsubscribe from all events
        */
       unsubscribeAll: () => {
-        const { socket, subscriptions } = get();
+        const { socket } = get();
 
         if (!socket) return;
 
-        subscriptions.forEach(({ event }) => {
+        subscriptionsList.forEach(({ event }) => {
           socket.off(event);
         });
+        subscriptionsList = [];
 
         set({ subscriptions: [] });
         console.log('[Realtime] Unsubscribed from all events');
@@ -259,26 +281,20 @@ const useRealtimeStore = create<RealtimeState>()(
       },
 
       /**
-       * Internal: Add subscription to store
+       * Internal: Add subscription (held in subscriptionsList, not state, to avoid re-render on unsubscribe)
        */
       _addSubscription: (event: string, handler: RealtimeEventHandler) => {
-        set((state) => ({
-          subscriptions: [
-            ...state.subscriptions.filter((s) => s.event !== event), // Remove old if exists
-            { event, handler },
-          ],
-        }));
+        subscriptionsList = subscriptionsList.filter((s) => s.event !== event);
+        subscriptionsList.push({ event, handler });
       },
 
       /**
-       * Internal: Remove subscription from store
+       * Internal: Remove subscription from list (no set() so no re-render, avoids React #185)
        */
       _removeSubscription: (event: string, handler?: RealtimeEventHandler) => {
-        set((state) => ({
-          subscriptions: state.subscriptions.filter(
-            (s) => !(s.event === event && (!handler || s.handler === handler))
-          ),
-        }));
+        subscriptionsList = subscriptionsList.filter(
+          (s) => !(s.event === event && (!handler || s.handler === handler))
+        );
       },
     }),
     {

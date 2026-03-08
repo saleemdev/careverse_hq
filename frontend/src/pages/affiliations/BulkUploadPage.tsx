@@ -5,7 +5,6 @@ import {
     Button,
     Upload,
     Table,
-    Select,
     message,
     Space,
     Typography,
@@ -50,13 +49,15 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
     const { token } = theme.useToken();
     const { isMobile, isTablet } = useResponsive();
     const [currentStep, setCurrentStep] = useState(0);
-    const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
     const [csvFile, setCsvFile] = useState<UploadFile | null>(null);
     const [csvRecords, setCsvRecords] = useState<CSVRecord[]>([]);
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
 
     const { availableFacilities: facilities } = useFacilityStore();
+    // Facility from User Permissions (no separate filter): single facility or first of many
+    const facilityId = (facilities?.length ? facilities[0].hie_id : null) as string | null;
+    const facilityName = (facilities?.length ? facilities[0].facility_name : null) as string | null;
     const primaryCtaStyle: React.CSSProperties = {
         backgroundColor: '#1677ff',
         borderColor: '#1677ff',
@@ -135,8 +136,8 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
     // Submit bulk upload (canonical API; duplicate submit guarded)
     const handleSubmit = async () => {
         if (submitting) return;
-        if (!selectedFacility) {
-            message.error('Please select a facility');
+        if (!facilityId) {
+            message.error('No facility in your context. Check User Permissions for Health Facility.');
             return;
         }
         if (csvRecords.length === 0) {
@@ -151,7 +152,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
             );
 
             const result = await bulkUploadApi.createUpload({
-                facility_fid: selectedFacility,
+                facility_fid: facilityId,
                 records: payload,
             });
 
@@ -318,33 +319,28 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                     </Row>
                 );
 
-            case 1: // Select Facility & Review
+            case 1: // Review & Submit (facility from User Permissions — no facility filter)
                 return (
                     <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                        {!facilityId && (
+                            <Alert
+                                type="warning"
+                                message="No facility available"
+                                description="Your user has no Health Facility in context. Add User Permissions for Health Facility to upload."
+                                showIcon
+                                style={{ borderRadius: 8 }}
+                            />
+                        )}
                         <Row gutter={[16, 12]}>
-                            <Col xs={24} lg={16}>
-                                <Card title="Select Health Facility" size="small" style={{ borderRadius: 12, height: '100%' }}>
-                                    <Space direction="vertical" style={{ width: '100%' }}>
-                                        <Text type="secondary">
-                                            Choose the destination facility for these affiliations.
-                                        </Text>
-                                        <Select
-                                            style={{ width: '100%' }}
-                                            placeholder="Select a facility"
-                                            size="large"
-                                            value={selectedFacility}
-                                            onChange={setSelectedFacility}
-                                            showSearch
-                                            filterOption={(input, option) =>
-                                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                            }
-                                            options={(facilities || []).map(f => ({
-                                                label: f.facility_name,
-                                                value: f.hie_id
-                                            }))}
-                                        />
-                                    </Space>
-                                </Card>
+                            <Col xs={24} lg={facilityName ? 16 : 24}>
+                                {facilityName && (
+                                    <Alert
+                                        type="info"
+                                        message={`Upload destination: ${facilityName}`}
+                                        showIcon
+                                        style={{ marginBottom: 12, borderRadius: 8 }}
+                                    />
+                                )}
                             </Col>
                             <Col xs={24} lg={8}>
                                 <Card title="Ready to Submit" size="small" style={{ borderRadius: 12, height: '100%' }}>
@@ -364,7 +360,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                                             type="primary"
                                             icon={<CheckCircleOutlined />}
                                             onClick={handleSubmit}
-                                            disabled={!selectedFacility || csvRecords.length === 0}
+                                            disabled={!facilityId || csvRecords.length === 0}
                                             loading={submitting}
                                             block
                                             size="large"
@@ -505,7 +501,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             type="primary"
                             icon={<CheckCircleOutlined />}
                             onClick={handleSubmit}
-                            disabled={!selectedFacility || csvRecords.length === 0}
+                            disabled={!facilityId || csvRecords.length === 0}
                             loading={submitting}
                             className="bulk-upload-action-cta"
                             size="large"

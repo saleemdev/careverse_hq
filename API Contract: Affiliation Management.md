@@ -247,7 +247,8 @@ When the daily check determines that an affiliation's `end_date` is today (i.e.,
 }
 ```
 
-#### 409 Conflict
+#### 40
+9 Conflict
 
 ```json
 {

@@ -21,6 +21,7 @@ import {
     Progress,
     Tooltip,
     Input,
+    Alert,
 } from 'antd';
 import {
     BankOutlined,
@@ -80,16 +81,19 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         console.log('[Dashboard] Applied company metrics update from realtime');
     }, []);
 
-    // Subscribe to realtime updates
+    // Stable callback so realtime hook doesn't re-run unnecessarily; report error once, clear after 5s
+    const handleRealtimeError = useCallback((error: string | unknown) => {
+        const message = typeof error === 'string' ? error : (error as Error)?.message ?? 'Connection error';
+        console.error('[Dashboard] Realtime error:', message);
+        setRealtimeError(message);
+        setTimeout(() => setRealtimeError(null), 5000);
+    }, []);
+
+    // Subscribe to realtime updates (websocket failure is non-fatal; dashboard still shows static data)
     const { isConnected: realtimeConnected } = useDashboardRealtime({
         onBudgetUpdate: handleBudgetUpdate,
         onCompanyUpdate: handleCompanyUpdate,
-        onError: (error) => {
-            console.error('[Dashboard] Realtime error:', error);
-            setRealtimeError(error);
-            // Clear error after 5 seconds
-            setTimeout(() => setRealtimeError(null), 5000);
-        },
+        onError: handleRealtimeError,
         enabled: hasCompanyPermission && !facilityLoading, // Only enable after facility context is ready
     });
 
@@ -1007,9 +1011,15 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             {realtimeError && (
                 <Row style={{ marginTop: 12 }}>
                     <Col span={24}>
-                        <Card style={{ borderColor: '#ffe58f', background: '#fffbe6' }}>
-                            <Text type="warning">{realtimeError}</Text>
-                        </Card>
+                        <Alert
+                            type="warning"
+                            message="Live updates unavailable"
+                            description="Dashboard data is still correct; real-time updates could not connect. You can continue using the page and refresh to get the latest data."
+                            showIcon
+                            closable
+                            onClose={() => setRealtimeError(null)}
+                            style={{ borderRadius: 8 }}
+                        />
                     </Col>
                 </Row>
             )}

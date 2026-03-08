@@ -108,28 +108,16 @@ const useFacilityStore = create<FacilityState>()(
 							return;
 						}
 
+						// No header facility filter: always "all facilities" (User Permissions apply via API)
+						const allIds = (result.facilities || []).map((f: Facility) => f.hie_id);
 						set({
 							hasCompanyPermission: true,
 							company: result.company,
 							availableFacilities: result.facilities || [],
-							selectedFacilityIds: (result.facilities || []).map((f: Facility) => f.hie_id),
+							selectedFacilities: [],
+							selectedFacilityIds: allIds,
 							loading: false,
 						});
-
-						// Auto-select all facilities if previously selected
-						const previousSelection = get().selectedFacilities;
-						if (previousSelection.length > 0) {
-							// Validate previous selection still exists
-							const validSelection = previousSelection.filter((prev) =>
-								result.facilities.some((f: Facility) => f.hie_id === prev.hie_id)
-							);
-							if (validSelection.length > 0) {
-								set({
-									selectedFacilities: validSelection,
-									selectedFacilityIds: validSelection.map(f => f.hie_id)
-								});
-							}
-						}
 					} catch (error: any) {
 						console.error('[FacilityStore] Error loading company context:', error);
 						set({
@@ -198,9 +186,13 @@ const useFacilityStore = create<FacilityState>()(
 						// Extract data from Frappe API response structure
 						const apiResponse = data.message || data;
 						const result = apiResponse.data || apiResponse;
+						const facilities = result.facilities || [];
+						const allIds = facilities.map((f: Facility) => f.hie_id);
 
 						set({
-							availableFacilities: result.facilities || [],
+							availableFacilities: facilities,
+							selectedFacilities: [],
+							selectedFacilityIds: allIds,
 							loading: false,
 						});
 					} catch (error: any) {
@@ -246,11 +238,11 @@ const useFacilityStore = create<FacilityState>()(
 			}),
 			{
 				name: 'f360-facility-context-store',
+				// Do not persist facility selection — no header filter; always "all" from API
 				partialize: (state) => ({
 					company: state.company,
 					hasCompanyPermission: state.hasCompanyPermission,
 					availableFacilities: state.availableFacilities,
-					selectedFacilities: state.selectedFacilities,
 				}),
 			}
 		),
