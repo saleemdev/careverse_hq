@@ -1,8 +1,8 @@
 /**
  * Export facility claims to CSV or Excel (filtered data from list).
  */
+import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import type { FacilityClaim } from '../../../types/modules';
 
 function claimToRow(record: FacilityClaim): Record<string, string | number> {
@@ -47,10 +47,25 @@ export function downloadClaimsAsCsv(claims: FacilityClaim[], filenameBase: strin
     URL.revokeObjectURL(url);
 }
 
-export function downloadClaimsAsExcel(claims: FacilityClaim[], filenameBase: string): void {
+export async function downloadClaimsAsExcel(claims: FacilityClaim[], filenameBase: string): Promise<void> {
     const rows = claims.map(claimToRow);
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Claims');
-    XLSX.writeFile(wb, `${filenameBase}.xlsx`);
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Claims');
+
+    if (rows.length > 0) {
+        // Use the keys of the first row as column headers
+        const columns = Object.keys(rows[0]);
+        ws.columns = columns.map((key) => ({ header: key, key }));
+        rows.forEach((row) => ws.addRow(row));
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filenameBase}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
 }

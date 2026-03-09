@@ -12,6 +12,10 @@ import {
     Tag,
     Dropdown,
     Select,
+    Divider,
+    Skeleton,
+    Tooltip,
+    theme,
 } from 'antd';
 import {
     ReloadOutlined,
@@ -21,8 +25,15 @@ import {
     DownloadOutlined,
     FileExcelOutlined,
     FileTextOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    CloseCircleOutlined,
+    DollarOutlined,
+    FilterOutlined,
+    ClearOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
+import type { ColumnType } from 'antd/es/table';
 import { downloadClaimsAsCsv, downloadClaimsAsExcel } from './exportClaims';
 import dayjs from 'dayjs';
 import useClaimsStore from '../../../stores/modules/claimsStore';
@@ -39,7 +50,18 @@ const { Text, Title } = Typography;
 // Stable icon color so columns useMemo doesn't change every render (avoids Table/Ellipsis #185 loop)
 const ICON_SECONDARY = 'var(--color-text-secondary, rgba(0, 0, 0, 0.45))';
 
+/** Label + control stacked field used in the filter bar */
+const FilterField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500 }}>
+            {label}
+        </Text>
+        {children}
+    </div>
+);
+
 const ClaimsListView: React.FC = () => {
+    const { token } = theme.useToken();
     const { isMobile, isTablet } = useResponsive();
     // Let backend handle empty/missing facilities - just use what's in store
     const facilityIds = useFacilityStore((s) => s.selectedFacilityIds) ?? [];
@@ -49,6 +71,8 @@ const ClaimsListView: React.FC = () => {
         claims,
         summary,
         loading,
+        exporting,
+        exportProgress,
         total,
         filters,
         insurerOptions,
@@ -56,6 +80,7 @@ const ClaimsListView: React.FC = () => {
         errorGroupOptions,
         filterOptionsLoading,
         fetchClaims,
+        fetchAllClaimsForExport,
         fetchFilterOptions,
         setFilters,
     } = useClaimsStore();
@@ -91,13 +116,24 @@ const ClaimsListView: React.FC = () => {
         return `${record.date_start ?? ''} – ${record.date_end ?? ''}`;
     }, []);
 
-    const columns = useMemo(() => {
-        const cols: any[] = [
+    // Stable filter option arrays for column filter dropdowns
+    const statusFilterOptions = useMemo(
+        () => ['approved', 'pending', 'rejected'].map((s) => ({ text: s.charAt(0).toUpperCase() + s.slice(1), value: s })),
+        []
+    );
+    const useFilterOptions = useMemo(
+        () => useOptions.map((u) => ({ text: u, value: u })),
+        [useOptions]
+    );
+
+    const columns = useMemo((): ColumnType<FacilityClaim>[] => {
+        const cols: ColumnType<FacilityClaim>[] = [
             {
                 title: 'Client',
                 key: 'client',
-                fixed: isMobile ? undefined : ('left' as const),
+                fixed: isMobile ? undefined : 'left',
                 width: isMobile ? undefined : 200,
+                sorter: (a, b) => (a.client_name ?? '').localeCompare(b.client_name ?? ''),
                 render: (_: unknown, record: FacilityClaim) => (
                     <Space direction="vertical" size={0}>
                         <Text strong style={{ fontSize: '14px' }}>{record.client_name ?? '—'}</Text>
@@ -109,6 +145,9 @@ const ClaimsListView: React.FC = () => {
                 title: 'Use',
                 key: 'use',
                 width: 90,
+                filters: useFilterOptions,
+                filteredValue: filters.use ? [filters.use] : null,
+                onFilter: () => true, // server-side — always pass through
                 render: (_: unknown, record: FacilityClaim) => (
                     <Tag>{record.use || 'claim'}</Tag>
                 ),
@@ -116,7 +155,9 @@ const ClaimsListView: React.FC = () => {
             {
                 title: 'Period',
                 key: 'period',
+                dataIndex: 'date_start',
                 width: 160,
+                sorter: (a, b) => (a.date_start ?? '').localeCompare(b.date_start ?? ''),
                 render: (_: unknown, record: FacilityClaim) => (
                     <Space>
                         <CalendarOutlined style={{ color: ICON_SECONDARY }} />
@@ -128,6 +169,7 @@ const ClaimsListView: React.FC = () => {
                 title: 'Insurer',
                 key: 'insurer',
                 width: 180,
+                sorter: (a, b) => (a.insurer ?? '').localeCompare(b.insurer ?? ''),
                 render: (_: unknown, record: FacilityClaim) => (
                     <Space>
                         <BankOutlined style={{ color: ICON_SECONDARY }} />
@@ -140,6 +182,9 @@ const ClaimsListView: React.FC = () => {
                 dataIndex: 'claim_status',
                 key: 'claim_status',
                 width: 140,
+                filters: statusFilterOptions,
+                filteredValue: filters.status ? [filters.status] : null,
+                onFilter: () => true, // server-side — always pass through
                 render: (status: string, record: FacilityClaim) => (
                     <Space direction="vertical" size={0}>
                         <Badge
@@ -157,6 +202,7 @@ const ClaimsListView: React.FC = () => {
                 dataIndex: 'claim_amount',
                 key: 'claim_amount',
                 width: 120,
+                sorter: (a, b) => (a.claim_amount ?? 0) - (b.claim_amount ?? 0),
                 render: (amount: number) => (
                     <Text strong>
                         {new Intl.NumberFormat('en-KE').format(amount ?? 0)}
@@ -170,6 +216,7 @@ const ClaimsListView: React.FC = () => {
                 title: 'Facility',
                 key: 'facility',
                 width: isTablet ? 160 : 200,
+                sorter: (a, b) => (a.facility_name ?? '').localeCompare(b.facility_name ?? ''),
                 render: (_: unknown, record: FacilityClaim) => (
                     <Space direction="vertical" size={0}>
                         <Text style={{ fontSize: '13px' }}>{record.facility_name || '—'}</Text>
@@ -187,7 +234,7 @@ const ClaimsListView: React.FC = () => {
             title: 'Actions',
             key: 'actions',
             width: 90,
-            fixed: isMobile ? undefined : ('right' as const),
+            fixed: isMobile ? undefined : 'right',
             render: (_: unknown, record: FacilityClaim) => (
                 <Button
                     type="link"
@@ -204,7 +251,7 @@ const ClaimsListView: React.FC = () => {
         });
 
         return cols;
-    }, [getStatusColor, formatPeriod, isMobile, isTablet]);
+    }, [getStatusColor, formatPeriod, isMobile, isTablet, statusFilterOptions, useFilterOptions, filters.status, filters.use]);
 
     const renderExpandedClaimDetails = useCallback(
         (record: FacilityClaim) => (
@@ -286,16 +333,16 @@ const ClaimsListView: React.FC = () => {
                 key: 'csv',
                 icon: <FileTextOutlined />,
                 label: 'Download as CSV',
-                onClick: () => downloadClaimsAsCsv(claims, exportFilename),
+                onClick: () => void fetchAllClaimsForExport().then((all) => downloadClaimsAsCsv(all, exportFilename)),
             },
             {
                 key: 'xlsx',
                 icon: <FileExcelOutlined />,
                 label: 'Download as Excel',
-                onClick: () => downloadClaimsAsExcel(claims, exportFilename),
+                onClick: () => void fetchAllClaimsForExport().then((all) => downloadClaimsAsExcel(all, exportFilename)),
             },
         ],
-        [claims, exportFilename]
+        [fetchAllClaimsForExport, exportFilename]
     );
 
     const byStatus = summary?.by_status ?? {};
@@ -304,119 +351,263 @@ const ClaimsListView: React.FC = () => {
     const totalCount = summary?.total_count ?? total;
     const formatAmount = (n: number) => new Intl.NumberFormat('en-KE').format(n);
 
+    const activeFilterCount = [filters.month, filters.insurer, filters.use, filters.claim_upstream_error_group]
+        .filter(Boolean).length;
+
     return (
         <div style={{ padding: isMobile ? '12px' : '24px' }}>
             <Title level={isMobile ? 4 : 3}>Facility Claims</Title>
 
-            {/* Insights for filtered data: count and amount per status */}
-            {!loading && totalCount > 0 && (
-                <Card size="small" style={{ marginBottom: 16 }}>
-                    <Text type="secondary" style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>
-                        Insights for current filters
-                    </Text>
-                    <Space wrap size="middle" align="center">
-                        <Text strong>{totalCount}</Text>
-                        <Text type="secondary">claims</Text>
-                        <Tag color="success">
-                            Approved {byStatus.approved ?? 0}
-                            {byStatusAmount.approved != null && ` (${formatAmount(byStatusAmount.approved)} KES)`}
-                        </Tag>
-                        <Tag color="warning">
-                            Pending {byStatus.pending ?? 0}
-                            {byStatusAmount.pending != null && ` (${formatAmount(byStatusAmount.pending)} KES)`}
-                        </Tag>
-                        <Tag color="error">
-                            Rejected {byStatus.rejected ?? 0}
-                            {byStatusAmount.rejected != null && ` (${formatAmount(byStatusAmount.rejected)} KES)`}
-                        </Tag>
-                        <Text type="secondary">·</Text>
-                        <Text strong>
-                            Total amount: {formatAmount(totalAmount)} KES
-                        </Text>
-                    </Space>
+            {/* Insights for filtered data */}
+            {(loading || totalCount > 0) && (
+                <Card style={{ marginBottom: 16 }}>
+                    <Row align="middle" style={{ marginBottom: 12 }}>
+                        <Col flex="auto">
+                            <Text style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary, rgba(0,0,0,0.55))' }}>
+                                Claims Summary
+                            </Text>
+                        </Col>
+                        {!loading && filters.month && (
+                            <Col>
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {dayjs(filters.month, 'YYYY-MM').format('MMMM YYYY')}
+                                </Text>
+                            </Col>
+                        )}
+                    </Row>
+                    <Row gutter={[16, 16]}>
+                        {/* Total claims + total amount — hero stat */}
+                        <Col xs={24} sm={12} lg={6}>
+                            {loading ? <Skeleton active paragraph={{ rows: 2 }} title={false} /> : (
+                                <div style={{
+                                    borderLeft: '3px solid #1677ff',
+                                    paddingLeft: 12,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                        <DollarOutlined style={{ color: '#1677ff', fontSize: 13 }} />
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Total Claims Value</Text>
+                                    </div>
+                                    <div>
+                                        <Text style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2 }}>
+                                            {formatAmount(totalAmount)}
+                                        </Text>
+                                        <Text type="secondary" style={{ fontSize: 12, marginLeft: 4 }}>KES</Text>
+                                    </div>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                        {totalCount.toLocaleString()} claim{totalCount !== 1 ? 's' : ''}
+                                    </Text>
+                                </div>
+                            )}
+                        </Col>
+
+                        <Col xs={24} sm={12} lg={1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Divider type={isMobile ? 'horizontal' : 'vertical'} style={{ height: isMobile ? undefined : 56, margin: 0 }} />
+                        </Col>
+
+                        {/* Approved */}
+                        <Col xs={24} sm={12} lg={5}>
+                            {loading ? <Skeleton active paragraph={{ rows: 2 }} title={false} /> : (
+                                <div style={{
+                                    borderLeft: '3px solid #52c41a',
+                                    paddingLeft: 12,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                        <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 13 }} />
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Approved</Text>
+                                    </div>
+                                    <div>
+                                        <Text style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.2, color: '#52c41a' }}>
+                                            {formatAmount(byStatusAmount.approved ?? 0)}
+                                        </Text>
+                                        <Text type="secondary" style={{ fontSize: 12, marginLeft: 4 }}>KES</Text>
+                                    </div>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                        {(byStatus.approved ?? 0).toLocaleString()} claim{(byStatus.approved ?? 0) !== 1 ? 's' : ''}
+                                    </Text>
+                                </div>
+                            )}
+                        </Col>
+
+                        {/* Pending */}
+                        <Col xs={24} sm={12} lg={5}>
+                            {loading ? <Skeleton active paragraph={{ rows: 2 }} title={false} /> : (
+                                <div style={{
+                                    borderLeft: '3px solid #faad14',
+                                    paddingLeft: 12,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                        <ClockCircleOutlined style={{ color: '#faad14', fontSize: 13 }} />
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Pending</Text>
+                                    </div>
+                                    <div>
+                                        <Text style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.2, color: '#faad14' }}>
+                                            {formatAmount(byStatusAmount.pending ?? 0)}
+                                        </Text>
+                                        <Text type="secondary" style={{ fontSize: 12, marginLeft: 4 }}>KES</Text>
+                                    </div>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                        {(byStatus.pending ?? 0).toLocaleString()} claim{(byStatus.pending ?? 0) !== 1 ? 's' : ''}
+                                    </Text>
+                                </div>
+                            )}
+                        </Col>
+
+                        {/* Rejected */}
+                        <Col xs={24} sm={12} lg={5}>
+                            {loading ? <Skeleton active paragraph={{ rows: 2 }} title={false} /> : (
+                                <div style={{
+                                    borderLeft: '3px solid #ff4d4f',
+                                    paddingLeft: 12,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                        <CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 13 }} />
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Rejected</Text>
+                                    </div>
+                                    <div>
+                                        <Text style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.2, color: '#ff4d4f' }}>
+                                            {formatAmount(byStatusAmount.rejected ?? 0)}
+                                        </Text>
+                                        <Text type="secondary" style={{ fontSize: 12, marginLeft: 4 }}>KES</Text>
+                                    </div>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                        {(byStatus.rejected ?? 0).toLocaleString()} claim{(byStatus.rejected ?? 0) !== 1 ? 's' : ''}
+                                    </Text>
+                                </div>
+                            )}
+                        </Col>
+                    </Row>
                 </Card>
             )}
 
-            <Card style={{ marginBottom: 16 }}>
-                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <Space wrap size="middle" style={{ width: '100%', alignItems: 'center' }}>
-                        <Space>
-                            <Text type="secondary" style={{ fontSize: 12 }}>Facility</Text>
-                            <FacilityContextSwitcher variant="compact" showLabel={false} />
+            <Card
+                style={{ marginBottom: 16 }}
+                styles={{ body: { paddingBottom: 16 } }}
+            >
+                {/* ── Header row: title + active-filter count + action buttons ── */}
+                <Row align="middle" style={{ marginBottom: 16 }} wrap={false}>
+                    <Col flex="auto">
+                        <Space align="center" size={8}>
+                            <FilterOutlined style={{ color: token.colorTextSecondary, fontSize: 14 }} />
+                            <Text style={{ fontWeight: 600, fontSize: 14 }}>Filters</Text>
+                            {activeFilterCount > 0 && (
+                                <Tag
+                                    color="blue"
+                                    style={{ borderRadius: 10, fontSize: 11, lineHeight: '18px', padding: '0 7px', margin: 0 }}
+                                >
+                                    {activeFilterCount} active
+                                </Tag>
+                            )}
                         </Space>
-                        <Space>
-                            <Text type="secondary" style={{ fontSize: 12 }}>Month</Text>
+                    </Col>
+                    <Col>
+                        <Space size={8}>
+                            {activeFilterCount > 0 && (
+                                <Tooltip title="Clear all filters">
+                                    <Button
+                                        size="small"
+                                        icon={<ClearOutlined />}
+                                        onClick={() => setFilters({ month: '', insurer: '', use: '', claim_upstream_error_group: '' })}
+                                    >
+                                        Clear
+                                    </Button>
+                                </Tooltip>
+                            )}
+                            <Tooltip title="Refresh data">
+                                <Button
+                                    icon={<ReloadOutlined />}
+                                    onClick={() => void fetchClaims()}
+                                    loading={loading}
+                                    size="middle"
+                                />
+                            </Tooltip>
+                            <Dropdown menu={{ items: exportMenuItems }} placement="bottomRight" disabled={total === 0 || exporting}>
+                                <Button
+                                    icon={<DownloadOutlined />}
+                                    size="middle"
+                                    loading={exporting}
+                                    disabled={total === 0 || exporting}
+                                >
+                                    {exporting
+                                        ? `Fetching ${exportProgress.toLocaleString()} / ${total.toLocaleString()}…`
+                                        : 'Export'}
+                                </Button>
+                            </Dropdown>
+                        </Space>
+                    </Col>
+                </Row>
+
+                {/* ── Filter fields ── */}
+                <Row gutter={[12, 12]} align="bottom">
+                    <Col xs={24} sm={12} md={8} lg={5}>
+                        <FilterField label="Facility">
+                            <FacilityContextSwitcher variant="compact" showLabel={false} />
+                        </FilterField>
+                    </Col>
+                    <Col xs={24} sm={12} md={8} lg={4}>
+                        <FilterField label="Month">
                             <DatePicker
                                 picker="month"
                                 value={filters.month ? dayjs(filters.month, 'YYYY-MM') : null}
                                 onChange={(d) => setFilters({ month: d ? d.format('YYYY-MM') : '' })}
                                 placeholder="All months"
                                 allowClear
-                                size="middle"
-                                style={{ minWidth: 140 }}
+                                style={{ width: '100%' }}
                                 suffixIcon={<CalendarOutlined />}
                             />
-                        </Space>
-                        <Space>
-                            <Text type="secondary" style={{ fontSize: 12 }}>Insurer</Text>
+                        </FilterField>
+                    </Col>
+                    <Col xs={24} sm={12} md={8} lg={5}>
+                        <FilterField label="Insurer">
                             <Select
                                 allowClear
                                 placeholder={filterOptionsLoading ? 'Loading…' : 'All insurers'}
-                                size="middle"
-                                style={{ minWidth: 160 }}
+                                style={{ width: '100%' }}
                                 value={filters.insurer || undefined}
                                 onChange={(v) => setFilters({ insurer: v ?? '' })}
                                 options={insurerOptions.map((v) => ({ label: v, value: v }))}
                                 loading={filterOptionsLoading}
                                 notFoundContent={filterOptionsLoading ? 'Loading…' : 'No insurers'}
                             />
-                        </Space>
-                        <Space>
-                            <Text type="secondary" style={{ fontSize: 12 }}>Use</Text>
+                        </FilterField>
+                    </Col>
+                    <Col xs={24} sm={12} md={8} lg={4}>
+                        <FilterField label="Use">
                             <Select
                                 allowClear
-                                placeholder={filterOptionsLoading ? 'Loading…' : 'All uses'}
-                                size="middle"
-                                style={{ minWidth: 120 }}
+                                placeholder={filterOptionsLoading ? 'Loading…' : 'All'}
+                                style={{ width: '100%' }}
                                 value={filters.use || undefined}
                                 onChange={(v) => setFilters({ use: v ?? '' })}
                                 options={useOptions.map((v) => ({ label: v, value: v }))}
                                 loading={filterOptionsLoading}
                                 notFoundContent={filterOptionsLoading ? 'Loading…' : 'No uses'}
                             />
-                        </Space>
-                        <Space>
-                            <Text type="secondary" style={{ fontSize: 12 }}>Error group</Text>
+                        </FilterField>
+                    </Col>
+                    <Col xs={24} sm={12} md={8} lg={6}>
+                        <FilterField label="Error Group">
                             <Select
                                 allowClear
                                 placeholder={filterOptionsLoading ? 'Loading…' : 'All error groups'}
-                                size="middle"
-                                style={{ minWidth: 180 }}
+                                style={{ width: '100%' }}
                                 value={filters.claim_upstream_error_group || undefined}
                                 onChange={(v) => setFilters({ claim_upstream_error_group: v ?? '' })}
                                 options={errorGroupOptions.map((v) => ({ label: v, value: v }))}
                                 loading={filterOptionsLoading}
                                 notFoundContent={filterOptionsLoading ? 'Loading…' : 'No error groups'}
                             />
-                        </Space>
-                        <Button
-                            icon={<ReloadOutlined />}
-                            onClick={() => void fetchClaims()}
-                            loading={loading}
-                            size="middle"
-                        >
-                            Refresh
-                        </Button>
-                        <Dropdown menu={{ items: exportMenuItems }} placement="bottomRight">
-                            <Button icon={<DownloadOutlined />} size="middle" disabled={claims.length === 0}>
-                                Export
-                            </Button>
-                        </Dropdown>
-                    </Space>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                        Total {total} claims
-                    </Text>
-                </Space>
+                        </FilterField>
+                    </Col>
+                </Row>
+
+                {/* ── Result count ── */}
+                {total > 0 && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                            {total.toLocaleString()} claim{total !== 1 ? 's' : ''} match{total === 1 ? 'es' : ''} current filters
+                        </Text>
+                    </div>
+                )}
             </Card>
 
             {loading ? (
@@ -431,6 +622,14 @@ const ClaimsListView: React.FC = () => {
                             expandedRowRender: renderExpandedClaimDetails,
                             rowExpandable: () => true,
                             columnWidth: 48,
+                        }}
+                        onChange={(_pagination, tableFilters) => {
+                            // Column filter changes — wire Status and Use back to the store as server-side filters
+                            const newStatus = (tableFilters.claim_status?.[0] as string) ?? '';
+                            const newUse = (tableFilters.use?.[0] as string) ?? '';
+                            if (newStatus !== filters.status || newUse !== filters.use) {
+                                setFilters({ status: newStatus, use: newUse });
+                            }
                         }}
                         pagination={{
                             current: filters.page,

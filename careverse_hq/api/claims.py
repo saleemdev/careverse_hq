@@ -871,7 +871,7 @@ def get_facility_claims(
     """
     try:
         page = max(1, int(page))
-        page_size = max(1, min(100, int(page_size)))
+        page_size = max(1, min(1000, int(page_size)))
         offset = (page - 1) * page_size
 
         facility_list = None
