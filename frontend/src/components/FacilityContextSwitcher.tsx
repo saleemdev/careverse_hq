@@ -30,11 +30,17 @@ const { Text } = Typography;
 interface FacilityContextSwitcherProps {
 	variant?: 'default' | 'compact' | 'minimal';
 	showLabel?: boolean;
+	/** Use full width of container (e.g. when in a dedicated filter row) */
+	fullWidth?: boolean;
+	/** Truncate selected option text to this length to avoid layout stretch from long names */
+	maxTagTextLength?: number;
 }
 
 const FacilityContextSwitcher: React.FC<FacilityContextSwitcherProps> = ({
 	variant = 'default',
 	showLabel = true,
+	fullWidth = false,
+	maxTagTextLength,
 }) => {
 	const { token } = theme.useToken();
 	const { isMobile, getResponsiveValue } = useResponsive();
@@ -95,7 +101,7 @@ const FacilityContextSwitcher: React.FC<FacilityContextSwitcherProps> = ({
 	// Compact variant
 	if (variant === 'compact') {
 		return (
-			<Space size="small">
+			<Space size="small" style={{ width: fullWidth ? '100%' : undefined }}>
 				{showLabel && !isMobile && (
 					<Tooltip title="Filter by Health Facility">
 						<EnvironmentOutlined style={{ color: token.colorTextSecondary }} />
@@ -108,8 +114,12 @@ const FacilityContextSwitcher: React.FC<FacilityContextSwitcherProps> = ({
 					placeholder="All Facilities"
 					allowClear
 					loading={loading}
-					style={{ width: getResponsiveValue(COMPONENT_WIDTHS.facilitySelector) }}
+					style={{
+						width: fullWidth ? '100%' : getResponsiveValue(COMPONENT_WIDTHS.facilitySelector),
+						...(fullWidth && { minWidth: 0 }),
+					}}
 					maxTagCount="responsive"
+					maxTagTextLength={maxTagTextLength}
 					popupMatchSelectWidth={false}
 					notFoundContent={loading ? <Spin size="small" /> : 'No facilities found'}
 				>

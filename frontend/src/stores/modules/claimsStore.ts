@@ -27,6 +27,8 @@ interface ClaimsStore {
         insurer: string;
         use: string;
         claim_upstream_error_group: string;
+        /** Client name free-text search */
+        client_name: string;
     };
     setFacilityIds: (ids: string[]) => void;
     fetchClaims: () => Promise<void>;
@@ -56,6 +58,7 @@ const useClaimsStore = create<ClaimsStore>((set, get) => ({
         insurer: '',
         use: '',
         claim_upstream_error_group: '',
+        client_name: '',
     },
     setFacilityIds: (ids) => set({ facilityIds: ids ?? [] }),
     fetchAllClaimsForExport: async () => {
@@ -80,6 +83,7 @@ const useClaimsStore = create<ClaimsStore>((set, get) => ({
             insurer: filters.insurer || undefined,
             use: filters.use || undefined,
             claim_upstream_error_group: filters.claim_upstream_error_group || undefined,
+            client_name: filters.client_name || undefined,
         };
 
         const accumulated: FacilityClaim[] = [];
@@ -135,6 +139,7 @@ const useClaimsStore = create<ClaimsStore>((set, get) => ({
                 insurer: filters.insurer || undefined,
                 use: filters.use || undefined,
                 claim_upstream_error_group: filters.claim_upstream_error_group || undefined,
+                client_name: filters.client_name || undefined,
             });
             if (response.success && response.data) {
                 const data = response.data as {
@@ -174,7 +179,7 @@ const useClaimsStore = create<ClaimsStore>((set, get) => ({
     },
     setFilters: (newFilters) => {
         const merged = { ...get().filters, ...newFilters };
-        if (newFilters && ('status' in newFilters || 'month' in newFilters || 'insurer' in newFilters || 'use' in newFilters || 'claim_upstream_error_group' in newFilters)) merged.page = 1;
+        if (newFilters && ('status' in newFilters || 'month' in newFilters || 'insurer' in newFilters || 'use' in newFilters || 'claim_upstream_error_group' in newFilters || 'client_name' in newFilters)) merged.page = 1;
         set({ filters: merged });
         void get().fetchClaims();
     },
