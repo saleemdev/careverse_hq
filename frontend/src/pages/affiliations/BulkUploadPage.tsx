@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     Card,
     Steps,
@@ -12,6 +12,7 @@ import {
     Row,
     Col,
     Statistic,
+    Select,
     theme,
     Breadcrumb
 } from 'antd';
@@ -23,11 +24,11 @@ import {
     ArrowLeftOutlined,
     ArrowRightOutlined,
     CloudUploadOutlined,
-    HomeOutlined
+    HomeOutlined,
+    MedicineBoxOutlined
 } from '@ant-design/icons';
 import type { UploadFile, RcFile } from 'antd/es/upload/interface';
 import Papa from 'papaparse';
-import useFacilityStore from '../../stores/facilityStore';
 import { useResponsive } from '../../hooks/useResponsive';
 import { bulkUploadApi } from '../../services/api';
 import {
@@ -54,10 +55,30 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
 
-    const { availableFacilities: facilities } = useFacilityStore();
-    // Facility from User Permissions (no separate filter): single facility or first of many
-    const facilityId = (facilities?.length ? facilities[0].hie_id : null) as string | null;
-    const facilityName = (facilities?.length ? facilities[0].facility_name : null) as string | null;
+    // Facility selector
+    const [facilities, setFacilities] = useState<{ hie_id: string; facility_name: string }[]>([]);
+    const [facilitiesLoading, setFacilitiesLoading] = useState(false);
+    const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
+    const selectedFacility = facilities.find((f) => f.hie_id === selectedFacilityId) ?? null;
+
+    useEffect(() => {
+        setFacilitiesLoading(true);
+        fetch('/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_facilities', {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+        })
+            .then((r) => r.json())
+            .then((json) => {
+                const data: { hie_id: string; facility_name: string }[] =
+                    json?.message?.data ?? json?.data ?? [];
+                setFacilities(data);
+                // Auto-select when there is exactly one facility
+                if (data.length === 1) setSelectedFacilityId(data[0].hie_id);
+            })
+            .catch(() => message.error('Could not load facilities'))
+            .finally(() => setFacilitiesLoading(false));
+    }, []);
+
     const primaryCtaStyle: React.CSSProperties = {
         backgroundColor: '#1677ff',
         borderColor: '#1677ff',
@@ -136,8 +157,8 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
     // Submit bulk upload (canonical API; duplicate submit guarded)
     const handleSubmit = async () => {
         if (submitting) return;
-        if (!facilityId) {
-            message.error('No facility in your context. Check User Permissions for Health Facility.');
+        if (!selectedFacilityId) {
+            message.error('Please select a facility before submitting.');
             return;
         }
         if (csvRecords.length === 0) {
@@ -152,7 +173,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
             );
 
             const result = await bulkUploadApi.createUpload({
-                facility_fid: facilityId,
+                facility_fid: selectedFacilityId!,
                 records: payload,
             });
 
@@ -220,9 +241,31 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
     // Render step content
     const renderStepContent = () => {
         switch (currentStep) {
-            case 0: // Upload CSV
+            case 0: // Select Facility + Upload CSV
                 return (
                     <Row gutter={[16, 16]}>
+                        <Col xs={24}>
+                            <Card
+                                title={<Space><MedicineBoxOutlined />Select Facility</Space>}
+                                size="small"
+                                style={{ borderRadius: 12 }}
+                            >
+                                <Select
+                                    showSearch
+                                    placeholder="Select a facility"
+                                    value={selectedFacilityId ?? undefined}
+                                    onChange={(val: string) => setSelectedFacilityId(val)}
+                                    loading={facilitiesLoading}
+                                    filterOption={(input, option) =>
+                                        String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                    }
+                                    options={facilities.map((f) => ({ value: f.hie_id, label: f.facility_name }))}
+                                    style={{ width: '100%', maxWidth: 480 }}
+                                    size="large"
+                                    notFoundContent={facilitiesLoading ? 'Loading…' : 'No facilities found'}
+                                />
+                            </Card>
+                        </Col>
                         <Col xs={24} lg={9}>
                             <Card
                                 title={<Space><FileExcelOutlined />Template & Requirements</Space>}
@@ -319,24 +362,15 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                     </Row>
                 );
 
-            case 1: // Review & Submit (facility from User Permissions — no facility filter)
+            case 1: // Review & Submit
                 return (
                     <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                        {!facilityId && (
-                            <Alert
-                                type="warning"
-                                message="No facility available"
-                                description="Your user has no Health Facility in context. Add User Permissions for Health Facility (or Company) so facilities appear here."
-                                showIcon
-                                style={{ borderRadius: 8 }}
-                            />
-                        )}
                         <Row gutter={[16, 12]}>
-                            <Col xs={24} lg={facilityName ? 16 : 24}>
-                                {facilityName && (
+                            <Col xs={24} lg={16}>
+                                {selectedFacility && (
                                     <Alert
                                         type="info"
-                                        message={`Upload destination: ${facilityName}`}
+                                        message={`Upload destination: ${selectedFacility.facility_name}`}
                                         showIcon
                                         style={{ marginBottom: 12, borderRadius: 8 }}
                                     />
@@ -360,7 +394,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                                             type="primary"
                                             icon={<CheckCircleOutlined />}
                                             onClick={handleSubmit}
-                                            disabled={!facilityId || csvRecords.length === 0}
+                                            disabled={!selectedFacilityId || csvRecords.length === 0}
                                             loading={submitting}
                                             block
                                             size="large"
@@ -487,7 +521,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             type="primary"
                             icon={<ArrowRightOutlined />}
                             onClick={() => setCurrentStep(1)}
-                            disabled={csvRecords.length === 0}
+                            disabled={!selectedFacilityId || csvRecords.length === 0}
                             className="bulk-upload-action-cta"
                             size="large"
                             style={primaryCtaStyle}
@@ -501,7 +535,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             type="primary"
                             icon={<CheckCircleOutlined />}
                             onClick={handleSubmit}
-                            disabled={!facilityId || csvRecords.length === 0}
+                            disabled={!selectedFacilityId || csvRecords.length === 0}
                             loading={submitting}
                             className="bulk-upload-action-cta"
                             size="large"

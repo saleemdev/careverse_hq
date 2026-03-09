@@ -16,6 +16,24 @@ from .dashboard_utils import resolve_health_facility_reference
 
 
 @frappe.whitelist()
+def get_facilities():
+    """
+    Return a simple list of Health Facilities for the Bulk Upload facility selector.
+    frappe.get_list respects User Permissions automatically.
+    """
+    try:
+        facilities = frappe.get_list(
+            "Health Facility",
+            fields=["hie_id", "facility_name"],
+            order_by="facility_name asc",
+        )
+        return api_response(success=True, data=facilities, status_code=200)
+    except Exception as e:
+        frappe.log_error("get_facilities failed", frappe.get_traceback())
+        return api_response(success=False, message=str(e), status_code=500)
+
+
+@frappe.whitelist()
 def upload_bulk_health_workers(**kwargs):
     """
     API 1: Upload bulk health worker records (CSV or JSON)
