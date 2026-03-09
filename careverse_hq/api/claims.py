@@ -120,20 +120,9 @@ def _mock_claim_record(
     }
 
 
-def _get_mock_claims(
-    facilities: Optional[List[str]] = None,
-    status: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    limit: int = 20,
-    offset: int = 0,
-) -> tuple[List[Dict[str, Any]], int, Dict[str, Any]]:
-    """
-    Mock data for UI review. Defined inline below (all_mock list).
-    Returns (items, total_count, summary_dict).
-    """
-    # --- MOCK DATA: 20 records (Sept/Oct 2025), facility FID-14-116984-2 ---
-    all_mock = [
+def _get_all_mock_claims_list() -> List[Dict[str, Any]]:
+    """Return the full unfiltered mock claims list (for filtering and for distinct filter options)."""
+    return [
         _mock_claim_record(
             name="d2b091be-7645-47c3-b355-f7266194c52d",
             claim_id="d2b091be-7645-47c3-b355-f7266194c52d",
@@ -577,6 +566,24 @@ def _get_mock_claims(
             modified="2025-09-13 09:00:00.000000",
         ),
     ]
+
+
+def _get_mock_claims(
+    facilities: Optional[List[str]] = None,
+    status: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    insurer: Optional[str] = None,
+    use: Optional[str] = None,
+    claim_upstream_error_group: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> tuple[List[Dict[str, Any]], int, Dict[str, Any]]:
+    """
+    Mock data for UI review. Uses _get_all_mock_claims_list() then applies filters.
+    Returns (items, total_count, summary_dict).
+    """
+    all_mock = _get_all_mock_claims_list()
     # Optional filter by status
     if status:
         status_lower = status.strip().lower()
@@ -604,18 +611,34 @@ def _get_mock_claims(
             except Exception:
                 return True
         all_mock = [r for r in all_mock if in_range(r)]
+    # Optional filter by insurer
+    if insurer:
+        ins = insurer.strip().lower()
+        all_mock = [r for r in all_mock if (r.get("insurer") or "").strip().lower() == ins]
+    # Optional filter by use
+    if use:
+        u = use.strip().lower()
+        all_mock = [r for r in all_mock if (r.get("use") or "claim").strip().lower() == u]
+    # Optional filter by claim_upstream_error_group
+    if claim_upstream_error_group:
+        eg = claim_upstream_error_group.strip().lower()
+        all_mock = [r for r in all_mock if (r.get("claim_upstream_error_group") or "").strip().lower() == eg]
     total_count = len(all_mock)
     items = all_mock[offset : offset + limit]
-    # Summary: by_status counts and total amount
+    # Summary: by_status counts, by_status_amount, total amount
     by_status: Dict[str, int] = {}
+    by_status_amount: Dict[str, float] = {}
     total_amount = 0.0
     for r in all_mock:
         s = (r.get("claim_status") or "unknown").lower()
         by_status[s] = by_status.get(s, 0) + 1
-        total_amount += float(r.get("claim_amount") or 0)
+        amt = float(r.get("claim_amount") or 0)
+        by_status_amount[s] = by_status_amount.get(s, 0.0) + amt
+        total_amount += amt
     summary = {
         "total_count": total_count,
         "by_status": by_status,
+        "by_status_amount": {k: round(v, 2) for k, v in by_status_amount.items()},
         "total_amount": round(total_amount, 2),
     }
     return items, total_count, summary
@@ -633,6 +656,9 @@ def _get_real_claims(
     status: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    insurer: Optional[str] = None,
+    use: Optional[str] = None,
+    claim_upstream_error_group: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[List[Dict[str, Any]], int, Dict[str, Any]]:
@@ -653,6 +679,12 @@ def _get_real_claims(
             filters["date_start"] = [">=", d_from]
         elif d_to:
             filters["date_start"] = ["<=", d_to]
+    if insurer:
+        filters["insurer"] = insurer.strip()
+    if use:
+        filters["use"] = use.strip()
+    if claim_upstream_error_group:
+        filters["claim_upstream_error_group"] = claim_upstream_error_group.strip()
 
     total_count = frappe.db.count("Facility Claim", filters=filters)
     items = frappe.get_all(
@@ -664,7 +696,7 @@ def _get_real_claims(
         limit_page_length=limit,
     )
 
-    # Build summary: by_status counts and total amount (same filters as list)
+    # Build summary: by_status counts, by_status_amount, total amount (same filters as list)
     summary_filters = dict(filters)
     status_counts = {}
     for row in frappe.get_all(
@@ -674,6 +706,47 @@ def _get_real_claims(
     ):
         s = (row.get("claim_status") or "unknown").lower()
         status_counts[s] = status_counts.get(s, 0) + 1
+
+    # Amount per status: GROUP BY claim_status, SUM(claim_amount)
+    by_status_amount: Dict[str, float] = {}
+    amt_query = """SELECT claim_status, SUM(claim_amount) AS total FROM `tabFacility Claim` WHERE 1=1"""
+    amt_params: Dict[str, Any] = {}
+    if facilities:
+        amt_query += " AND facility IN %(facilities)s"
+        amt_params["facilities"] = facilities
+    if status:
+        amt_query += " AND claim_status = %(status)s"
+        amt_params["status"] = status
+    if date_from or date_to:
+        d_from = getdate(date_from) if date_from else None
+        d_to = getdate(date_to) if date_to else None
+        if d_from and d_to:
+            amt_query += " AND date_start BETWEEN %(date_from)s AND %(date_to)s"
+            amt_params["date_from"] = d_from
+            amt_params["date_to"] = d_to
+        elif d_from:
+            amt_query += " AND date_start >= %(date_from)s"
+            amt_params["date_from"] = d_from
+        elif d_to:
+            amt_query += " AND date_start <= %(date_to)s"
+            amt_params["date_to"] = d_to
+    if insurer:
+        amt_query += " AND insurer = %(insurer)s"
+        amt_params["insurer"] = insurer.strip()
+    if use:
+        amt_query += " AND use = %(use)s"
+        amt_params["use"] = use.strip()
+    if claim_upstream_error_group:
+        amt_query += " AND claim_upstream_error_group = %(claim_upstream_error_group)s"
+        amt_params["claim_upstream_error_group"] = claim_upstream_error_group.strip()
+    amt_query += " GROUP BY claim_status"
+    amt_rows = frappe.db.sql(amt_query, amt_params, as_dict=True)
+    for row in amt_rows:
+        s = (row.get("claim_status") or "unknown").lower()
+        val = row.get("total")
+        if val is not None:
+            by_status_amount[s] = round(float(val), 2)
+
     total_amount = 0.0
     sum_query = """SELECT SUM(claim_amount) AS total FROM `tabFacility Claim` WHERE 1=1"""
     sum_params = {}
@@ -696,15 +769,69 @@ def _get_real_claims(
         elif d_to:
             sum_query += " AND date_start <= %(date_to)s"
             sum_params["date_to"] = d_to
+    if insurer:
+        sum_query += " AND insurer = %(insurer)s"
+        sum_params["insurer"] = insurer.strip()
+    if use:
+        sum_query += " AND use = %(use)s"
+        sum_params["use"] = use.strip()
+    if claim_upstream_error_group:
+        sum_query += " AND claim_upstream_error_group = %(claim_upstream_error_group)s"
+        sum_params["claim_upstream_error_group"] = claim_upstream_error_group.strip()
     sum_row = frappe.db.sql(sum_query, sum_params, as_dict=True)
     if sum_row and sum_row[0].get("total") is not None:
         total_amount = float(sum_row[0]["total"])
     summary = {
         "total_count": total_count,
         "by_status": status_counts,
+        "by_status_amount": by_status_amount,
         "total_amount": round(total_amount, 2),
     }
     return items, total_count, summary
+
+
+@frappe.whitelist()
+def get_claims_filter_options() -> Dict[str, Any]:
+    """
+    Return distinct insurers and uses from Facility Claim data for filter dropdowns.
+    Uses real DB when available; uses mock data list when using mock claims.
+    """
+    try:
+        if _use_mock_claims():
+            data = _get_all_mock_claims_list()
+            insurers = sorted(
+                {str(r.get("insurer", "")).strip() for r in data if (r.get("insurer") or "").strip()}
+            )
+            uses = sorted(
+                {str(r.get("use") or "claim").strip() for r in data if (r.get("use") or "claim").strip()}
+            )
+        else:
+            insurers = [
+                row[0]
+                for row in frappe.db.sql(
+                    """SELECT DISTINCT insurer FROM `tabFacility Claim`
+                       WHERE insurer IS NOT NULL AND TRIM(insurer) != ''
+                       ORDER BY insurer""",
+                    as_list=True,
+                )
+            ]
+            uses = [
+                row[0]
+                for row in frappe.db.sql(
+                    """SELECT DISTINCT COALESCE(NULLIF(TRIM(use), ''), 'claim') AS use
+                       FROM `tabFacility Claim`
+                       ORDER BY use""",
+                    as_list=True,
+                )
+            ]
+            uses = sorted(set(uses))
+        return api_response(
+            success=True,
+            data={"insurers": insurers, "uses": uses},
+        )
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Claims Filter Options API Error")
+        return api_response(success=False, message=str(e), status_code=500)
 
 
 @frappe.whitelist()
@@ -715,6 +842,9 @@ def get_facility_claims(
     status: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    insurer: Optional[str] = None,
+    use: Optional[str] = None,
+    claim_upstream_error_group: Optional[str] = None,
 ):
     """
     Get facility claims: summary, total count, and paginated records.
@@ -726,10 +856,13 @@ def get_facility_claims(
         status: Optional filter by claim_status (e.g. approved, pending, rejected).
         date_from: Optional filter start (YYYY-MM-DD), e.g. first day of month.
         date_to: Optional filter end (YYYY-MM-DD), e.g. last day of month.
+        insurer: Optional filter by insurer.
+        use: Optional filter by use (e.g. claim, preauth).
+        claim_upstream_error_group: Optional filter by claim upstream error group.
 
     Returns:
         {
-            "summary": { "total_count", "by_status", "total_amount" },
+            "summary": { "total_count", "by_status", "by_status_amount", "total_amount" },
             "total_count": int,
             "page": int,
             "page_size": int,
@@ -754,9 +887,14 @@ def get_facility_claims(
                     else:
                         docnames.add(ref)  # use as-is if already a docname
                 facility_list = list(docnames)
+        # If facility_list is empty/None, don't filter - return all data user has permission to see
+        # (avoid filtering by empty list which returns no results)
 
         date_from_n = _normalize_optional_string(date_from)
         date_to_n = _normalize_optional_string(date_to)
+        insurer_n = _normalize_optional_string(insurer)
+        use_n = _normalize_optional_string(use)
+        error_group_n = _normalize_optional_string(claim_upstream_error_group)
 
         if _use_mock_claims():
             items, total_count, summary = _get_mock_claims(
@@ -764,6 +902,9 @@ def get_facility_claims(
                 status=status,
                 date_from=date_from_n,
                 date_to=date_to_n,
+                insurer=insurer_n,
+                use=use_n,
+                claim_upstream_error_group=error_group_n,
                 limit=page_size,
                 offset=offset,
             )
@@ -773,6 +914,9 @@ def get_facility_claims(
                 status=status,
                 date_from=date_from_n,
                 date_to=date_to_n,
+                insurer=insurer_n,
+                use=use_n,
+                claim_upstream_error_group=error_group_n,
                 limit=page_size,
                 offset=offset,
             )
@@ -845,4 +989,84 @@ def create_facility_claim(**kwargs) -> Dict[str, Any]:
         )
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Create Facility Claim API Error")
+        return api_response(success=False, message=str(e), status_code=500)
+
+
+@frappe.whitelist()
+def get_facility_claim_filter_options(
+    facilities: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Get distinct filter options for Insurer, Use, and Error Group.
+    These are used to populate dropdown filters in the Claims list UI.
+
+    Args:
+        facilities: Optional comma-separated facility IDs to scope the options.
+
+    Returns:
+        {
+            "insurers": ["NHIF", "SOCIAL HEALTH AUTHORITY", ...],
+            "uses": ["claim", "preauthorization", ...],
+            "error_groups": ["Invalid diagnosis code", ...]
+        }
+    """
+    if not frappe.db.table_exists("Facility Claim"):
+        return api_response(success=False, message="Facility Claim doctype is not available.", status_code=503)
+
+    try:
+        # Resolve facility filter to docnames
+        facility_filter = None
+        if facilities and isinstance(facilities, str):
+            raw = [f.strip() for f in facilities.split(",") if f.strip()]
+            if raw:
+                docnames = set()
+                for ref in raw:
+                    resolved = resolve_health_facility_reference(ref)
+                    if resolved.get("facility_docname"):
+                        docnames.add(resolved["facility_docname"])
+                    else:
+                        docnames.add(ref)
+                facility_filter = ["in", list(docnames)]
+
+        common_filters = {}
+        if facility_filter:
+            common_filters["facility"] = facility_filter
+
+        # Get distinct insurers using frappe.get_all + set
+        insurer_rows = frappe.get_all(
+            "Facility Claim",
+            filters=common_filters,
+            distinct=True,
+            pluck="insurer",
+        )
+        insurers = sorted([i for i in insurer_rows if i])
+
+        # Get distinct uses
+        use_rows = frappe.get_all(
+            "Facility Claim",
+            filters=common_filters,
+            distinct=True,
+            pluck="use",
+        )
+        uses = sorted([u for u in use_rows if u])
+
+        # Get distinct error groups
+        error_group_rows = frappe.get_all(
+            "Facility Claim",
+            filters=common_filters,
+            distinct=True,
+            pluck="claim_upstream_error_group",
+        )
+        error_groups = sorted([e for e in error_group_rows if e])
+
+        return api_response(
+            success=True,
+            data={
+                "insurers": insurers,
+                "uses": uses,
+                "error_groups": error_groups,
+            },
+        )
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Get Facility Claim Filter Options API Error")
         return api_response(success=False, message=str(e), status_code=500)

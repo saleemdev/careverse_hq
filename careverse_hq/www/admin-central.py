@@ -7,6 +7,7 @@ no_cache = 1
 def get_context():
 	csrf_token = frappe.sessions.get_csrf_token()
 	context = frappe._dict()
+	context.csrf_token = csrf_token
 	context.boot = get_boot()
 	context.boot.csrf_token = csrf_token
 	return context

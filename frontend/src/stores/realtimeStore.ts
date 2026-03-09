@@ -29,6 +29,7 @@ interface RealtimeState {
   initialize: () => void;
   disconnect: () => void;
   subscribe: (event: string, handler: RealtimeEventHandler) => () => void;
+  subscribeConnectionError: (callback: ConnectionErrorListener) => () => void;
   unsubscribe: (event: string, handler?: RealtimeEventHandler) => void;
   unsubscribeAll: () => void;
   reconnect: () => void;
@@ -40,6 +41,21 @@ interface RealtimeState {
 
 // Subscriptions kept outside Zustand state so add/remove don't trigger re-renders (avoids React #185).
 let subscriptionsList: RealtimeSubscription[] = [];
+
+// Connection-error listeners: store notifies when error happens (no useEffect in consumers).
+type ConnectionErrorListener = (error: string) => void;
+let connectionErrorListeners: ConnectionErrorListener[] = [];
+
+function notifyConnectionError(message: string) {
+  const msg = message || 'Connection error';
+  connectionErrorListeners.forEach((cb) => {
+    try {
+      cb(msg);
+    } catch (e) {
+      console.error('[Realtime] connectionError listener threw:', e);
+    }
+  });
+}
 
 const useRealtimeStore = create<RealtimeState>()(
   devtools(
@@ -113,14 +129,16 @@ const useRealtimeStore = create<RealtimeState>()(
             }
           });
 
-          // Handle connection error (non-fatal: dashboard still works)
+          // Handle connection error (non-fatal: dashboard still works); notify subscribers
           newSocket.on('connect_error', (error) => {
             try {
+              const msg = error?.message || 'Connection error';
               console.error('[Realtime] Connection error:', error);
               set({
-                connectionError: error?.message || 'Connection error',
+                connectionError: msg,
                 isConnecting: false,
               });
+              notifyConnectionError(msg);
             } catch (e) {
               console.error('[Realtime] connect_error handler error:', e);
             }
@@ -142,14 +160,15 @@ const useRealtimeStore = create<RealtimeState>()(
             }
           });
 
-          // Handle unexpected errors
+          // Handle unexpected errors; notify subscribers
           newSocket.on('error', (error) => {
             try {
+              const msg = typeof error === 'string' ? error : (error as Error)?.message || 'Unknown error';
               console.error('[Realtime] Socket error:', error);
               set({
-                connectionError:
-                  typeof error === 'string' ? error : (error as Error)?.message || 'Unknown error',
+                connectionError: msg,
               });
+              notifyConnectionError(msg);
             } catch (e) {
               console.error('[Realtime] error handler error:', e);
             }
@@ -161,16 +180,29 @@ const useRealtimeStore = create<RealtimeState>()(
             connectionError: null,
           });
         } catch (error: any) {
+          const msg = error?.message || 'Failed to initialize Socket.IO';
           console.error('[Realtime] Failed to initialize Socket.IO:', error);
           try {
             set({
-              connectionError: error?.message || 'Failed to initialize Socket.IO',
+              connectionError: msg,
               isConnecting: false,
             });
+            notifyConnectionError(msg);
           } catch (e) {
             console.error('[Realtime] set after init error:', e);
           }
         }
+      },
+
+      /**
+       * Subscribe to connection errors (event-driven; no useEffect on connectionError in consumers).
+       * Returns unsubscribe function.
+       */
+      subscribeConnectionError: (callback: ConnectionErrorListener) => {
+        connectionErrorListeners.push(callback);
+        return () => {
+          connectionErrorListeners = connectionErrorListeners.filter((cb) => cb !== callback);
+        };
       },
 
       /**

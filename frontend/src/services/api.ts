@@ -436,15 +436,30 @@ export const claimsApi = {
         status?: string;
         date_from?: string;
         date_to?: string;
+        insurer?: string;
+        use?: string;
+        claim_upstream_error_group?: string;
     }): Promise<ApiResponse> => {
         const queryParams: Record<string, any> = {};
-        if (params.facilities?.length) queryParams.facilities = params.facilities.join(',');
+        // Only send facilities if there are actual IDs - empty array means "no filter" not "none"
+        const validFacilities = params.facilities?.filter(f => f?.trim()) ?? [];
+        if (validFacilities.length) queryParams.facilities = validFacilities.join(',');
         if (params.page != null) queryParams.page = params.page;
         if (params.page_size != null) queryParams.page_size = params.page_size;
         if (params.status) queryParams.status = params.status;
         if (params.date_from) queryParams.date_from = params.date_from;
         if (params.date_to) queryParams.date_to = params.date_to;
+        if (params.insurer) queryParams.insurer = params.insurer;
+        if (params.use) queryParams.use = params.use;
+        if (params.claim_upstream_error_group) queryParams.claim_upstream_error_group = params.claim_upstream_error_group;
         return frappeCall('careverse_hq.api.claims.get_facility_claims', queryParams);
+    },
+    /** Get distinct filter options (insurers, uses, error_groups) for dropdowns */
+    getFilterOptions: async (facilities?: string[]): Promise<ApiResponse> => {
+        const queryParams: Record<string, any> = {};
+        const validFacilities = facilities?.filter(f => f?.trim()) ?? [];
+        if (validFacilities.length) queryParams.facilities = validFacilities.join(',');
+        return frappeCall('careverse_hq.api.claims.get_facility_claim_filter_options', queryParams);
     },
 };
 
@@ -867,7 +882,7 @@ export interface UserManagementReferenceData {
 
 export const userManagementApi = {
     getReferenceData: async (): Promise<ApiResponse<UserManagementReferenceData>> => {
-        return callFrappePostMethod<UserManagementReferenceData>('careverse_hq.api.admin_user_management.get_reference_data', {});
+        return frappeCall<UserManagementReferenceData>('careverse_hq.api.admin_user_management.get_reference_data', {});
     },
 
     listUsers: async (params: {
@@ -881,7 +896,7 @@ export const userManagementApi = {
         page_size?: number;
         sort?: string;
     }): Promise<ApiResponse<UserManagementListResponse>> => {
-        return callFrappePostMethod<UserManagementListResponse>('careverse_hq.api.admin_user_management.list_users', {
+        return frappeCall<UserManagementListResponse>('careverse_hq.api.admin_user_management.list_users', {
             filters: params.filters || {},
             page: params.page || 1,
             page_size: params.page_size || 20,
@@ -890,7 +905,7 @@ export const userManagementApi = {
     },
 
     getUserDetail: async (userId: string): Promise<ApiResponse<{ user: UserManagementUser }>> => {
-        return callFrappePostMethod<{ user: UserManagementUser }>('careverse_hq.api.admin_user_management.get_user_detail', {
+        return frappeCall<{ user: UserManagementUser }>('careverse_hq.api.admin_user_management.get_user_detail', {
             user_id: userId,
         });
     },

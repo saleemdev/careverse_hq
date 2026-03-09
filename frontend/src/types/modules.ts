@@ -297,6 +297,8 @@ export interface FacilityClaim {
 export interface FacilityClaimsSummary {
     total_count: number;
     by_status: Record<string, number>;
+    /** Amount (KES) per status for current filters */
+    by_status_amount?: Record<string, number>;
     total_amount: number;
 }
 

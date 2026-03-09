@@ -16,55 +16,13 @@ from .utils import api_response
 @frappe.whitelist()
 def get_user_company_context():
 	"""
-	Get user's Company permission and available facilities.
-
-	Returns:
-		{
-			"success": bool,
-			"has_permission": bool,
-			"company": {...} or None,
-			"facilities": [...] or []
-		}
+	Get user's Company (if any) and Health Facilities. Facilities are a simple
+	frappe.get_list("Health Facility"); Frappe User Permissions apply automatically.
 	"""
 	try:
 		user = frappe.session.user
 
-		# Debug logging
-		frappe.logger().info(f"[USER CONTEXT] Checking permissions for user: {user}")
-
-		# Check for Company user permission
-		user_permissions = frappe.get_all(
-			"User Permission",
-			filters={
-				"user": user,
-				"allow": "Company"
-			},
-			fields=["for_value", "is_default"],
-			order_by="is_default desc",
-			limit=1
-		)
-
-		# Debug logging
-		frappe.logger().info(f"[USER CONTEXT] Found {len(user_permissions)} Company permissions")
-		if user_permissions:
-			frappe.logger().info(f"[USER CONTEXT] Company: {user_permissions[0].for_value}")
-
-		if not user_permissions:
-			return api_response(
-				success=True,
-				data={
-					"has_permission": False,
-					"company": None,
-					"facilities": []
-				}
-			)
-
-		company_name = user_permissions[0].for_value
-
-		# Get company details
-		company_doc = frappe.get_doc("Company", company_name)
-
-		# Health Facility list: no filters — Frappe User Permissions on Health Facility apply
+		# Simple list of Health Facilities (User Permissions on Health Facility apply)
 		facilities = frappe.get_list(
 			"Health Facility",
 			fields=[
@@ -81,6 +39,21 @@ def get_user_company_context():
 			order_by="facility_name asc"
 		)
 
+		# Optional: Company from User Permission (for dashboard/other UI)
+		company_doc = None
+		user_permissions = frappe.get_all(
+			"User Permission",
+			filters={"user": user, "allow": "Company"},
+			fields=["for_value", "is_default"],
+			order_by="is_default desc",
+			limit=1
+		)
+		if user_permissions:
+			try:
+				company_doc = frappe.get_doc("Company", user_permissions[0].for_value)
+			except Exception:
+				pass
+
 		return api_response(
 			success=True,
 			data={
@@ -89,11 +62,11 @@ def get_user_company_context():
 					"name": company_doc.name,
 					"company_name": company_doc.company_name,
 					"abbr": company_doc.abbr,
-					"company_logo": company_doc.company_logo if hasattr(company_doc, "company_logo") else None,
-					"country": company_doc.country if hasattr(company_doc, "country") else None,
-					"default_currency": company_doc.default_currency
-				},
-				"facilities": facilities
+					"company_logo": getattr(company_doc, "company_logo", None),
+					"country": getattr(company_doc, "country", None),
+					"default_currency": getattr(company_doc, "default_currency", None),
+				} if company_doc else None,
+				"facilities": facilities,
 			}
 		)
 

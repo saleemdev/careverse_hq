@@ -326,7 +326,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             <Alert
                                 type="warning"
                                 message="No facility available"
-                                description="Your user has no Health Facility in context. Add User Permissions for Health Facility to upload."
+                                description="Your user has no Health Facility in context. Add User Permissions for Health Facility (or Company) so facilities appear here."
                                 showIcon
                                 style={{ borderRadius: 8 }}
                             />

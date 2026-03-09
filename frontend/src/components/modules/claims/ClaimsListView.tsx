@@ -11,6 +11,7 @@ import {
     DatePicker,
     Tag,
     Dropdown,
+    Select,
 } from 'antd';
 import {
     ReloadOutlined,
@@ -40,6 +41,7 @@ const ICON_SECONDARY = 'var(--color-text-secondary, rgba(0, 0, 0, 0.45))';
 
 const ClaimsListView: React.FC = () => {
     const { isMobile, isTablet } = useResponsive();
+    // Let backend handle empty/missing facilities - just use what's in store
     const facilityIds = useFacilityStore((s) => s.selectedFacilityIds) ?? [];
     const facilityIdsKey = facilityIds.join(',');
 
@@ -49,22 +51,26 @@ const ClaimsListView: React.FC = () => {
         loading,
         total,
         filters,
-        setFacilityIds,
+        insurerOptions,
+        useOptions,
+        errorGroupOptions,
+        filterOptionsLoading,
         fetchClaims,
+        fetchFilterOptions,
         setFilters,
     } = useClaimsStore();
+
+    useEffect(() => {
+        void fetchFilterOptions();
+    }, [facilityIdsKey, fetchFilterOptions]);
 
     const [selectedClaim, setSelectedClaim] = useState<FacilityClaim | null>(null);
     const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
 
-    useEffect(() => {
-        const ids = useFacilityStore.getState().selectedFacilityIds ?? [];
-        setFacilityIds(ids);
-    }, [facilityIdsKey, setFacilityIds]);
-
+    // Fetch claims on mount and when filters change - backend handles no-facilities case
     useEffect(() => {
         void fetchClaims();
-    }, [facilityIdsKey, fetchClaims]);
+    }, [filters.page, filters.pageSize, filters.status, filters.month, filters.insurer, filters.use, filters.claim_upstream_error_group, fetchClaims]);
 
     const getStatusColor = useCallback((status: string) => {
         switch (status?.toLowerCase()) {
@@ -293,14 +299,16 @@ const ClaimsListView: React.FC = () => {
     );
 
     const byStatus = summary?.by_status ?? {};
+    const byStatusAmount = summary?.by_status_amount ?? {};
     const totalAmount = summary?.total_amount ?? 0;
     const totalCount = summary?.total_count ?? total;
+    const formatAmount = (n: number) => new Intl.NumberFormat('en-KE').format(n);
 
     return (
         <div style={{ padding: isMobile ? '12px' : '24px' }}>
             <Title level={isMobile ? 4 : 3}>Facility Claims</Title>
 
-            {/* Insights for filtered data */}
+            {/* Insights for filtered data: count and amount per status */}
             {!loading && totalCount > 0 && (
                 <Card size="small" style={{ marginBottom: 16 }}>
                     <Text type="secondary" style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>
@@ -309,12 +317,21 @@ const ClaimsListView: React.FC = () => {
                     <Space wrap size="middle" align="center">
                         <Text strong>{totalCount}</Text>
                         <Text type="secondary">claims</Text>
-                        <Tag color="success">Approved {byStatus.approved ?? 0}</Tag>
-                        <Tag color="warning">Pending {byStatus.pending ?? 0}</Tag>
-                        <Tag color="error">Rejected {byStatus.rejected ?? 0}</Tag>
+                        <Tag color="success">
+                            Approved {byStatus.approved ?? 0}
+                            {byStatusAmount.approved != null && ` (${formatAmount(byStatusAmount.approved)} KES)`}
+                        </Tag>
+                        <Tag color="warning">
+                            Pending {byStatus.pending ?? 0}
+                            {byStatusAmount.pending != null && ` (${formatAmount(byStatusAmount.pending)} KES)`}
+                        </Tag>
+                        <Tag color="error">
+                            Rejected {byStatus.rejected ?? 0}
+                            {byStatusAmount.rejected != null && ` (${formatAmount(byStatusAmount.rejected)} KES)`}
+                        </Tag>
                         <Text type="secondary">·</Text>
                         <Text strong>
-                            Total amount: {new Intl.NumberFormat('en-KE').format(totalAmount)} KES
+                            Total amount: {formatAmount(totalAmount)} KES
                         </Text>
                     </Space>
                 </Card>
@@ -338,6 +355,48 @@ const ClaimsListView: React.FC = () => {
                                 size="middle"
                                 style={{ minWidth: 140 }}
                                 suffixIcon={<CalendarOutlined />}
+                            />
+                        </Space>
+                        <Space>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Insurer</Text>
+                            <Select
+                                allowClear
+                                placeholder={filterOptionsLoading ? 'Loading…' : 'All insurers'}
+                                size="middle"
+                                style={{ minWidth: 160 }}
+                                value={filters.insurer || undefined}
+                                onChange={(v) => setFilters({ insurer: v ?? '' })}
+                                options={insurerOptions.map((v) => ({ label: v, value: v }))}
+                                loading={filterOptionsLoading}
+                                notFoundContent={filterOptionsLoading ? 'Loading…' : 'No insurers'}
+                            />
+                        </Space>
+                        <Space>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Use</Text>
+                            <Select
+                                allowClear
+                                placeholder={filterOptionsLoading ? 'Loading…' : 'All uses'}
+                                size="middle"
+                                style={{ minWidth: 120 }}
+                                value={filters.use || undefined}
+                                onChange={(v) => setFilters({ use: v ?? '' })}
+                                options={useOptions.map((v) => ({ label: v, value: v }))}
+                                loading={filterOptionsLoading}
+                                notFoundContent={filterOptionsLoading ? 'Loading…' : 'No uses'}
+                            />
+                        </Space>
+                        <Space>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Error group</Text>
+                            <Select
+                                allowClear
+                                placeholder={filterOptionsLoading ? 'Loading…' : 'All error groups'}
+                                size="middle"
+                                style={{ minWidth: 180 }}
+                                value={filters.claim_upstream_error_group || undefined}
+                                onChange={(v) => setFilters({ claim_upstream_error_group: v ?? '' })}
+                                options={errorGroupOptions.map((v) => ({ label: v, value: v }))}
+                                loading={filterOptionsLoading}
+                                notFoundContent={filterOptionsLoading ? 'Loading…' : 'No error groups'}
                             />
                         </Space>
                         <Button

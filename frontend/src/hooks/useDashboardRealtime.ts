@@ -71,7 +71,7 @@ export const useDashboardRealtime = (
     options;
 
   // Realtime and facility stores (single source of truth: getSelectedFacilityIds)
-  const { socket, isConnected, isConnecting, connectionError, subscribe, unsubscribe } =
+  const { socket, isConnected, isConnecting, connectionError, subscribe, subscribeConnectionError } =
     useRealtimeStore();
   const company = useFacilityStore((s) => s.company);
   const isAllFacilities = useFacilityStore((s) => s.isAllFacilities);
@@ -204,28 +204,20 @@ export const useDashboardRealtime = (
     };
   }, [enabled, socket, subscribe, handleDashboardUpdate, handleApprovalUpdate, handleBudgetUpdate, handleAttendanceUpdate]);
 
-  // Keep latest onError in a ref so we don't need it in deps (avoids infinite loop when caller sets state in onError)
+  // Event-driven: store notifies on connection error; register once, ref always has latest onError (no useEffect on connectionError)
   const onErrorRef = useRef(onError);
-  const lastReportedErrorRef = useRef<string | null>(null);
+  onErrorRef.current = onError;
   useEffect(() => {
-    onErrorRef.current = onError;
-  }, [onError]);
-
-  // Log connection status changes; report each new error only once (no loop when onError triggers re-render)
-  useEffect(() => {
-    if (isConnected) {
-      console.log('[Dashboard Realtime] Socket connected');
-      lastReportedErrorRef.current = null;
-    } else if (connectionError && connectionError !== lastReportedErrorRef.current) {
-      console.warn('[Dashboard Realtime] Connection error:', connectionError);
-      lastReportedErrorRef.current = connectionError;
+    if (!enabled) return;
+    const unsubscribeError = subscribeConnectionError((error) => {
       try {
-        onErrorRef.current?.(connectionError);
+        onErrorRef.current?.(error);
       } catch (err) {
         console.error('[Dashboard Realtime] onError callback threw:', err);
       }
-    }
-  }, [isConnected, connectionError]);
+    });
+    return () => unsubscribeError();
+  }, [enabled, subscribeConnectionError]);
 
   return {
     isConnected,
