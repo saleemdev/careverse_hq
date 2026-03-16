@@ -181,7 +181,7 @@ const LeaveApplicationsListView: React.FC = () => {
             {/* Metric Section */}
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={12} sm={6}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--primary">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>TOTAL APPLICATIONS</Text>}
                             value={total}
@@ -191,7 +191,7 @@ const LeaveApplicationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={6}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--warning">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>PENDING</Text>}
                             value={leaves.filter(l => l.status === 'Open').length}
@@ -201,7 +201,7 @@ const LeaveApplicationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={6}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--success">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>APPROVED</Text>}
                             value={leaves.filter(l => l.status === 'Approved').length}
@@ -211,7 +211,7 @@ const LeaveApplicationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={6}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--error">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>REJECTED</Text>}
                             value={leaves.filter(l => l.status === 'Rejected').length}

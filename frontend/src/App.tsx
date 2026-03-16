@@ -367,8 +367,8 @@ function App() {
             <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
               <EmptyState
                 type="under-construction"
-                title="Attendance Tracking Coming Soon"
-                description="We are integrating real-time biometric and geo-fencing attendance logs. This module will allow you to monitor staff presence across all facilities."
+                title="Attendance Tracking"
+                description="Real-time attendance monitoring is on the way."
                 onAction={() => navigateToRoute('dashboard')}
                 actionText="Return to Dashboard"
               />
@@ -383,8 +383,8 @@ function App() {
             <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
               <EmptyState
                 type="under-construction"
-                title="eContracting Coming Soon"
-                description="We are rolling out digital contract lifecycle management to support draft, review, approval, and secure signing workflows."
+                title="eContracting"
+                description="Digital contract management is being prepared."
                 onAction={() => navigateToRoute('dashboard')}
                 actionText="Return to Dashboard"
               />
@@ -489,8 +489,8 @@ function App() {
             <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
               <EmptyState
                 type="under-construction"
-                title={`${currentRoute.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Module Coming Soon`}
-                description="We are currently building this section to provide you with a comprehensive administrative experience. This module will be available in our upcoming release."
+                title={`${currentRoute.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}`}
+                description="This module is being prepared for you."
                 onAction={() => navigateToRoute('dashboard')}
                 actionText="Return to Dashboard"
               />

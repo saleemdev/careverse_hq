@@ -144,6 +144,38 @@
   background: color-mix(in srgb, var(--bg-primary) 88%, var(--color-primary) 12%);
 }
 
+/* ============================================================================
+   STAT CARD ACCENTS — warm tinted metric cards
+   Usage: <Card className="stat-card stat-card--primary">
+   ============================================================================ */
+.stat-card.ant-card {
+  border-radius: var(--radius-lg);
+  border: none;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+}
+
+.stat-card.ant-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.stat-card--primary.ant-card  { background: linear-gradient(135deg, rgba(24,144,255,0.06) 0%, rgba(24,144,255,0.02) 100%); }
+.stat-card--success.ant-card  { background: linear-gradient(135deg, rgba(82,196,26,0.06) 0%, rgba(82,196,26,0.02) 100%); }
+.stat-card--warning.ant-card  { background: linear-gradient(135deg, rgba(250,173,20,0.06) 0%, rgba(250,173,20,0.02) 100%); }
+.stat-card--error.ant-card    { background: linear-gradient(135deg, rgba(255,77,79,0.06) 0%, rgba(255,77,79,0.02) 100%); }
+.stat-card--purple.ant-card   { background: linear-gradient(135deg, rgba(114,46,209,0.06) 0%, rgba(114,46,209,0.02) 100%); }
+.stat-card--cyan.ant-card     { background: linear-gradient(135deg, rgba(19,194,194,0.06) 0%, rgba(19,194,194,0.02) 100%); }
+.stat-card--neutral.ant-card  { background: linear-gradient(135deg, rgba(140,140,140,0.06) 0%, rgba(140,140,140,0.02) 100%); }
+
+[data-theme='dark'] .stat-card--primary.ant-card  { background: linear-gradient(135deg, rgba(24,144,255,0.10) 0%, rgba(24,144,255,0.03) 100%); }
+[data-theme='dark'] .stat-card--success.ant-card  { background: linear-gradient(135deg, rgba(82,196,26,0.10) 0%, rgba(82,196,26,0.03) 100%); }
+[data-theme='dark'] .stat-card--warning.ant-card  { background: linear-gradient(135deg, rgba(250,173,20,0.10) 0%, rgba(250,173,20,0.03) 100%); }
+[data-theme='dark'] .stat-card--error.ant-card    { background: linear-gradient(135deg, rgba(255,77,79,0.10) 0%, rgba(255,77,79,0.03) 100%); }
+[data-theme='dark'] .stat-card--purple.ant-card   { background: linear-gradient(135deg, rgba(114,46,209,0.10) 0%, rgba(114,46,209,0.03) 100%); }
+[data-theme='dark'] .stat-card--cyan.ant-card     { background: linear-gradient(135deg, rgba(19,194,194,0.10) 0%, rgba(19,194,194,0.03) 100%); }
+[data-theme='dark'] .stat-card--neutral.ant-card   { background: linear-gradient(135deg, rgba(140,140,140,0.10) 0%, rgba(140,140,140,0.03) 100%); }
+
 /* Dashboard Specific Styles */
 .dashboard-container {
   padding: var(--spacing-lg);

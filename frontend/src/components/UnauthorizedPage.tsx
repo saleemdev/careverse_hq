@@ -130,7 +130,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                             H
                         </div>
                         <Title level={4} style={{ margin: 0, fontWeight: 600, letterSpacing: '-0.01em' }}>
-                            Admin Central
+                            F360 Central
                         </Title>
                     </div>
 
@@ -209,7 +209,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                                 lineHeight: 1.15
                                             }}
                                         >
-                                            Sign In Required
+                                            Sign In to Continue
                                         </Title>
                                         <Paragraph
                                             style={{
@@ -220,7 +220,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                                 marginBottom: 0
                                             }}
                                         >
-                                            Welcome to the Healthcare Management Dashboard. Please sign in with your authorized credentials to access the system.
+                                            Sign in to access your organization's management portal.
                                         </Paragraph>
                                     </div>
 
@@ -257,7 +257,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                             After You Sign In
                                         </Title>
                                         <Text style={{ fontSize: '12px', color: '#595959', lineHeight: '1.5' }}>
-                                            Once authenticated, you'll have access to the executive dashboard based on your assigned organization permissions. If you don't have organization access, contact your system administrator.
+                                            You'll see your organization's dashboard based on your assigned permissions. Need access? Contact your administrator.
                                         </Text>
                                     </div>
 
@@ -273,7 +273,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                             Need Help?
                                         </Title>
                                         <Text style={{ fontSize: '12px', color: token.colorTextTertiary }}>
-                                            Contact your system administrator or ICT Support Desk if you need credentials or encounter access issues.
+                                            Reach out to your system administrator or IT support for credential and access help.
                                         </Text>
                                     </div>
                                 </Space>
@@ -301,8 +301,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                         Smarter Organization Management
                                     </Title>
                                     <Paragraph style={{ fontSize: '14px', color: token.colorTextSecondary }}>
-                                        Admin Central provides integrated oversight of health human resources,
-                                        facility infrastructure, and financial claims.
+                                        Integrated oversight of your workforce, facilities, and operational processes.
                                     </Paragraph>
                                 </div>
 
@@ -358,7 +357,7 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                     fontSize: '12px'
                                 }}>
                                     <SafetyCertificateOutlined style={{ fontSize: '18px' }} />
-                                    <span>Secured by Enterprise-Grade Authentication System</span>
+                                    <span>Secure access for authorized personnel</span>
                                 </div>
                             </Space>
                         </Col>

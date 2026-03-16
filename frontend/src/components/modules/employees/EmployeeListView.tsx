@@ -26,6 +26,7 @@ import {
     EyeOutlined,
     ClearOutlined,
     MedicineBoxOutlined,
+    TeamOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import useEmployeeStore from '../../../stores/modules/employeeStore';
@@ -433,7 +434,15 @@ const EmployeeListView: React.FC = () => {
 
     return (
         <div style={{ padding: isMobile ? '12px' : '24px' }}>
-            <Title level={isMobile ? 4 : 3}>Health Professionals</Title>
+            <div style={{ marginBottom: 16 }}>
+                <Title level={isMobile ? 4 : 3} style={{ margin: 0, marginBottom: 2, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                    <TeamOutlined style={{ opacity: 0.45, color: token.colorTextTertiary }} />
+                    Health Professionals
+                </Title>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                    Licensed health workers across your facilities
+                </Text>
+            </div>
 
             {/* Filters */}
             <Card style={{ marginBottom: 16 }}>

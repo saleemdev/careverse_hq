@@ -564,7 +564,7 @@ const AffiliationsListView: React.FC = () => {
             {/* Metric Section */}
             <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
                 <Col xs={12} sm={8} lg={4}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--primary">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>TOTAL REQUESTS</Text>}
                             value={statusAggregates?.total || total}
@@ -574,7 +574,7 @@ const AffiliationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={8} lg={4}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--warning">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>PENDING REVIEW</Text>}
                             value={statusAggregates?.pending || 0}
@@ -584,7 +584,7 @@ const AffiliationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={8} lg={4}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--success">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>CONFIRMED</Text>}
                             value={statusAggregates?.confirmed || 0}
@@ -594,7 +594,7 @@ const AffiliationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={8} lg={4}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--error">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>REJECTION RATE</Text>}
                             value={statusAggregates?.rejection_rate || 0}
@@ -604,7 +604,7 @@ const AffiliationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={8} lg={4}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--error">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>REJECTED</Text>}
                             value={statusAggregates?.rejected || 0}
@@ -614,7 +614,7 @@ const AffiliationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={8} lg={4}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--success">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>CONFIRMATION RATE</Text>}
                             value={statusAggregates?.confirmation_rate ?? statusAggregates?.approval_rate ?? 0}
@@ -624,7 +624,7 @@ const AffiliationsListView: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={12} sm={8} lg={4}>
-                    <Card size="small" style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <Card size="small" className="stat-card stat-card--neutral">
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>TERMINATED</Text>}
                             value={statusAggregates?.terminated ?? statusAggregates?.inactive ?? 0}

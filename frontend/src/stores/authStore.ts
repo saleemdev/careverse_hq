@@ -413,8 +413,22 @@ const useAuthStore = create<AuthState>()(
               // Silent fail
             }
 
-            // Use Frappe's standard logout route
-            window.location.href = '/logout'
+            // Invalidate server session via API, then redirect to login.
+            // We avoid navigating to /logout because that page depends on
+            // Frappe's desk JS bundle (frappe.logout()) which isn't loaded
+            // in this custom frontend — causing a 404 in production.
+            try {
+              await fetch('/api/method/logout', {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                credentials: 'include',
+              })
+            } catch (e) {
+              // Network error is fine — session may already be gone
+              console.warn('[Auth] Logout API call failed, redirecting anyway:', e)
+            }
+
+            window.location.href = `/login?redirect-to=${encodeURIComponent(window.location.pathname + window.location.hash)}`
           },
 
           /**

@@ -19,6 +19,7 @@ import {
     ReloadOutlined,
     HomeOutlined,
     ClearOutlined,
+    BankOutlined,
 } from '@ant-design/icons';
 import useFacilitiesModuleStore from '../../../stores/modules/facilitiesModuleStore';
 import useFacilityStore from '../../../stores/facilityStore';
@@ -209,13 +210,23 @@ const FacilitiesListView: React.FC = () => {
 
     return (
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
+            {/* Page Title */}
+            <div style={{ marginBottom: 16 }}>
+                <Title level={isMobile ? 4 : 3} style={{ margin: 0, marginBottom: 2, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                    <BankOutlined style={{ opacity: 0.45, color: token.colorTextTertiary }} />
+                    Health Facilities
+                </Title>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                    Registered facilities in your organization
+                </Text>
+            </div>
+
             {/* Table Section */}
             <Card
                 style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
                 bodyStyle={{ padding: 0 }}
                 title={
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '16px 24px' }}>
-                        <Title level={4} style={{ margin: 0 }}>Health Facilities</Title>
                         <Space wrap>
                             <Input
                                 placeholder="Search facilities..."

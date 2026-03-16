@@ -243,7 +243,7 @@ const LicensesListView: React.FC<LicensesListViewProps> = ({ navigateToRoute }) 
       {/* Overview Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24} sm={12} lg={6}>
-          <Card>
+          <Card className="stat-card stat-card--primary">
             <Statistic
               title="Total Licenses"
               value={statistics?.total || 0}
@@ -253,7 +253,7 @@ const LicensesListView: React.FC<LicensesListViewProps> = ({ navigateToRoute }) 
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card>
+          <Card className="stat-card stat-card--warning">
             <Statistic
               title="Expiring Soon (≤90 days)"
               value={
@@ -267,7 +267,7 @@ const LicensesListView: React.FC<LicensesListViewProps> = ({ navigateToRoute }) 
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card>
+          <Card className="stat-card stat-card--error">
             <Statistic
               title="Pending Payment"
               value={statistics?.payment_status.pending || 0}
@@ -277,7 +277,7 @@ const LicensesListView: React.FC<LicensesListViewProps> = ({ navigateToRoute }) 
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card>
+          <Card className="stat-card stat-card--error">
             <Statistic
               title="Expired"
               value={statistics?.expiry_alerts.expired || 0}
