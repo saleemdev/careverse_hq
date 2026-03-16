@@ -21,6 +21,7 @@ import {
     TeamOutlined
 } from '@ant-design/icons';
 import { getCsrfToken } from '../../utils/csrf';
+import { callFrappePostMethod } from '../../services/api';
 
 const { Title, Text } = Typography;
 
@@ -76,31 +77,21 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({ navigateToRoute }) => {
         setSubmitting(true);
 
         try {
-            const response = await fetch('/api/method/careverse_hq.api.user_management.create_team_user', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': getCsrfToken()
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    first_name: values.first_name,
-                    last_name: values.last_name,
-                    email: values.email,
-                    phone: values.phone,
-                    role: values.role,
-                    county: values.county
-                })
+            const result = await callFrappePostMethod<{ temp_password: string; user: { email: string } }>('careverse_hq.api.user_management.create_team_user', {
+                first_name: values.first_name,
+                last_name: values.last_name,
+                email: values.email,
+                phone: values.phone,
+                role: values.role,
+                county: values.county,
             });
 
-            if (!response.ok) {
-                const errorResult = await response.json();
-                throw new Error(errorResult.message || 'Failed to create user');
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to create user');
             }
 
-            const result = await response.json();
-            setTempPassword(result.data.temp_password);
-            setCreatedUserEmail(result.data.user.email);
+            setTempPassword(result.data?.temp_password ?? null);
+            setCreatedUserEmail(result.data?.user?.email ?? values.email);
             setShowSuccessModal(true);
             message.success('User created successfully!');
             form.resetFields();

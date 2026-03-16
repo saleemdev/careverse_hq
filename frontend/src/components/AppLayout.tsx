@@ -19,34 +19,24 @@ import {
     Tooltip,
 } from 'antd';
 import {
-    DashboardOutlined,
-    TeamOutlined,
     BankOutlined,
     UserOutlined,
-    SettingOutlined,
     LogoutOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
     BellOutlined,
     SearchOutlined,
     HomeOutlined,
-    CalendarOutlined,
     MoonOutlined,
     SunOutlined,
-    AppstoreOutlined,
-    LaptopOutlined,
-    MedicineBoxOutlined,
     LinkOutlined,
-    ClockCircleOutlined,
     SafetyCertificateOutlined,
-    CloudUploadOutlined,
-    ExclamationCircleOutlined,
-    AuditOutlined,
-    FileTextOutlined,
 } from '@ant-design/icons';
 import { useResponsive } from '../hooks/useResponsive';
 import useAuthStore from '../stores/authStore';
 import useFacilityStore from '../stores/facilityStore';
+import type { AccessPolicy } from '../access/accessPolicy';
+import { getMenuItemsForMode } from '../access/accessPolicy';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -57,6 +47,7 @@ interface AppLayoutProps {
     onNavigate: (route: string, id?: string) => void;
     isDarkMode: boolean;
     onToggleTheme: () => void;
+    accessPolicy: AccessPolicy;
 }
 
 const AppLayout: React.FC<AppLayoutProps> = ({
@@ -65,6 +56,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     onNavigate,
     isDarkMode,
     onToggleTheme,
+    accessPolicy,
 }) => {
     const { token } = theme.useToken();
     const { isMobile, isTablet } = useResponsive();
@@ -93,83 +85,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         return displayName.replace(/\s+/g, '').substring(0, 2).toUpperCase();
     };
 
-    // Menu items
-    const menuItems = [
-        {
-            key: 'dashboard',
-            icon: <DashboardOutlined />,
-            label: 'Executive Dashboard',
-        },
-        {
-            key: 'modules',
-            icon: <AppstoreOutlined />,
-            label: 'Modules',
-            children: [
-                {
-                    key: 'health-professionals',
-                    icon: <TeamOutlined />,
-                    label: 'Health Professionals',
-                },
-                {
-                    key: 'assets',
-                    icon: <LaptopOutlined />,
-                    label: 'Assets',
-                },
-                {
-                    key: 'facilities',
-                    icon: <MedicineBoxOutlined />,
-                    label: 'Health Facilities',
-                },
-                {
-                    key: 'affiliations',
-                    icon: <LinkOutlined />,
-                    label: 'Facility Affiliations',
-                },
-                {
-                    key: 'bulk-upload',
-                    icon: <CloudUploadOutlined />,
-                    label: 'Bulk Upload',
-                },
-                {
-                    key: 'licenses',
-                    icon: <SafetyCertificateOutlined />,
-                    label: 'Licenses',
-                },
-                {
-                    key: 'leave-summary',
-                    icon: <CalendarOutlined />,
-                    label: 'Leave Applications',
-                },
-                {
-                    key: 'claims',
-                    icon: <FileTextOutlined />,
-                    label: 'Claims',
-                },
-                {
-                    key: 'attendance',
-                    icon: <ClockCircleOutlined />,
-                    label: 'Attendance Records',
-                },
-                {
-                    key: 'e-contracting',
-                    icon: <AuditOutlined />,
-                    label: 'eContracting',
-                },
-            ],
-        },
-        {
-            key: 'administration',
-            icon: <SettingOutlined />,
-            label: 'Administration',
-            children: [
-                {
-                    key: 'user-management',
-                    icon: <TeamOutlined />,
-                    label: 'User Management',
-                },
-            ],
-        },
-    ];
+    const menuItems = getMenuItemsForMode(accessPolicy.menuMode);
 
     // User dropdown menu
     const userMenuItems = [
@@ -424,7 +340,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                             lineHeight: 1,
                                         }}
                                     >
-                                        {company.company_name}
+                                    {company.company_name}
                                     </Text>
                                     <Text
                                         style={{
@@ -485,7 +401,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                         {!isMobile && !isTablet && (
                             <Breadcrumb
                                 items={[
-                                    { title: <HomeOutlined />, onClick: () => onNavigate('dashboard') },
+                                    { title: <HomeOutlined />, onClick: () => onNavigate(accessPolicy.defaultRoute) },
                                     { title: getPageTitle() },
                                 ]}
                             />

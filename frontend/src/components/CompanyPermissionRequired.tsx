@@ -1,11 +1,24 @@
 /**
  * Organization Access Required Component
- * Shown when user lacks Company permission
- * Light, friendly design with header - user is logged in!
+ * Shown when user is authenticated but lacks Company permission
+ * Glassmorphic design with warm, guided next-steps flow
  */
 
-import { Button, Typography, Space, Avatar, Dropdown, theme } from 'antd';
-import { BankOutlined, ReloadOutlined, LogoutOutlined, MailOutlined, UserOutlined, BellOutlined, LinkOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import React from 'react';
+import { Button, Typography, Avatar, Dropdown, theme } from 'antd';
+import {
+	ReloadOutlined,
+	LogoutOutlined,
+	UserOutlined,
+	BellOutlined,
+	LinkOutlined,
+	SafetyCertificateOutlined,
+	CheckCircleFilled,
+	ArrowRightOutlined,
+	TeamOutlined,
+	MessageOutlined,
+	SyncOutlined,
+} from '@ant-design/icons';
 import useAuthStore from '../stores/authStore';
 import { useResponsive } from '../hooks/useResponsive';
 import useFacilityStore from '../stores/facilityStore';
@@ -21,9 +34,10 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 	const { company } = useFacilityStore();
 	const { isMobile, isTablet } = useResponsive();
 	const { token } = theme.useToken();
+
 	const handleUserMenuClick = ({ key }: { key: string }) => {
 		if (key === 'logout') {
-			handleLogout();
+			logout();
 			return;
 		}
 		if (key === 'switch-desk') {
@@ -33,22 +47,33 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 		onNavigate?.(key);
 	};
 
+	const cardMaxWidth = isMobile ? '100%' : isTablet ? '560px' : '620px';
+	const cardPadding = isMobile ? '28px 20px' : isTablet ? '36px 32px' : '40px 36px';
 
-	const handleLogout = () => {
-		logout();
-	};
-
-	// Compact, responsive sizing
-	const cardMaxWidth = isMobile ? '100%' : isTablet ? '520px' : '580px';
-	const cardPadding = isMobile ? '24px 20px' : isTablet ? '32px 28px' : '36px 32px';
-
-	// Get user initials for avatar
 	const getInitials = () => {
 		if (user?.full_name) {
 			return user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 		}
 		return user?.email?.charAt(0).toUpperCase() || 'U';
 	};
+
+	const steps = [
+		{
+			icon: <MessageOutlined style={{ fontSize: '16px' }} />,
+			title: 'Contact your administrator',
+			description: 'Ask them to assign an Organization Permission to your account from User Management.',
+		},
+		{
+			icon: <TeamOutlined style={{ fontSize: '16px' }} />,
+			title: 'Administrator assigns access',
+			description: 'They will link your account to the appropriate organization with the correct access level.',
+		},
+		{
+			icon: <SyncOutlined style={{ fontSize: '16px' }} />,
+			title: 'Refresh and you\'re in',
+			description: 'Once assigned, simply refresh this page to access the dashboard.',
+		},
+	];
 
 	return (
 		<div
@@ -57,46 +82,61 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 				flexDirection: 'column',
 				minHeight: '100vh',
 				maxHeight: '100vh',
-				background: 'linear-gradient(135deg, #f0f4ff 0%, #e6e9f2 50%, #f8fafc 100%)',
+				background: 'linear-gradient(160deg, #f0f4ff 0%, #e8ecf8 30%, #f3eef8 60%, #f8fafc 100%)',
 				position: 'relative',
 				overflow: 'hidden',
 			}}
 		>
-			{/* Subtle Background Decorations */}
+			{/* Ambient background orbs */}
 			<div
 				style={{
 					position: 'absolute',
-					top: '-10%',
-					right: '-5%',
-					width: isMobile ? '250px' : '450px',
-					height: isMobile ? '250px' : '450px',
-					background: 'radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%)',
+					top: '-15%',
+					right: '-8%',
+					width: isMobile ? '300px' : '550px',
+					height: isMobile ? '300px' : '550px',
+					background: 'radial-gradient(circle, rgba(99, 102, 241, 0.10) 0%, rgba(139, 92, 246, 0.04) 50%, transparent 70%)',
 					borderRadius: '50%',
-					filter: 'blur(60px)',
+					filter: 'blur(80px)',
 				}}
 			/>
 			<div
 				style={{
 					position: 'absolute',
-					bottom: '-10%',
-					left: '-5%',
-					width: isMobile ? '280px' : '500px',
-					height: isMobile ? '280px' : '500px',
-					background: 'radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%)',
+					bottom: '-12%',
+					left: '-8%',
+					width: isMobile ? '320px' : '600px',
+					height: isMobile ? '320px' : '600px',
+					background: 'radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.04) 50%, transparent 70%)',
+					borderRadius: '50%',
+					filter: 'blur(80px)',
+				}}
+			/>
+			<div
+				style={{
+					position: 'absolute',
+					top: '40%',
+					left: '50%',
+					transform: 'translate(-50%, -50%)',
+					width: isMobile ? '200px' : '400px',
+					height: isMobile ? '200px' : '400px',
+					background: 'radial-gradient(circle, rgba(236, 72, 153, 0.05) 0%, transparent 60%)',
 					borderRadius: '50%',
 					filter: 'blur(60px)',
 				}}
 			/>
 
-			{/* Header with User Info */}
+			{/* Header */}
 			<div
 				style={{
 					position: 'relative',
 					zIndex: 10,
-					background: '#fff',
-					borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
-					boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-					padding: isMobile ? '12px 16px' : '16px 24px',
+					background: 'rgba(255, 255, 255, 0.72)',
+					backdropFilter: 'blur(20px)',
+					WebkitBackdropFilter: 'blur(20px)',
+					borderBottom: '1px solid rgba(255, 255, 255, 0.5)',
+					boxShadow: '0 1px 12px rgba(0, 0, 0, 0.04)',
+					padding: isMobile ? '12px 16px' : '14px 24px',
 				}}
 			>
 				<div
@@ -108,23 +148,20 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 						justifyContent: 'space-between',
 					}}
 				>
-					{/* Logo/Brand */}
+					{/* Logo */}
 					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 						<div
 							style={{
 								width: '36px',
 								height: '36px',
-								borderRadius: '8px',
-								background: 'rgba(24, 144, 255, 0.18)',
+								borderRadius: '10px',
+								background: 'rgba(24, 144, 255, 0.12)',
 								backdropFilter: 'blur(12px)',
 								WebkitBackdropFilter: 'blur(12px)',
-								border: '1px solid rgba(24, 144, 255, 0.30)',
+								border: '1px solid rgba(24, 144, 255, 0.20)',
 								display: 'flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								color: token.colorPrimary,
-								fontWeight: 'bold',
-								fontSize: '16px',
 								overflow: 'hidden',
 							}}
 						>
@@ -151,40 +188,30 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 							<Button
 								type="text"
 								icon={<BellOutlined />}
-								className="header-action-btn"
-								style={{ width: '38px', height: '38px', fontSize: '15px' }}
+								style={{
+									width: '36px',
+									height: '36px',
+									fontSize: '15px',
+									borderRadius: '10px',
+									background: 'rgba(255, 255, 255, 0.5)',
+									border: '1px solid rgba(0, 0, 0, 0.04)',
+								}}
 							/>
 						)}
 
 						<Dropdown
 							menu={{
 								items: [
-									{
-										key: 'profile',
-										icon: <UserOutlined />,
-										label: 'My Profile',
-									},
-									{
-										key: 'switch-desk',
-										icon: <LinkOutlined />,
-										label: 'Switch to Desk',
-									},
-									{
-										type: 'divider',
-									},
-									{
-										key: 'logout',
-										icon: <LogoutOutlined />,
-										label: 'Logout',
-										danger: true,
-									},
+									{ key: 'profile', icon: <UserOutlined />, label: 'My Profile' },
+									{ key: 'switch-desk', icon: <LinkOutlined />, label: 'Switch to Desk' },
+									{ type: 'divider' },
+									{ key: 'logout', icon: <LogoutOutlined />, label: 'Logout', danger: true },
 								],
 								onClick: handleUserMenuClick,
 							}}
 							placement="bottomRight"
 						>
 							<div
-								className="header-user-trigger"
 								style={{
 									display: 'flex',
 									alignItems: 'center',
@@ -192,20 +219,20 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 									cursor: 'pointer',
 									padding: '6px 12px',
 									borderRadius: '10px',
-									background: 'rgba(255, 255, 255, 0.8)',
+									background: 'rgba(255, 255, 255, 0.6)',
+									backdropFilter: 'blur(12px)',
+									WebkitBackdropFilter: 'blur(12px)',
 									border: '1px solid rgba(0, 0, 0, 0.06)',
 									transition: 'all 0.2s',
 								}}
 							>
 								<Avatar
-									size={isMobile ? 28 : 32}
+									size={isMobile ? 28 : 30}
 									style={{
 										background: 'rgba(24, 144, 255, 0.12)',
-								backdropFilter: 'blur(12px)',
-								WebkitBackdropFilter: 'blur(12px)',
-								border: '1px solid rgba(24, 144, 255, 0.15)',
 										color: '#1890ff',
 										fontWeight: 600,
+										fontSize: '12px',
 									}}
 									src={user?.user_image}
 								>
@@ -232,14 +259,14 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 				</div>
 			</div>
 
-			{/* Main Content - Centered Card */}
+			{/* Main Content */}
 			<div
 				style={{
 					flex: 1,
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
-					padding: isMobile ? '16px' : '24px',
+					padding: isMobile ? '20px 16px' : '24px',
 					position: 'relative',
 					zIndex: 1,
 					overflow: 'auto',
@@ -249,132 +276,182 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 					style={{
 						maxWidth: cardMaxWidth,
 						width: '100%',
-						borderRadius: '12px',
-						background: '#fff',
-						boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
-						border: 'none',
+						borderRadius: '20px',
+						background: 'rgba(255, 255, 255, 0.55)',
+						backdropFilter: 'blur(24px)',
+						WebkitBackdropFilter: 'blur(24px)',
+						boxShadow: '0 8px 32px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(255, 255, 255, 0.6) inset',
+						border: '1px solid rgba(255, 255, 255, 0.6)',
 						padding: cardPadding,
 						position: 'relative',
 						animation: 'slideUp 0.5s ease-out',
 					}}
 				>
-					{/* Icon - Friendly blue color */}
-					<div style={{ textAlign: 'center', marginBottom: isMobile ? '16px' : '20px' }}>
+					{/* Greeting */}
+					<div style={{ textAlign: 'center', marginBottom: isMobile ? '20px' : '24px' }}>
 						<div
 							style={{
-								width: '48px',
-								height: '48px',
-								borderRadius: '12px',
-								background: '#1890ff15',
+								width: '56px',
+								height: '56px',
+								borderRadius: '16px',
+								background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%)',
+								backdropFilter: 'blur(8px)',
+								WebkitBackdropFilter: 'blur(8px)',
+								border: '1px solid rgba(99, 102, 241, 0.15)',
 								display: 'inline-flex',
 								alignItems: 'center',
 								justifyContent: 'center',
-								fontSize: '18px',
-								color: '#1890ff',
+								marginBottom: '16px',
 							}}
 						>
-							<BankOutlined />
+							<SafetyCertificateOutlined style={{ fontSize: '24px', color: '#6366f1' }} />
 						</div>
-					</div>
 
-					{/* Title */}
-					<Title
-						level={isMobile ? 4 : 3}
-						style={{
-							textAlign: 'center',
-							marginBottom: isMobile ? '8px' : '12px',
-							marginTop: 0,
-							fontSize: isMobile ? '20px' : isTablet ? '24px' : '26px',
-							fontWeight: 700,
-							color: '#1e293b',
-							letterSpacing: '-0.01em',
-							lineHeight: 1.2,
-						}}
-					>
-						Organization Access Required
-					</Title>
+						<Title
+							level={isMobile ? 4 : 3}
+							style={{
+								marginBottom: '8px',
+								marginTop: 0,
+								fontSize: isMobile ? '20px' : isTablet ? '24px' : '26px',
+								fontWeight: 700,
+								color: '#1e293b',
+								letterSpacing: '-0.02em',
+								lineHeight: 1.2,
+							}}
+						>
+							Almost there, {user?.full_name?.split(' ')[0] || 'there'}!
+						</Title>
 
-					{/* Status Badge - Friendlier color */}
-					<div style={{ textAlign: 'center', marginBottom: isMobile ? '16px' : '20px' }}>
+						{/* Status pill */}
 						<div
 							style={{
 								display: 'inline-flex',
 								alignItems: 'center',
 								gap: '6px',
-								background: 'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)',
-								padding: isMobile ? '4px 12px' : '6px 14px',
+								background: 'rgba(16, 185, 129, 0.10)',
+								backdropFilter: 'blur(8px)',
+								WebkitBackdropFilter: 'blur(8px)',
+								padding: '5px 14px',
 								borderRadius: '100px',
-								border: '1px solid #a5b4fc',
+								border: '1px solid rgba(16, 185, 129, 0.20)',
+								marginBottom: '12px',
 							}}
 						>
-							<Text strong style={{ fontSize: isMobile ? '11px' : '12px', color: '#4f46e5' }}>
-								✓ Logged In · Permission Required
+							<CheckCircleFilled style={{ fontSize: '12px', color: '#10b981' }} />
+							<Text style={{ fontSize: '12px', color: '#065f46', fontWeight: 600 }}>
+								Signed in successfully
 							</Text>
 						</div>
+
+						<Paragraph
+							style={{
+								fontSize: isMobile ? '13px' : '14px',
+								lineHeight: 1.7,
+								color: '#64748b',
+								maxWidth: '440px',
+								margin: '0 auto',
+							}}
+						>
+							Your account needs to be linked to an organization before you can access the dashboard. Follow the steps below to get started.
+						</Paragraph>
 					</div>
 
-					{/* Description */}
-					<Paragraph
-						style={{
-							textAlign: 'center',
-							fontSize: isMobile ? '13px' : '14px',
-							lineHeight: 1.6,
-							color: '#64748b',
-							maxWidth: '480px',
-							margin: `0 auto ${isMobile ? '20px' : '24px'}`,
-						}}
-					>
-						Your account needs <strong style={{ color: '#1e293b' }}>organization access permission</strong> to use this dashboard. Contact your administrator to get assigned.
-					</Paragraph>
-
-					{/* Instructions - More compact */}
+					{/* Steps */}
 					<div
 						style={{
 							display: 'flex',
-							gap: isMobile ? '10px' : '12px',
-							padding: isMobile ? '14px' : '18px',
-							background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-							borderRadius: '12px',
-							marginBottom: isMobile ? '20px' : '24px',
-							border: '1px solid #bae6fd',
+							flexDirection: 'column',
+							gap: '0px',
+							marginBottom: isMobile ? '24px' : '28px',
 						}}
 					>
-						<div
-							style={{
-								width: isMobile ? '32px' : '36px',
-								height: isMobile ? '32px' : '36px',
-								borderRadius: '10px',
-								background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								flexShrink: 0,
-							}}
-						>
-							<MailOutlined style={{ color: '#fff', fontSize: isMobile ? '16px' : '18px' }} />
-						</div>
-						<div style={{ flex: 1 }}>
-							<Text strong style={{ fontSize: isMobile ? '13px' : '14px', color: '#075985', display: 'block', marginBottom: '4px' }}>
-								Next Steps
-							</Text>
-							<Paragraph
+						{steps.map((step, index) => (
+							<div
+								key={index}
 								style={{
-									margin: 0,
-									fontSize: isMobile ? '12px' : '13px',
-									lineHeight: 1.6,
-									color: '#0c4a6e',
+									display: 'flex',
+									gap: isMobile ? '14px' : '16px',
+									alignItems: 'flex-start',
 								}}
 							>
-								Ask your administrator to assign you to a county. Once done, click "Refresh Page" to access the dashboard.
-							</Paragraph>
-						</div>
+								{/* Step connector */}
+								<div
+									style={{
+										display: 'flex',
+										flexDirection: 'column',
+										alignItems: 'center',
+										flexShrink: 0,
+									}}
+								>
+									<div
+										style={{
+											width: '36px',
+											height: '36px',
+											borderRadius: '12px',
+											background: index === 0
+												? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+												: 'rgba(99, 102, 241, 0.08)',
+											border: index === 0
+												? 'none'
+												: '1px solid rgba(99, 102, 241, 0.15)',
+											display: 'flex',
+											alignItems: 'center',
+											justifyContent: 'center',
+											color: index === 0 ? '#fff' : '#6366f1',
+											flexShrink: 0,
+										}}
+									>
+										{step.icon}
+									</div>
+									{index < steps.length - 1 && (
+										<div
+											style={{
+												width: '2px',
+												height: '24px',
+												background: 'linear-gradient(180deg, rgba(99, 102, 241, 0.2) 0%, rgba(99, 102, 241, 0.05) 100%)',
+												borderRadius: '1px',
+											}}
+										/>
+									)}
+								</div>
+
+								{/* Step content */}
+								<div style={{ flex: 1, paddingBottom: index < steps.length - 1 ? '12px' : '0' }}>
+									<Text
+										strong
+										style={{
+											fontSize: isMobile ? '13px' : '14px',
+											color: '#1e293b',
+											display: 'block',
+											marginBottom: '2px',
+											lineHeight: '36px',
+										}}
+									>
+										{step.title}
+									</Text>
+									<Paragraph
+										style={{
+											margin: 0,
+											fontSize: isMobile ? '12px' : '13px',
+											lineHeight: 1.6,
+											color: '#64748b',
+										}}
+									>
+										{step.description}
+									</Paragraph>
+								</div>
+							</div>
+						))}
 					</div>
 
-					{/* Action Buttons */}
-					<Space
-						direction={isMobile ? 'vertical' : 'horizontal'}
-						size={isMobile ? 10 : 12}
-						style={{ width: '100%', justifyContent: 'center' }}
+					{/* Actions */}
+					<div
+						style={{
+							display: 'flex',
+							flexDirection: isMobile ? 'column' : 'row',
+							gap: '10px',
+							justifyContent: 'center',
+						}}
 					>
 						<Button
 							type="primary"
@@ -383,78 +460,68 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 							onClick={() => window.location.reload()}
 							block={isMobile}
 							style={{
-								height: isMobile ? '40px' : '44px',
+								height: isMobile ? '42px' : '46px',
 								fontSize: isMobile ? '14px' : '15px',
 								fontWeight: 600,
-								borderRadius: '10px',
-								minWidth: isMobile ? 'auto' : '150px',
-								background: 'linear-gradient(135deg, #1890ff 0%, #1890ff 100%)',
+								borderRadius: '12px',
+								minWidth: isMobile ? 'auto' : '180px',
+								background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
 								border: 'none',
-								boxShadow: '0 4px 12px rgba(24, 144, 255, 0.3)',
+								boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
 								color: '#fff',
 							}}
 						>
 							Refresh Page
 						</Button>
-							<Button
-								icon={<LogoutOutlined />}
-								size={isMobile ? 'middle' : 'large'}
-								onClick={handleLogout}
-								block={isMobile}
-								style={{
-								height: isMobile ? '40px' : '44px',
+						<Button
+							icon={<ArrowRightOutlined />}
+							size={isMobile ? 'middle' : 'large'}
+							onClick={() => onNavigate?.('profile')}
+							block={isMobile}
+							style={{
+								height: isMobile ? '42px' : '46px',
 								fontSize: isMobile ? '14px' : '15px',
 								fontWeight: 600,
-								borderRadius: '10px',
-								minWidth: isMobile ? 'auto' : '130px',
-								background: '#fff',
-								border: '2px solid #e2e8f0',
-								color: '#64748b',
+								borderRadius: '12px',
+								minWidth: isMobile ? 'auto' : '160px',
+								background: 'rgba(255, 255, 255, 0.6)',
+								backdropFilter: 'blur(8px)',
+								WebkitBackdropFilter: 'blur(8px)',
+								border: '1px solid rgba(0, 0, 0, 0.08)',
+								color: '#475569',
 							}}
 						>
-							Logout
+							View Profile
 						</Button>
-					</Space>
+						<Button
+							type="text"
+							icon={<LogoutOutlined />}
+							size={isMobile ? 'middle' : 'large'}
+							onClick={() => logout()}
+							block={isMobile}
+							style={{
+								height: isMobile ? '42px' : '46px',
+								fontSize: isMobile ? '13px' : '14px',
+								fontWeight: 500,
+								borderRadius: '12px',
+								color: '#94a3b8',
+							}}
+						>
+							Sign Out
+						</Button>
+					</div>
 				</div>
 			</div>
 
-			{/* Inline keyframe animations */}
+			{/* Keyframes */}
 			<style>{`
 				@keyframes slideUp {
-					from {
-						opacity: 0;
-						transform: translateY(20px);
-					}
-					to {
-						opacity: 1;
-						transform: translateY(0);
-					}
+					from { opacity: 0; transform: translateY(24px); }
+					to { opacity: 1; transform: translateY(0); }
 				}
 
-				/* Smooth scrollbar */
-				div::-webkit-scrollbar {
-					width: 6px;
-				}
-
-				div::-webkit-scrollbar-track {
-					background: rgba(0, 0, 0, 0.03);
-					border-radius: 3px;
-				}
-
-				div::-webkit-scrollbar-thumb {
-					background: rgba(0, 0, 0, 0.15);
-					border-radius: 3px;
-				}
-
-				div::-webkit-scrollbar-thumb:hover {
-					background: rgba(0, 0, 0, 0.25);
-				}
-
-				/* Touch optimization for mobile */
 				@media (hover: none) {
-					button {
-						-webkit-tap-highlight-color: transparent;
-					}
+					button { -webkit-tap-highlight-color: transparent; }
 				}
 			`}</style>
 		</div>

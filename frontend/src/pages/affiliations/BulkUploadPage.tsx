@@ -31,6 +31,7 @@ import type { UploadFile, RcFile } from 'antd/es/upload/interface';
 import Papa from 'papaparse';
 import { useResponsive } from '../../hooks/useResponsive';
 import { bulkUploadApi } from '../../services/api';
+import { getCsrfToken } from '../../utils/csrf';
 import {
     validateBulkUploadRecords,
     normalizeRecordsForSubmit,
@@ -65,7 +66,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
         setFacilitiesLoading(true);
         fetch('/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_facilities', {
             credentials: 'include',
-            headers: { Accept: 'application/json' },
+            headers: { Accept: 'application/json', 'X-Frappe-CSRF-Token': getCsrfToken() },
         })
             .then((r) => r.json())
             .then((json) => {

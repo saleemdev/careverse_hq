@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ConfigProvider, Layout, theme, Spin, Card, message } from 'antd';
+import { Card, ConfigProvider, Layout, theme, Spin, message } from 'antd';
 import enUS from 'antd/locale/en_US';
 import 'dayjs/locale/en';
 import useAuthStore from './stores/authStore';
@@ -27,6 +27,7 @@ import ProfilePage from './pages/profile/ProfilePage';
 import LeaveApplicationsListView from './components/modules/hr/LeaveApplicationsListView';
 import ClaimsListView from './components/modules/claims/ClaimsListView';
 import { getCsrfToken, setCsrfToken } from './utils/csrf';
+import { COMPANY_PERMISSION_ROUTE, getAccessPolicy, isRouteAllowed } from './access/accessPolicy';
 import './App.css';
 
 const { Content } = Layout;
@@ -52,10 +53,11 @@ function App() {
 
   // Zustand facility store
   const {
-    hasCompanyPermission,
+    accessMode,
     loadCompanyAndFacilities,
     loading: facilityLoading,
   } = useFacilityStore();
+  const accessPolicy = getAccessPolicy(accessMode);
 
   // Zustand realtime store
   const {
@@ -65,8 +67,13 @@ function App() {
 
   // Initialize CSRF token from window object (injected by Frappe)
   useEffect(() => {
-    if (!(window as any).csrf_token && (window as any).frappe?.boot?.csrf_token) {
-      setCsrfToken((window as any).frappe.boot.csrf_token);
+    const win = window as Window & {
+      csrf_token?: string;
+      frappe?: { boot?: { csrf_token?: string } };
+    };
+
+    if (!win.csrf_token && win.frappe?.boot?.csrf_token) {
+      setCsrfToken(win.frappe.boot.csrf_token);
     }
 
     if (!getCsrfToken()) {
@@ -106,36 +113,21 @@ function App() {
     return () => window.removeEventListener('csrf-refresh', onCsrfRefresh as EventListener);
   }, []);
 
-  // Initialize app: check authentication and load facility context in parallel
+  // Initialize app: authenticate first, then resolve access mode from the server
   useEffect(() => {
     let isSubscribed = true;
 
     const initialize = async () => {
       console.log('[App] Starting optimized initialization flow...');
 
-      // Step 1: Start tasks in parallel to shave off sequential wait time
       const authPromise = checkAuthentication();
-      const contextPromise = loadCompanyAndFacilities();
-
-      // Step 2: Wait for auth result first (Fast if window data is present)
       const isAuth = await authPromise;
 
       if (!isSubscribed) return;
 
       if (isAuth) {
-        // Optimization: If we have a cached company from persistence, 
-        // we can hide the loader immediately while the context refreshes
-        const hasCachedContext = useFacilityStore.getState().company !== null;
-
-        if (hasCachedContext) {
-          console.log('[App] Cached context found, unblocking UI early...');
-          setInitializing(false);
-          await contextPromise; // Still complete the refresh for data consistency
-        } else {
-          console.log('[App] No cached context, waiting for API...');
-          await contextPromise;
-          if (isSubscribed) setInitializing(false);
-        }
+        await loadCompanyAndFacilities();
+        if (isSubscribed) setInitializing(false);
       } else {
         console.log('[App] User not authenticated');
         if (isSubscribed) setInitializing(false);
@@ -151,11 +143,11 @@ function App() {
 
   // Initialize realtime connection when authenticated and has company permission
   useEffect(() => {
-    if (!initializing && isAuthenticated && hasCompanyPermission && !facilityLoading) {
+    if (!initializing && isAuthenticated && accessPolicy.canUseRealtime && !facilityLoading) {
       console.log('[App] Initializing realtime connection...');
       initializeRealtime();
     }
-  }, [initializing, isAuthenticated, hasCompanyPermission, facilityLoading, initializeRealtime]);
+  }, [initializing, isAuthenticated, accessPolicy.canUseRealtime, facilityLoading, initializeRealtime]);
 
   // Cleanup realtime on page unload
   useEffect(() => {
@@ -254,6 +246,23 @@ function App() {
     setCurrentRoute(route);
   };
 
+  // Route-level permission redirects:
+  // - Missing permissions => force Company Permissions page (except standalone profile)
+  // - Permissions restored while on Company Permissions page => send user to default entry route
+  useEffect(() => {
+    if (initializing || authLoading || !isAuthenticated) return;
+
+    if (accessPolicy.mode !== 'none' && currentRoute === COMPANY_PERMISSION_ROUTE) {
+      window.location.hash = `#${accessPolicy.defaultRoute}`;
+      return;
+    }
+
+    if (!isRouteAllowed(currentRoute, accessPolicy)) {
+      window.location.hash = `#${accessPolicy.defaultRoute}`;
+      return;
+    }
+  }, [initializing, authLoading, isAuthenticated, accessPolicy, currentRoute]);
+
   // Enhanced theme configuration - Premium design
   const themeConfig = {
     algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
@@ -337,6 +346,9 @@ function App() {
             navigateToRoute={navigateToRoute}
           />
         );
+
+      case COMPANY_PERMISSION_ROUTE:
+        return <CompanyPermissionRequired onNavigate={navigateToRoute} />;
 
       case 'health-professionals':
         return <EmployeeListView />;
@@ -488,8 +500,8 @@ function App() {
     }
   };
 
-  // Show loading state while initializing (Matches native HTML loader for seamless transition)
-  if (initializing || authLoading || (isAuthenticated && facilityLoading)) {
+  // Show loading state while bootstrapping authentication and access mode.
+  if (initializing || authLoading) {
     return (
       <ConfigProvider theme={themeConfig} locale={enUS}>
         <Layout className="auth-loading" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -516,8 +528,7 @@ function App() {
     );
   }
 
-  // Show empty state if no Company permission
-  if (isAuthenticated && !hasCompanyPermission) {
+  if (isAuthenticated && accessPolicy.mode === 'none') {
     if (currentRoute === 'profile') {
       return (
         <ConfigProvider theme={themeConfig} locale={enUS}>
@@ -533,7 +544,9 @@ function App() {
     );
   }
 
-  // Authenticated with Company permission - render main app with layout
+  const page = renderPage();
+
+  // Authenticated user with app access - render main app with layout
   return (
     <ConfigProvider theme={themeConfig} locale={enUS}>
       <AppLayout
@@ -541,8 +554,9 @@ function App() {
         onNavigate={navigateToRoute}
         isDarkMode={isDarkMode}
         onToggleTheme={toggleTheme}
+        accessPolicy={accessPolicy}
       >
-        {renderPage()}
+        {page}
       </AppLayout>
     </ConfigProvider>
   );

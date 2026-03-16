@@ -687,7 +687,9 @@ def _get_real_claims(
         filters["claim_upstream_error_group"] = claim_upstream_error_group.strip()
 
     total_count = frappe.db.count("Facility Claim", filters=filters)
-    items = frappe.get_all(
+    # Use get_list (not get_all) so Frappe's Role Permissions + User Permissions
+    # naturally scope data: company users see their tenant, oversight users see all.
+    items = frappe.get_list(
         "Facility Claim",
         filters=filters,
         fields=FACILITY_CLAIM_LIST_FIELDS,
@@ -699,7 +701,7 @@ def _get_real_claims(
     # Build summary: by_status counts, by_status_amount, total amount (same filters as list)
     summary_filters = dict(filters)
     status_counts = {}
-    for row in frappe.get_all(
+    for row in frappe.get_list(
         "Facility Claim",
         filters=summary_filters,
         fields=["claim_status"],
@@ -829,9 +831,9 @@ def get_claims_filter_options() -> Dict[str, Any]:
             success=True,
             data={"insurers": insurers, "uses": uses},
         )
-    except Exception as e:
+    except Exception:
         frappe.log_error(frappe.get_traceback(), "Get Claims Filter Options API Error")
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="Unable to load filter options. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -933,9 +935,11 @@ def get_facility_claims(
                 "items": items,
             },
         )
-    except Exception as e:
+    except frappe.PermissionError:
+        return api_response(success=False, message="You do not have permission to view these claims. Please contact your administrator.", status_code=403)
+    except Exception:
         frappe.log_error(frappe.get_traceback(), "Get Facility Claims API Error")
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="Unable to load claims data. Please try again or contact support.", status_code=500)
 
 
 def _facility_claim_allowed_fieldnames() -> set:
@@ -987,9 +991,11 @@ def create_facility_claim(**kwargs) -> Dict[str, Any]:
             message="Facility Claim created.",
             status_code=201,
         )
-    except Exception as e:
+    except frappe.PermissionError:
+        return api_response(success=False, message="You do not have permission to create claims.", status_code=403)
+    except Exception:
         frappe.log_error(frappe.get_traceback(), "Create Facility Claim API Error")
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="Unable to create claim. Please try again or contact support.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1032,8 +1038,8 @@ def get_facility_claim_filter_options(
         if facility_filter:
             common_filters["facility"] = facility_filter
 
-        # Get distinct insurers using frappe.get_all + set
-        insurer_rows = frappe.get_all(
+        # Use get_list so User Permissions scope the filter options to the user's tenant
+        insurer_rows = frappe.get_list(
             "Facility Claim",
             filters=common_filters,
             distinct=True,
@@ -1041,8 +1047,7 @@ def get_facility_claim_filter_options(
         )
         insurers = sorted([i for i in insurer_rows if i])
 
-        # Get distinct uses
-        use_rows = frappe.get_all(
+        use_rows = frappe.get_list(
             "Facility Claim",
             filters=common_filters,
             distinct=True,
@@ -1050,8 +1055,7 @@ def get_facility_claim_filter_options(
         )
         uses = sorted([u for u in use_rows if u])
 
-        # Get distinct error groups
-        error_group_rows = frappe.get_all(
+        error_group_rows = frappe.get_list(
             "Facility Claim",
             filters=common_filters,
             distinct=True,
@@ -1067,6 +1071,6 @@ def get_facility_claim_filter_options(
                 "error_groups": error_groups,
             },
         )
-    except Exception as e:
+    except Exception:
         frappe.log_error(frappe.get_traceback(), "Get Facility Claim Filter Options API Error")
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="Unable to load filter options. Please try again.", status_code=500)

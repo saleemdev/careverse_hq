@@ -1,0 +1,54 @@
+{
+ "actions": [],
+ "creation": "2026-03-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "oversight_roles_section",
+  "oversight_roles_description",
+  "oversight_roles"
+ ],
+ "fields": [
+  {
+   "fieldname": "oversight_roles_section",
+   "fieldtype": "Section Break",
+   "label": "Oversight Roles"
+  },
+  {
+   "fieldname": "oversight_roles_description",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted\">Roles listed here grant access to Admin Central without requiring a Company User Permission. These are typically national-level or regulatory oversight roles. Data access is governed by each role\u2019s standard Frappe Role Permissions.</p>"
+  },
+  {
+   "fieldname": "oversight_roles",
+   "fieldtype": "Table",
+   "label": "Oversight Roles",
+   "options": "Oversight Role",
+   "reqd": 0
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Careverse Hq",
+ "name": "Admin Central Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

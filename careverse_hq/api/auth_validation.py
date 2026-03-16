@@ -8,6 +8,7 @@ The client React app will call this to double-check authentication status with t
 
 import frappe
 from frappe import _
+import frappe.sessions
 
 
 @frappe.whitelist(allow_guest=True)
@@ -67,3 +68,14 @@ def validate_session():
 			"roles": [],
 			"error": str(e)
 		}
+
+
+@frappe.whitelist()
+def get_csrf_token():
+	"""Return the current session's CSRF token.
+
+	Used by the React frontend to recover from stale tokens without
+	a full page reload.  Only authenticated users can call this
+	(no allow_guest) so it cannot be abused.
+	"""
+	return {"csrf_token": frappe.sessions.get_csrf_token()}

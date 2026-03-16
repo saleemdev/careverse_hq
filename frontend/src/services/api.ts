@@ -3,6 +3,7 @@
  * Manages all API calls to the backend
  */
 import { getCsrfToken, refreshCsrfToken, ensureCsrfToken } from '../utils/csrf';
+import { notifyApiError } from '../utils/notifications';
 
 interface ApiResponse<T = any> {
     success: boolean;
@@ -13,10 +14,14 @@ interface ApiResponse<T = any> {
 
 const isCsrfErrorResponse = (response: Response, result: any): boolean => {
     const payload = JSON.stringify(result || {});
+    const hasCsrfSignal = payload.includes('CSRFTokenError') || payload.includes('Invalid Request');
+    // Frappe CSRFTokenError returns HTTP 400; keep 403 for safety.
+    // Only treat 400 as CSRF when the body confirms it (avoids false positives
+    // on validation errors that also return 400).
     return (
         response.status === 403 ||
-        payload.includes('CSRFTokenError') ||
-        payload.includes('Invalid Request')
+        (response.status === 400 && hasCsrfSignal) ||
+        hasCsrfSignal
     );
 };
 
@@ -58,9 +63,11 @@ const apiCall = async <T = any>(
         }
 
         if (!response.ok) {
+            const errorMsg = result.message || result.exc || 'Request failed';
+            notifyApiError(errorMsg);
             return {
                 success: false,
-                error: result.message || result.exc || 'Request failed',
+                error: errorMsg,
             };
         }
 
@@ -80,9 +87,11 @@ const apiCall = async <T = any>(
         };
     } catch (error: any) {
         console.error(`[API] Error calling ${endpoint}:`, error);
+        const errorMsg = error.message || 'Network error';
+        notifyApiError(errorMsg);
         return {
             success: false,
-            error: error.message || 'Network error',
+            error: errorMsg,
         };
     }
 };
@@ -112,7 +121,7 @@ export const frappeCall = async <T = any>(
     return apiCall<T>('GET', endpoint);
 };
 
-const callFrappePostMethod = async <T = any>(
+export const callFrappePostMethod = async <T = any>(
     methodName: string,
     args: Record<string, any>
 ): Promise<ApiResponse<T>> => {
@@ -154,7 +163,13 @@ const callFrappePostMethod = async <T = any>(
             });
         });
 
-        if (!deskResult.success && getFallbackByGetAllowed && isCsrfText(deskResult.data || deskResult.error)) {
+        // Universal CSRF retry: if frappe.call failed due to stale token,
+        // fall back to apiCall which refreshes the token from the server and retries.
+        if (!deskResult.success && isCsrfText(deskResult.data || deskResult.error)) {
+            return apiCall<T>('POST', `/api/method/${methodName}`, args);
+        }
+
+        if (!deskResult.success && getFallbackByGetAllowed) {
             return frappeCall<T>(methodName, args);
         }
 

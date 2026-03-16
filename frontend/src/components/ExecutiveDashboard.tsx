@@ -56,9 +56,10 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
     // Facility context - only for company info, no filtering
     const {
         company,
-        hasCompanyPermission,
+        accessMode,
         loading: facilityLoading,
     } = useFacilityStore();
+    const canUseCompanyContext = accessMode === 'company';
 
     // State for real data
     const [companyData, setCompanyData] = useState<any>(null);
@@ -94,16 +95,16 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         onBudgetUpdate: handleBudgetUpdate,
         onCompanyUpdate: handleCompanyUpdate,
         onError: handleRealtimeError,
-        enabled: hasCompanyPermission && !facilityLoading, // Only enable after facility context is ready
+        enabled: canUseCompanyContext && !facilityLoading,
     });
 
     // Fetch data when company is loaded - ONLY after facility context is ready
     useEffect(() => {
         // CRITICAL: Only fetch if facility context is ready
-        if (hasCompanyPermission && !facilityLoading && company) {
+        if (canUseCompanyContext && !facilityLoading && company) {
             fetchDashboardData();
         }
-    }, [hasCompanyPermission, facilityLoading, company]);
+    }, [canUseCompanyContext, facilityLoading, company]);
 
     const fetchDashboardData = async () => {
         setLoading(true);

@@ -7,7 +7,7 @@ and available Health Facilities scoped to that Company.
 
 import frappe
 from frappe import _
-from typing import Dict, List, Optional
+from typing import Optional
 import base64
 from frappe.utils.file_manager import save_file
 from .utils import api_response
@@ -16,75 +16,120 @@ from .utils import api_response
 @frappe.whitelist()
 def get_user_company_context():
 	"""
-	Get user's Company (if any) and Health Facilities. Facilities are a simple
-	frappe.get_list("Health Facility"); Frappe User Permissions apply automatically.
+	Determine the calling user's access mode for Admin Central.
+
+	Access modes (evaluated in order):
+	  1. **company**   – user has a Company User Permission → tenant-scoped.
+	  2. **oversight**  – user holds a role listed in Admin Central Settings →
+	     full cross-tenant visibility (data scoped by Frappe Role Permissions).
+	  3. **none**       – neither of the above → blocked.
+
+	Both *company* and *oversight* users get the same frontend experience.
+	Facilities are loaded via ``frappe.get_list`` so Frappe's native
+	permission model (Role Permissions + User Permissions) governs what
+	records each user sees.
 	"""
 	try:
 		user = frappe.session.user
 
-		# Simple list of Health Facilities (User Permissions on Health Facility apply)
-		facilities = frappe.get_list(
-			"Health Facility",
-			fields=[
-				"hie_id",
-				"facility_name",
-				"facility_mfl",
-				"facility_type",
-				"category",
-				"organization_company",
-				"region_company",
-				"county",
-				"sub_county"
-			],
-			order_by="facility_name asc"
-		)
-
-		# Optional: Company from User Permission (for dashboard/other UI)
+		# ── 1. Company User Permission check ──────────────────────────
 		company_doc = None
-		user_permissions = frappe.get_all(
+		company_permissions = frappe.get_all(
 			"User Permission",
 			filters={"user": user, "allow": "Company"},
 			fields=["for_value", "is_default"],
 			order_by="is_default desc",
-			limit=1
+			limit=5,
 		)
-		if user_permissions:
-			try:
-				company_doc = frappe.get_doc("Company", user_permissions[0].for_value)
-			except Exception:
-				pass
+		for perm in company_permissions:
+			company_name = perm.get("for_value")
+			if not company_name:
+				continue
+			if not frappe.db.exists("Company", company_name):
+				continue
+			company_doc = frappe.db.get_value(
+				"Company",
+				company_name,
+				["name", "company_name", "abbr", "company_logo", "country", "default_currency"],
+				as_dict=True,
+			)
+			if company_doc:
+				break
+
+		has_company_permission = bool(company_doc)
+
+		# ── 2. Oversight role check (settings-driven) ─────────────────
+		from careverse_hq.careverse_hq.doctype.admin_central_settings.admin_central_settings import (
+			AdminCentralSettings,
+		)
+		is_oversight_user = AdminCentralSettings.is_oversight_user(user)
+
+		# ── 3. Resolve access mode ────────────────────────────────────
+		if has_company_permission:
+			access_mode = "company"
+		elif is_oversight_user:
+			access_mode = "oversight"
+		else:
+			access_mode = "none"
+
+		has_permission = access_mode != "none"
+
+		# ── 4. Health Facility data (only if DocType exists) ──────────
+		_hf_doctype_exists = frappe.db.exists("DocType", "Health Facility")
+		has_health_facility_permission = bool(
+			_hf_doctype_exists
+			and frappe.db.exists("User Permission", {"user": user, "allow": "Health Facility"})
+		)
+
+		facilities = []
+		if has_permission and _hf_doctype_exists:
+			# frappe.get_list respects Role Permissions + User Permissions
+			# natively — company users see their tenant's facilities,
+			# oversight users see whatever their role grants.
+			facilities = frappe.get_list(
+				"Health Facility",
+				fields=[
+					"hie_id",
+					"facility_name",
+					"facility_mfl",
+					"facility_type",
+					"category",
+					"organization_company",
+					"region_company",
+					"county",
+					"sub_county",
+				],
+				order_by="facility_name asc",
+			)
 
 		return api_response(
 			success=True,
 			data={
-				"has_permission": True,
-				"company": {
-					"name": company_doc.name,
-					"company_name": company_doc.company_name,
-					"abbr": company_doc.abbr,
-					"company_logo": getattr(company_doc, "company_logo", None),
-					"country": getattr(company_doc, "country", None),
-					"default_currency": getattr(company_doc, "default_currency", None),
-				} if company_doc else None,
+				"has_permission": has_permission,
+				"has_company_permission": has_company_permission,
+				"has_health_facility_permission": has_health_facility_permission,
+				"is_oversight_user": is_oversight_user,
+				"access_mode": access_mode,
+				"company": company_doc,
 				"facilities": facilities,
-			}
+			},
 		)
 
 	except frappe.PermissionError:
 		return api_response(
 			success=False,
-			message=_("Access denied to Company information"),
-			status_code=403
+			message=_("You do not have the required permissions to access this resource. Please contact your administrator."),
+			status_code=403,
 		)
 	except Exception as e:
 		frappe.log_error(
 			message=frappe.get_traceback(),
-			title="User Context API Error"
+			title="User Context API Error",
 		)
 		return api_response(
 			success=False,
-			message=str(e),
-			status_code=500
+			message=_("Something went wrong while loading your account context. Please try refreshing the page or contact support if the issue persists."),
+			status_code=500,
 		)
 
 
@@ -106,18 +151,15 @@ def get_facilities_for_company(company: str):
 	try:
 		user = frappe.session.user
 
-		# Verify user has permission for this company
-		user_permissions = frappe.get_all(
-			"User Permission",
-			filters={
-				"user": user,
-				"allow": "Company",
-				"for_value": company
-			},
-			limit=1
+		# Verify user has Company permission for this company.
+		has_company_permission = bool(
+			frappe.db.exists(
+				"User Permission",
+				{"user": user, "allow": "Company", "for_value": company},
+			)
 		)
 
-		if not user_permissions:
+		if not has_company_permission:
 			return api_response(
 				success=False,
 				message=_("You do not have permission for this Company"),
@@ -125,21 +167,23 @@ def get_facilities_for_company(company: str):
 			)
 
 		# Health Facility list: no filters — Frappe User Permissions on Health Facility apply
-		facilities = frappe.get_list(
-			"Health Facility",
-			fields=[
-				"hie_id",
-				"facility_name",
-				"facility_mfl",
-				"facility_type",
-				"category",
-				"organization_company",
-				"region_company",
-				"county",
-				"sub_county"
-			],
-			order_by="facility_name asc"
-		)
+		facilities = []
+		if frappe.db.exists("DocType", "Health Facility"):
+			facilities = frappe.get_list(
+				"Health Facility",
+				fields=[
+					"hie_id",
+					"facility_name",
+					"facility_mfl",
+					"facility_type",
+					"category",
+					"organization_company",
+					"region_company",
+					"county",
+					"sub_county"
+				],
+				order_by="facility_name asc"
+			)
 
 		return api_response(
 			success=True,
@@ -154,14 +198,14 @@ def get_facilities_for_company(company: str):
 			message=_("Access denied to facility information"),
 			status_code=403
 		)
-	except Exception as e:
+	except Exception:
 		frappe.log_error(
 			message=frappe.get_traceback(),
 			title="Get Facilities API Error"
 		)
 		return api_response(
 			success=False,
-			message=str(e),
+			message=_("Unable to load facility data. Please try again or contact support."),
 			status_code=500
 		)
 
@@ -202,14 +246,14 @@ def get_my_profile():
 				"user_permissions": user_permissions,
 			}
 		)
-	except Exception as e:
+	except Exception:
 		frappe.log_error(
 			message=frappe.get_traceback(),
 			title="Get My Profile API Error"
 		)
 		return api_response(
 			success=False,
-			message=str(e),
+			message=_("Unable to load your profile. Please try again."),
 			status_code=500
 		)
 
@@ -244,14 +288,14 @@ def set_my_profile_avatar(file_url: Optional[str] = None):
 			message=_("Avatar updated successfully"),
 			data={"user_image": file_url}
 		)
-	except Exception as e:
+	except Exception:
 		frappe.log_error(
 			message=frappe.get_traceback(),
 			title="Set My Profile Avatar API Error"
 		)
 		return api_response(
 			success=False,
-			message=str(e),
+			message=_("Unable to update your avatar. Please try again."),
 			status_code=500
 		)
 
@@ -313,13 +357,13 @@ def upload_my_profile_avatar(
 				"file_name": file_doc.file_name,
 			}
 		)
-	except Exception as e:
+	except Exception:
 		frappe.log_error(
 			message=frappe.get_traceback(),
 			title="Upload My Profile Avatar API Error"
 		)
 		return api_response(
 			success=False,
-			message=str(e),
+			message=_("Unable to upload your avatar. Please try again."),
 			status_code=500
 		)

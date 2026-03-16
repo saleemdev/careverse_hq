@@ -27,6 +27,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { getCsrfToken } from '../../utils/csrf';
+import { callFrappePostMethod } from '../../services/api';
 
 const { Title, Text } = Typography;
 
@@ -99,24 +100,15 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
     // Reset password
     const handleResetPassword = async (email: string) => {
         try {
-            const response = await fetch('/api/method/careverse_hq.api.user_management.reset_user_password', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': getCsrfToken()
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    user_email: email
-                })
+            const result = await callFrappePostMethod<{ temp_password: string }>('careverse_hq.api.user_management.reset_user_password', {
+                user_email: email,
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to reset password');
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to reset password');
             }
 
-            const result = await response.json();
-            setTempPassword(result.data.temp_password);
+            setTempPassword(result.data?.temp_password ?? null);
             setShowPasswordModal(true);
             message.success('Password reset successfully');
         } catch (error: any) {
@@ -128,21 +120,13 @@ const UserListPage: React.FC<UserListPageProps> = ({ navigateToRoute }) => {
     // Toggle user enabled status
     const handleToggleEnabled = async (email: string, currentEnabled: number) => {
         try {
-            const response = await fetch('/api/method/careverse_hq.api.user_management.update_user', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': getCsrfToken()
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    user_email: email,
-                    enabled: currentEnabled === 1 ? 0 : 1
-                })
+            const result = await callFrappePostMethod('careverse_hq.api.user_management.update_user', {
+                user_email: email,
+                enabled: currentEnabled === 1 ? 0 : 1,
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to update user');
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to update user');
             }
 
             message.success(`User ${currentEnabled === 1 ? 'disabled' : 'enabled'} successfully`);

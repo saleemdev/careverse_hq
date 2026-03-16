@@ -580,3 +580,86 @@
 [data-theme='dark'] .admin-detail {
   color: rgba(255, 255, 255, 0.45);
 }
+
+/* Limited-access mode: show live modules but lock interaction outside enabled modules */
+.moh-claims-only-shell {
+  position: relative;
+  min-height: calc(100vh - 64px);
+}
+
+.moh-claims-only-blurred-content {
+  filter: blur(7px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.moh-claims-only-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 2;
+}
+
+.moh-claims-only-overlay-card.ant-card {
+  max-width: 520px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(24, 144, 255, 0.2);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+  text-align: center;
+}
+
+.moh-claims-only-overlay-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.moh-claims-only-overlay-description {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.moh-claims-only-available-list {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.moh-claims-only-available-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0958d9;
+  background: rgba(24, 144, 255, 0.12);
+  border: 1px solid rgba(24, 144, 255, 0.25);
+}
+
+.moh-claims-only-action-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+[data-theme='dark'] .moh-claims-only-overlay-card.ant-card {
+  border-color: rgba(24, 144, 255, 0.35);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .moh-claims-only-available-chip {
+  color: #91caff;
+  background: rgba(24, 144, 255, 0.2);
+  border-color: rgba(24, 144, 255, 0.35);
+}
