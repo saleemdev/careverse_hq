@@ -36,7 +36,6 @@ import {
     validateBulkUploadRecords,
     normalizeRecordsForSubmit,
     type CSVRecord,
-    BULK_UPLOAD_MAX_RECORDS,
     ALLOWED_EMPLOYMENT_TYPES,
 } from '../../utils/bulkUploadCsv';
 
@@ -133,6 +132,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
             Papa.parse(text, {
                 header: true,
                 skipEmptyLines: true,
+                transformHeader: (h: string) => h.trim(),
                 complete: (results) => {
                     const records = (results.data || []) as Record<string, unknown>[];
                     const errors = validateBulkUploadRecords(records);
@@ -278,7 +278,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             >
                                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                     <Alert
-                                        message={`Use the official template. Max ${BULK_UPLOAD_MAX_RECORDS} rows per file.`}
+                                        message="Use the official template to ensure correct column headers."
                                         type="info"
                                         showIcon
                                         style={{ borderRadius: 8 }}

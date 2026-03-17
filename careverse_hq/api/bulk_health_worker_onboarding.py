@@ -106,38 +106,7 @@ def upload_bulk_health_workers(**kwargs):
                 status_code=400,
             )
 
-        # Enforce server-side record limit (align with frontend)
-        max_records = 500
-        if len(records) > max_records:
-            return api_response(
-                success=False,
-                message=f"Maximum {max_records} records allowed per upload. Received {len(records)}.",
-                status_code=400,
-            )
-
-        # Validate all records before creating job
-        validation_errors = []
-        for idx, record in enumerate(records, start=1):
-            errors = _validate_record(record, idx)
-            validation_errors.extend(errors)
-
-        if validation_errors:
-            # Create detailed error message
-            error_summary = "; ".join(validation_errors[:3])  # Show first 3 errors
-            if len(validation_errors) > 3:
-                error_summary += f" ... and {len(validation_errors) - 3} more error(s)"
-
-            return api_response(
-                success=False,
-                message=f"Validation failed: {error_summary}",
-                data={
-                    "errors": validation_errors,
-                    "total_errors": len(validation_errors),
-                },
-                status_code=400,
-            )
-
-        # Create parent record
+        # Create parent record — validation is handled by the doctype itself
         parent_doc = frappe.new_doc("Bulk Health Worker Upload")
         parent_doc.facility = facility_name
         parent_doc.uploaded_by = frappe.session.user

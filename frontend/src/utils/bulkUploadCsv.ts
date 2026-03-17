@@ -1,9 +1,7 @@
 /**
  * Shared CSV parsing and validation for bulk affiliation upload.
- * Aligns with backend: careverse_hq.api.bulk_health_worker_onboarding (required columns, employment_type, regulator, date format, max records).
+ * Aligns with backend: careverse_hq.api.bulk_health_worker_onboarding (required columns, employment_type, regulator, date format).
  */
-
-export const BULK_UPLOAD_MAX_RECORDS = 500;
 
 export const REQUIRED_CSV_COLUMNS = [
     'identification_type',
@@ -82,10 +80,6 @@ export function validateBulkUploadRecords(records: Record<string, unknown>[]): s
     if (records.length === 0) {
         errors.push('CSV file is empty');
         return errors;
-    }
-
-    if (records.length > BULK_UPLOAD_MAX_RECORDS) {
-        errors.push(`Maximum ${BULK_UPLOAD_MAX_RECORDS} records allowed per upload`);
     }
 
     const first = records[0];

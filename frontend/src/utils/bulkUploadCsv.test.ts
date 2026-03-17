@@ -6,7 +6,6 @@ import { describe, it, expect } from 'vitest';
 import {
     validateBulkUploadRecords,
     normalizeRecordsForSubmit,
-    BULK_UPLOAD_MAX_RECORDS,
     REQUIRED_CSV_COLUMNS,
     ALLOWED_EMPLOYMENT_TYPES,
 } from './bulkUploadCsv';
@@ -28,15 +27,6 @@ describe('validateBulkUploadRecords', () => {
     it('reports empty file', () => {
         const errors = validateBulkUploadRecords([]);
         expect(errors).toContain('CSV file is empty');
-    });
-
-    it('reports when over max records', () => {
-        const records = Array.from({ length: BULK_UPLOAD_MAX_RECORDS + 1 }, (_, i) => ({
-            ...validRecord,
-            identification_number: `id${i}`,
-        }));
-        const errors = validateBulkUploadRecords(records);
-        expect(errors.some((e) => e.includes(`Maximum ${BULK_UPLOAD_MAX_RECORDS}`))).toBe(true);
     });
 
     it('reports missing required columns', () => {
