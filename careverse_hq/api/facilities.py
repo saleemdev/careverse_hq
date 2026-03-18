@@ -4,6 +4,7 @@ import requests
 
 from .hie_settings import HIE
 from .utils import api_response
+from .dashboard_utils import _count
 from healthpro_erp.api.utils import sanitize_request
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required
 
@@ -45,7 +46,7 @@ def fetch_facility_list(**kwargs):
             page_length=page_length
         )
 
-        total_count = frappe.db.count("Health Facility", filters=final_filters)
+        total_count = _count("Health Facility", filters=final_filters)
        
         if total_count == 0:
             return api_response(
@@ -144,23 +145,25 @@ def fetch_facility_details(**kwargs):
         modifier=f.get('modified_by')
         owner=f.get('owner')
         
-        modified_by=frappe.get_list("User",fields=['full_name'],filters={"name":modifier})
-        created_by=frappe.get_list("User",fields=['full_name'],filters={"name":owner})
+        modified_by=frappe.get_list("User",fields=['full_name'],filters={"name":modifier},limit_page_length=0)
+        created_by=frappe.get_list("User",fields=['full_name'],filters={"name":owner},limit_page_length=0)
 
         facility_metrics = simple_facility_metrics(facility_id)
         
 
         
-        banks = frappe.get_all(
+        banks = frappe.get_list(
         "Health Facility Banks",
         filters={"parent": facility_id, "parenttype": "Health Facility", "parentfield": "banks"},
-        fields=["bank_name", "branch_name","account_name","account_number"]
+        fields=["bank_name", "branch_name","account_name","account_number"],
+        limit_page_length=0
         )
         
-        contacts = frappe.get_all(
+        contacts = frappe.get_list(
        "Health Facilities Contacts",
         filters={"parent": facility_id, "parenttype": "Health Facility", "parentfield": "contacts"},
-        fields=["contact_name", "phone_number"]
+        fields=["contact_name", "phone_number"],
+        limit_page_length=0
         )
          
         org_details = None
@@ -175,20 +178,22 @@ def fetch_facility_details(**kwargs):
             )
             org_details = org if org else None
 
-        services_offered = frappe.get_all(
+        services_offered = frappe.get_list(
             "Available Services",
             filters={"parent": facility_id, "parenttype": "Health Facility", "parentfield": "facility_available_services"},
-            fields=["available_services","is_available"]
+            fields=["available_services","is_available"],
+            limit_page_length=0
         )
         if not services_offered:
             # Get the actual document object
             facility_doc = frappe.get_doc("Health Facility", facility_id)
             
             # Get default services
-            services_offered_list = frappe.get_all(
+            services_offered_list = frappe.get_list(
                 "Registry Dictionary Concept",
                 filters={"concept_class": "Service Type"},
-                pluck="name"
+                pluck="name",
+                limit_page_length=0
             )
             
             # Append to child table
@@ -203,10 +208,11 @@ def fetch_facility_details(**kwargs):
             frappe.db.commit()
             
             # Re-fetch services_offered for response
-            services_offered = frappe.get_all(
+            services_offered = frappe.get_list(
                 "Available Services",
                 filters={"parent": facility_id, "parenttype": "Health Facility", "parentfield": "facility_available_services"},
-                fields=["available_services", "is_available"]
+                fields=["available_services", "is_available"],
+                limit_page_length=0
             )
         
 
@@ -238,6 +244,7 @@ def fetch_facility_details(**kwargs):
             },
             fields=["name", "owner", "creation", "data"],
             order_by="creation desc",
+            limit_page_length=0,
          )
         
         # Parse and format the data field
@@ -411,7 +418,7 @@ def get_change_description(changes):
 def simple_facility_metrics(facility_id):
     metrics = {}
     #service_points = frappe.get_list('Service Points',filters={'health_facility':facility_id},fields=["is_active","ward_type","is_ward","ward_gender","number_of_stations","service_type","location_id","name","shifts_available","docstatus","description","number_of_shifts","department","service_point_name"])
-    service_points = frappe.get_list('Service Points',filters={'health_facility':facility_id},pluck="number_of_stations")
+    service_points = frappe.get_list('Service Points',filters={'health_facility':facility_id},pluck="number_of_stations",limit_page_length=0)
 
     
     number_of_stations = 0
@@ -425,6 +432,7 @@ def simple_facility_metrics(facility_id):
         filters=health_worker_filters,
         pluck="custom_health_professional",
         order_by="custom_health_professional asc",
+        limit_page_length=0,
     )
     if health_worker_list:
         number_of_health_workers =len(health_worker_list)
@@ -435,6 +443,7 @@ def simple_facility_metrics(facility_id):
         filters=staff_filters,
         pluck="custom_health_professional",
         order_by="custom_health_professional asc",
+        limit_page_length=0,
     )
     if staff_list:
          number_of_support_staff =len(staff_list)
@@ -468,6 +477,7 @@ def fetch_facility_employee_list(**kwargs):
             fields=["name","gender","custom_identification_number as identification_number","user_id","date_of_birth","employee_name","employee"],
             filters={"custom_facility_id": kwargs.get("facility_id")},
             order_by="name desc",
+            limit_page_length=0,
         )
 
         if not employees:

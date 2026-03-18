@@ -14,24 +14,27 @@ def get_facility_detail(facility_id):
         facility = frappe.get_doc("Health Facility", facility_id)
         
         # Get banks
-        banks = frappe.get_all(
+        banks = frappe.get_list(
             "Health Facility Banks",
             filters={"parent": facility_id},
-            fields=["bank_name", "branch_name", "account_name", "account_number"]
+            fields=["bank_name", "branch_name", "account_name", "account_number"],
+            limit_page_length=0
         )
 
         # Get contacts (only has contact_name and phone_number fields)
-        contacts = frappe.get_all(
+        contacts = frappe.get_list(
             "Health Facilities Contacts",
             filters={"parent": facility_id},
-            fields=["contact_name", "phone_number"]
+            fields=["contact_name", "phone_number"],
+            limit_page_length=0
         )
 
         # Get services (only has available_services field, no description)
-        services = frappe.get_all(
+        services = frappe.get_list(
             "Available Services",
             filters={"parent": facility_id, "is_available": 1},
-            fields=["available_services"]
+            fields=["available_services"],
+            limit_page_length=0
         )
         
         # Return clean response

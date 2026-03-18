@@ -69,7 +69,7 @@ class Auth:
             )
 
         # Get user's phone number
-        user_data = frappe.get_all(
+        user_data = frappe.get_list(
             "User",
             filters={"username": username},
             fields=["phone", "email"],
@@ -191,8 +191,9 @@ class Auth:
             user_details = frappe.get_doc("User", username)
             role_profile = user_details.get("role_profile_name", None)
 
-            user_roles = frappe.get_all(
-                "Has Role", filters={"parent": username}, fields=["role"]
+            user_roles = frappe.get_list(
+                "Has Role", filters={"parent": username}, fields=["role"],
+                limit_page_length=0
             )
             roles = [role["role"] for role in user_roles]
 

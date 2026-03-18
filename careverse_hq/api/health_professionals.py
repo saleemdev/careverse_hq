@@ -8,6 +8,7 @@ import frappe
 from frappe import _
 from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
+from .dashboard_utils import _count
 
 
 @frappe.whitelist()
@@ -66,17 +67,18 @@ def get_health_professionals(
             ]
 
         # Get total count for pagination
-        # Note: frappe.db.count() does NOT support or_filters parameter
+        # Note: _count() does NOT support or_filters parameter
         if or_filters:
             # When search/or_filters are present, use frappe.get_all for counting
-            total_count = len(frappe.get_all(
+            total_count = len(frappe.get_list(
                 "Employee",
                 filters=filters,
-                or_filters=or_filters
+                or_filters=or_filters,
+                limit_page_length=0
             ))
         else:
             # Simple count when no or_filters
-            total_count = frappe.db.count(
+            total_count = _count(
                 "Employee",
                 filters=filters
             )
@@ -224,7 +226,8 @@ def get_health_professional_detail(id: str):
                 "role", "designation", "employment_type", "affiliation_status",
                 "start_date", "end_date"
             ],
-            order_by="start_date desc"
+            order_by="start_date desc",
+            limit_page_length=0
         )
 
         # Get health facility names for affiliations
@@ -283,7 +286,8 @@ def get_professional_cadres():
             fields=["professional_cadre"],
             distinct=True,
             filters={"professional_cadre": ["is", "set"]},
-            order_by="professional_cadre asc"
+            order_by="professional_cadre asc",
+            limit_page_length=0
         )
 
         # Format for dropdown
@@ -331,7 +335,8 @@ def get_specialties_by_cadre(cadre: Optional[str] = None):
             fields=["professional_specialty"],
             distinct=True,
             filters=filters,
-            order_by="professional_specialty asc"
+            order_by="professional_specialty asc",
+            limit_page_length=0
         )
 
         # Format for dropdown
@@ -389,13 +394,14 @@ def calculate_health_professional_metrics(
 
     # Total count - Query Employee doctype
     if or_filters:
-        total_count = len(frappe.get_all(
+        total_count = len(frappe.get_list(
             "Employee",
             filters=filters,
-            or_filters=or_filters
+            or_filters=or_filters,
+            limit_page_length=0
         ))
     else:
-        total_count = frappe.db.count(
+        total_count = _count(
             "Employee",
             filters=filters
         )
@@ -405,13 +411,14 @@ def calculate_health_professional_metrics(
     active_filters["status"] = "Active"
 
     if or_filters:
-        active_count = len(frappe.get_all(
+        active_count = len(frappe.get_list(
             "Employee",
             filters=active_filters,
-            or_filters=or_filters
+            or_filters=or_filters,
+            limit_page_length=0
         ))
     else:
-        active_count = frappe.db.count(
+        active_count = _count(
             "Employee",
             filters=active_filters
         )

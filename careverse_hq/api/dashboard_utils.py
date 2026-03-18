@@ -10,6 +10,22 @@ from collections import defaultdict
 from frappe.utils import get_first_day, get_last_day, add_months, getdate, today
 
 
+def _count(doctype: str, filters: Optional[Dict] = None) -> int:
+    """RBAC-safe document count.
+
+    Uses frappe.get_list (which applies User Permissions) instead of
+    frappe.db.count (which bypasses RBAC).
+    """
+    return len(
+        frappe.get_list(
+            doctype,
+            filters=filters,
+            fields=["name"],
+            limit_page_length=0,
+        )
+    )
+
+
 def get_user_company(user: Optional[str] = None) -> Optional[str]:
     """
     Get user's Company from User Permission.
@@ -33,30 +49,28 @@ def get_user_company(user: Optional[str] = None) -> Optional[str]:
     return perms[0].for_value if perms else None
 
 
-def validate_user_facilities(user: str, company: str, facility_ids: List[str]) -> List[str]:
+def validate_user_facilities(facility_ids: List[str]) -> List[str]:
     """
-    Ensure facilities belong to user's company.
-    
+    Return only the facility hie_ids the current user has permission to access.
+
+    Uses frappe.get_list so Frappe User Permissions (including Company)
+    are applied automatically — no manual company filter needed.
+
     Args:
-        user: User email
-        company: Company name
         facility_ids: List of facility hie_ids to validate
-    
+
     Returns:
-        List of valid facility hie_ids
+        List of permitted facility hie_ids
     """
     if not facility_ids:
         return []
-    
-    valid_facilities = frappe.get_all(
+
+    return frappe.get_list(
         "Health Facility",
-        filters={
-            "hie_id": ["in", facility_ids],
-            "organization_company": company
-        },
-        pluck="hie_id"
+        filters={"hie_id": ["in", facility_ids]},
+        pluck="hie_id",
+        limit_page_length=0,
     )
-    return valid_facilities
 
 
 def generate_monthly_trend(records: List[dict], date_field: str) -> List[dict]:

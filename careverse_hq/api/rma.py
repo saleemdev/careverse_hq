@@ -174,7 +174,7 @@ def rma_details(**kwargs):
         date_purchased = None
         
         # Search for Purchase Receipt Item that contains this item (device_name)
-        purchase_receipts = frappe.get_all(
+        purchase_receipts = frappe.get_list(
             "Purchase Receipt Item",
             filters={"item_code": device_details.device_name},
             fields=["parent", "rate"],
@@ -311,10 +311,11 @@ def create_rma(**kwargs):
 
         # Check for existing RMA with same serial number that is not resolved
         # Only allow new RMA if existing RMA status is "Resolved By Vendor" or "Resolved"
-        existing_rmas = frappe.get_all(
+        existing_rmas = frappe.get_list(
             "Return Merchandise Authorization",
             filters={"serial_number": serial_number},
-            fields=["name", "status"]
+            fields=["name", "status"],
+            limit_page_length=0
         )
 
         if existing_rmas:
@@ -775,7 +776,7 @@ def mark_as_verified(**kwargs):
         
         # Look up "Verified" status from Registry Dictionary Concept (case insensitive)
         # Since autoname="field:concept_name", the name IS the concept_name
-        concepts = frappe.get_all(
+        concepts = frappe.get_list(
             "Registry Dictionary Concept",
             fields=["name"],
             limit_page_length=0
@@ -872,7 +873,7 @@ def return_to_vendor(**kwargs):
             )
         
         # Look up "Return to vendor" status from Registry Dictionary Concept (case insensitive)
-        concepts = frappe.get_all(
+        concepts = frappe.get_list(
             "Registry Dictionary Concept",
             fields=["name"],
             limit_page_length=0

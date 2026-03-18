@@ -482,10 +482,11 @@ def create_facility_update_hfr(**encrypted_kwargs):
             )
 
         # --- Step 1: Check if Health Organization exists ---
-        health_org = frappe.get_all(
+        health_org = frappe.get_list(
             "Healthcare Organization",
             filters={"name": organization_id},
             fields=["name", "organization_name"],
+            limit_page_length=0,
         )
         if not health_org:
             return api_response(
@@ -567,7 +568,7 @@ def create_facility_update_hfr(**encrypted_kwargs):
             "Content-Type": "application/json",
         }
 
-        existing = frappe.get_all(
+        existing = frappe.get_list(
             "Health Facility",
             filters={"registration_number": registration_number},
             pluck="name",
@@ -897,7 +898,7 @@ def create_new_facility(**encrypted_kwargs):
             )
 
         # check if facility already exists
-        existing = frappe.get_all(
+        existing = frappe.get_list(
             "Health Facility",
             filters={"registration_number": facility_registration_number},
             pluck="name",
@@ -1523,8 +1524,8 @@ def get_companies(organization_name=None, company_type=None):
 
         # If organization_name is provided, fetch the parent company by company_name
         if organization_name:
-            parent_company = frappe.get_all(
-                "Company", filters={"company_name": organization_name}, fields=fields
+            parent_company = frappe.get_list(
+                "Company", filters={"company_name": organization_name}, fields=fields, limit_page_length=0
             )
             if parent_company:
                 companies.extend(parent_company)
@@ -1534,8 +1535,8 @@ def get_companies(organization_name=None, company_type=None):
                 if company_type:
                     child_filters["custom_company_type"] = company_type
 
-                child_companies = frappe.get_all(
-                    "Company", filters=child_filters, fields=fields
+                child_companies = frappe.get_list(
+                    "Company", filters=child_filters, fields=fields, limit_page_length=0
                 )
                 companies.extend(child_companies)
             else:
@@ -1543,14 +1544,14 @@ def get_companies(organization_name=None, company_type=None):
                 filters = {"parent_company": organization_name}
                 if company_type:
                     filters["custom_company_type"] = company_type
-                companies = frappe.get_all("Company", filters=filters, fields=fields)
+                companies = frappe.get_list("Company", filters=filters, fields=fields, limit_page_length=0)
 
         else:
             # No organization_name filter passed, fetch all companies (optionally filtered by company_type)
             filters = {}
             if company_type:
                 filters["custom_company_type"] = company_type
-            companies = frappe.get_all("Company", filters=filters, fields=fields)
+            companies = frappe.get_list("Company", filters=filters, fields=fields, limit_page_length=0)
 
         return api_response(
             success=True, data={"companies": companies}, status_code=200
@@ -1643,7 +1644,7 @@ def get_departments(company_name=None, facility=None):
         if facility:
             filters["custom_health_facility"] = facility
 
-        departments = frappe.get_all(
+        departments = frappe.get_list(
             "Department",
             filters=filters,
             fields=[
@@ -1654,6 +1655,7 @@ def get_departments(company_name=None, facility=None):
                 "is_group",
                 "custom_is_health_facility",
             ],
+            limit_page_length=0,
         )
 
         response = {"departments": departments}
@@ -1677,7 +1679,7 @@ def get_facility_departments(facility=None):
         if facility:
             filters["custom_health_facility"] = facility
 
-        departments = frappe.get_all(
+        departments = frappe.get_list(
             "Department",
             filters=filters,
             fields=[
@@ -1688,6 +1690,7 @@ def get_facility_departments(facility=None):
                 "is_group",
                 "custom_is_health_facility",
             ],
+            limit_page_length=0,
         )
 
         response = {"departments": departments}
@@ -2005,10 +2008,11 @@ def edit_service_point_v1(**encrypted_kwargs):
 
 def get_ward_types_v1(**kwargs):
     try:
-        service_points = frappe.get_all(
+        service_points = frappe.get_list(
             "Registry Dictionary Concept",
             filters={"concept_class": "Ward Type"},
             pluck="name",
+            limit_page_length=0,
         )
 
         return api_response(success=True, data=service_points, status_code=200)
@@ -2102,13 +2106,14 @@ def remove_service_point(**encrypted_kwargs):
 
 def get_location_service_points():
     try:
-        service_points = frappe.get_all(
+        service_points = frappe.get_list(
             "Location",
             filters={"custom_is_service_point": True},
             fields=[
                 "custom_location_id as service_point_id",
                 "location_name as service_point_name",
             ],
+            limit_page_length=0,
         )
 
         response = {"service_points": service_points}
@@ -2130,7 +2135,7 @@ def get_service_points(department=None):
         if department:
             filters["name"] = department
 
-        service_points = frappe.get_all(
+        service_points = frappe.get_list(
             "Department",
             filters=filters,
             fields=[
@@ -2141,6 +2146,7 @@ def get_service_points(department=None):
                 "custom_shift_available",
                 "custom_number_of_shifts",
             ],
+            limit_page_length=0,
         )
 
         response = {"service_points": service_points}
@@ -2190,6 +2196,7 @@ def get_service_points_v1(**kwargs):
                 "description",
                 "is_active",
             ],
+            limit_page_length=0,
         )
 
         response = {"service_points": service_points}
@@ -2238,7 +2245,7 @@ def send_invitation_email(
 
 def get_designations_list():
     try:
-        designations = frappe.get_all("Designation", fields=["*"])
+        designations = frappe.get_list("Designation", fields=["*"], limit_page_length=0)
         return api_response(
             success=True,
             data=[d.designation_name for d in designations],
@@ -2263,13 +2270,14 @@ def get_designations_list_v1(**kwargs):
             #load the Body to see if it exists
             reg_body = kwargs.get("regulatory_body")
             try:
-                docs = frappe.get_all(
+                docs = frappe.get_list(
                     "Regulatory Body",
                     or_filters={
                         "name": reg_body,
                         "abbreviation": reg_body
                     },
-                    fields=["name", "abbreviation"]
+                    fields=["name", "abbreviation"],
+                    limit_page_length=0
                 )
                 doc_name = docs[0].get('name')
                 filters.append([
@@ -2293,10 +2301,11 @@ def get_designations_list_v1(**kwargs):
                 kwargs["cadre"]
             ])
         
-        designations = frappe.get_all(
+        designations = frappe.get_list(
             "Designation",
             filters=filters,
-            pluck="name"
+            pluck="name",
+            limit_page_length=0
         )
         
         return api_response(
@@ -2322,13 +2331,14 @@ def get_designations_list_v2(**kwargs):
             #load the Body to see if it exists
             reg_body = kwargs.get("regulatory_body")
             try:
-                docs = frappe.get_all(
+                docs = frappe.get_list(
                     "Regulatory Body",
                     or_filters={
                         "name": reg_body,
                         "abbreviation": reg_body
                     },
-                    fields=["name", "abbreviation"]
+                    fields=["name", "abbreviation"],
+                    limit_page_length=0
                 )
                 doc_name = docs[0].get('name')
                 filters.append([
@@ -2359,10 +2369,11 @@ def get_designations_list_v2(**kwargs):
                True if kwargs["is_fulltime"] in ['True','true'] else False
             ])
         
-        designations = frappe.get_all(
+        designations = frappe.get_list(
             "Designation",
             filters=filters,
-            fields=['name','custom_is_fulltime as is_fulltime']
+            fields=['name','custom_is_fulltime as is_fulltime'],
+            limit_page_length=0
         )
         
         return api_response(

@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from .utils import api_response
+from .dashboard_utils import _count
 from healthpro_erp.api.utils import (
     send_otp,
     verify_otp,
@@ -128,8 +129,9 @@ def authenticate_user(**kwargs):
             user_details = frappe.get_doc("User", username)
             role_profile = user_details.get("role_profile_name", None)
 
-            user_roles = frappe.get_all(
-                "Has Role", filters={"parent": username}, fields=["role"]
+            user_roles = frappe.get_list(
+                "Has Role", filters={"parent": username}, fields=["role"],
+                limit_page_length=0,
             )
             roles = [role["role"] for role in user_roles]
 
@@ -197,7 +199,7 @@ def authenticate_user(**kwargs):
             ] or any(
                 role in ["Facility Admin", "Facility Administrator"] for role in roles
             ):
-                facility_count = frappe.db.count(
+                facility_count = _count(
                     "Health Facility",
                     filters={
                         "administrators_email_address": username

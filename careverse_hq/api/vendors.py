@@ -1,6 +1,7 @@
 import frappe, re
 from typing import Any, Dict
 from .utils import api_response, sanitize_request
+from .dashboard_utils import _count
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required, AuthError
 
 # ===== Helper Functions =====
@@ -95,7 +96,7 @@ def _fetch_vendors(vendor_filters, start, page_size):
         return {"vendor_list": vendors, "total_vendors": 0}
     
     # Total count
-    vendor_count = frappe.db.count("Supplier", filters=vendor_filters)
+    vendor_count = _count("Supplier", filters=vendor_filters)
 
     return {
         "vendor_list": vendors,

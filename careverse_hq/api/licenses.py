@@ -11,7 +11,7 @@ from typing import Optional, List
 import frappe
 from frappe.desk.reportview import get_count
 from .response import api_response
-from .dashboard_utils import get_user_company, validate_user_facilities
+from .dashboard_utils import validate_user_facilities
 from datetime import datetime, timedelta
 
 
@@ -36,118 +36,67 @@ def get_licenses_overview(facilities: Optional[str] = None):
 		}
 	"""
 	try:
-		user = frappe.session.user
-		company = get_user_company(user)
-
-		# Permission check
-		has_permission = frappe.db.exists("User Permission", {
-			"user": user,
-			"allow": "Company",
-			"for_value": company
-		})
-
-		if not has_permission:
-			return api_response(
-				success=False,
-				message="No permission to access this company's data",
-				status_code=403
-			)
-
 		# Parse and validate facilities
-		valid_facility_ids = []
-		if facilities:
-			facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-			valid_facility_ids = validate_user_facilities(user, company, facility_ids)
-
-		# Build filters - only submitted licenses
 		license_filters = {"docstatus": 1}
 
-		if valid_facility_ids:
-			license_filters["health_facility"] = ["in", valid_facility_ids]
-		else:
-			# Get all facilities for company if none selected
-			all_facility_ids = frappe.get_all(
-				"Health Facility",
-				filters={"organization_company": company},
-				pluck="hie_id"
-			)
-			if all_facility_ids:
-				license_filters["health_facility"] = ["in", all_facility_ids]
-			else:
-				# No facilities for this company
-				return api_response(
-					success=True,
-					data={
-						"statistics": {
-							"total": 0,
-							"by_status": {},
-							"by_regulatory_body": {},
-							"expiry_alerts": {
-								"expiring_30_days": 0,
-								"expiring_60_days": 0,
-								"expiring_90_days": 0,
-								"expired": 0
-							},
-							"payment_status": {
-								"paid": 0,
-								"pending": 0
-							}
-						},
-						"licenses": []
-					}
-				)
+		if facilities:
+			facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
+			valid_facility_ids = validate_user_facilities(facility_ids)
+			if valid_facility_ids:
+				license_filters["health_facility"] = ["in", valid_facility_ids]
 
-		# Get all licenses
-			licenses = frappe.get_all(
-				"License Record",
-				filters=license_filters,
-				fields=[
-					"name", "health_facility", "facility_name", "license_type",
+		# Get all licenses (frappe.get_list applies User Permissions automatically)
+		licenses = frappe.get_list(
+			"License Record",
+			filters=license_filters,
+			fields=[
+				"name", "health_facility", "facility_name", "license_type",
 				"license_type_name", "license_number", "application_type",
 				"status", "issue_date", "expiry_date", "regulatory_body",
 				"license_fee", "license_fee_paid", "docstatus"
 			],
-				order_by="modified desc"
+			order_by="modified desc",
+			limit_page_length=0
+		)
+
+		# Enrich with facility details
+		facility_refs = list({l.get("health_facility") for l in licenses if l.get("health_facility")})
+		facility_map = {}
+		if facility_refs:
+			facilities_data = frappe.get_list(
+				"Health Facility",
+				filters={"hie_id": ["in", facility_refs]},
+				fields=["name", "hie_id", "facility_name"],
+				limit_page_length=0
 			)
 
-			# Normalize facility fields for frontend list views:
-			# - facility_name as human-readable primary label
-			# - facility_id as HIE ID secondary label
-			facility_refs = list({l.get("health_facility") for l in licenses if l.get("health_facility")})
-			facility_map = {}
-			if facility_refs:
-				facilities_data = frappe.get_all(
+			if len(facilities_data) < len(facility_refs):
+				by_name_data = frappe.get_list(
 					"Health Facility",
-					filters={"hie_id": ["in", facility_refs]},
-					fields=["name", "hie_id", "facility_name"]
+					filters={"name": ["in", facility_refs]},
+					fields=["name", "hie_id", "facility_name"],
+					limit_page_length=0
 				)
+				facilities_data.extend(by_name_data)
 
-				if len(facilities_data) < len(facility_refs):
-					by_name_data = frappe.get_all(
-						"Health Facility",
-						filters={"name": ["in", facility_refs]},
-						fields=["name", "hie_id", "facility_name"]
-					)
-					facilities_data.extend(by_name_data)
+			for facility in facilities_data:
+				if facility.get("name"):
+					facility_map[facility["name"]] = facility
+				if facility.get("hie_id"):
+					facility_map[facility["hie_id"]] = facility
 
-				for facility in facilities_data:
-					if facility.get("name"):
-						facility_map[facility["name"]] = facility
-					if facility.get("hie_id"):
-						facility_map[facility["hie_id"]] = facility
+		for license_rec in licenses:
+			facility_ref = license_rec.get("health_facility")
+			facility = facility_map.get(facility_ref)
+			if facility:
+				license_rec["facility_name"] = license_rec.get("facility_name") or facility.get("facility_name") or facility_ref or "Unknown Facility"
+				license_rec["facility_id"] = facility.get("hie_id") or ""
+			else:
+				license_rec["facility_name"] = license_rec.get("facility_name") or facility_ref or "Unknown Facility"
+				license_rec["facility_id"] = ""
 
-			for license_rec in licenses:
-				facility_ref = license_rec.get("health_facility")
-				facility = facility_map.get(facility_ref)
-				if facility:
-					license_rec["facility_name"] = license_rec.get("facility_name") or facility.get("facility_name") or facility_ref or "Unknown Facility"
-					license_rec["facility_id"] = facility.get("hie_id") or ""
-				else:
-					license_rec["facility_name"] = license_rec.get("facility_name") or facility_ref or "Unknown Facility"
-					license_rec["facility_id"] = ""
-
-			# Calculate days to expiry for each license
-			today = datetime.now().date()
+		# Calculate days to expiry for each license
+		today = datetime.now().date()
 		for license_rec in licenses:
 			if license_rec.get("expiry_date"):
 				expiry = datetime.fromisoformat(str(license_rec["expiry_date"])).date()
@@ -198,27 +147,15 @@ def get_license_detail(license_id: str):
 		}
 	"""
 	try:
-		user = frappe.session.user
-		company = get_user_company(user)
+		# Permission check via Frappe's built-in permission framework
+		if not frappe.db.exists("License Record", license_id):
+			return api_response(success=False, message="License not found", status_code=404)
 
-		# Permission check
-		has_permission = frappe.db.exists("User Permission", {
-			"user": user,
-			"allow": "Company",
-			"for_value": company
-		})
+		if not frappe.has_permission("License Record", "read", license_id):
+			return api_response(success=False, message="License not found or access denied", status_code=403)
 
-		if not has_permission:
-			return api_response(
-				success=False,
-				message="No permission to access this company's data",
-				status_code=403
-			)
-
-		# Get license record - verify it exists and is submitted
 		license_rec = frappe.get_doc("License Record", license_id)
 
-		# Verify license is submitted
 		if license_rec.docstatus != 1:
 			return api_response(
 				success=False,
@@ -226,50 +163,26 @@ def get_license_detail(license_id: str):
 				status_code=404
 			)
 
-		# Verify license has a valid health_facility
-		if not license_rec.health_facility:
-			return api_response(
-				success=False,
-				message="License not found or access denied",
-				status_code=404
-			)
-
-		# Verify facility belongs to user's company
-		facility = frappe.db.get_value(
-			"Health Facility",
-			license_rec.health_facility,
-			"organization_company"
-		)
-
-		if not facility or facility != company:
-			frappe.logger().warning(
-				f"[LICENSE DETAIL] User {user} attempted to access license {license_id} "
-				f"from facility {license_rec.health_facility}. "
-				f"Facility check: facility={facility}, company={company}"
-			)
-			return api_response(
-				success=False,
-				message="License not found or access denied",
-				status_code=404
-			)
-
-		# Get child table data
-		services = frappe.get_all(
+		# Get child table data (frappe.get_list applies User Permissions)
+		services = frappe.get_list(
 			"Available Services",
 			filters={"parent": license_id, "parenttype": "License Record"},
-			fields=["available_services", "is_available"]
+			fields=["available_services", "is_available"],
+			limit_page_length=0
 		)
 
-		additional_information = frappe.get_all(
+		additional_information = frappe.get_list(
 			"License Additional Information",
 			filters={"parent": license_id, "parenttype": "License Record"},
-			fields=["title", "request_comment", "status", "requested_on", "provided_on", "response"]
+			fields=["title", "request_comment", "status", "requested_on", "provided_on", "response"],
+			limit_page_length=0
 		)
 
-		compliance_documents = frappe.get_all(
+		compliance_documents = frappe.get_list(
 			"License Record Documents",
 			filters={"parent": license_id, "parenttype": "License Record"},
-			fields=["document_type", "document_file"]
+			fields=["document_type", "document_file"],
+			limit_page_length=0
 		)
 
 		# Calculate days to expiry

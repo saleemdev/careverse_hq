@@ -202,7 +202,7 @@ def create_facility_affiliation_record_v1(health_professional_name, employment_d
             }
 
         # Check for duplicate affiliation
-        existing_affiliation = frappe.get_all(
+        existing_affiliation = frappe.get_list(
             "Facility Affiliation",
             filters={
                 "health_professional": health_professional_name,
@@ -210,6 +210,7 @@ def create_facility_affiliation_record_v1(health_professional_name, employment_d
                 "affiliation_status": ["in", ["Pending", "Confirmed", "Active"]],
             },
             fields=["name", "affiliation_status"],
+            limit_page_length=0,
         )
 
         if existing_affiliation:
@@ -305,7 +306,7 @@ def _create_facility_affiliation_record_internal(
             }
 
         # Check for duplicate affiliation
-        existing_affiliation = frappe.get_all(
+        existing_affiliation = frappe.get_list(
             "Facility Affiliation",
             filters={
                 "health_professional": health_professional_name,
@@ -313,9 +314,10 @@ def _create_facility_affiliation_record_internal(
                 "affiliation_status": ["in", ["Pending", "Confirmed", "Active"]],
             },
             fields=["name", "affiliation_status"],
+            limit_page_length=0,
         )
 
-        existing_fulltime_affiliation = frappe.get_all(
+        existing_fulltime_affiliation = frappe.get_list(
             "Facility Affiliation",
             filters={
                 "health_professional": health_professional_name,
@@ -323,6 +325,7 @@ def _create_facility_affiliation_record_internal(
                 "affiliation_status": ["in", ["Pending", "Confirmed", "Active"]],
             },
             fields=["name", "affiliation_status"],
+            limit_page_length=0,
         )
 
         if (
@@ -421,7 +424,7 @@ def create_facility_affiliation_record(health_professional_name, employment_deta
 #             }
 
 #         # Check for duplicate affiliation
-#         existing_affiliation = frappe.get_all(
+#         existing_affiliation = frappe.get_list(
 #             "Facility Affiliation",
 #             filters={
 #                 "health_professional": health_professional_name,
@@ -431,7 +434,7 @@ def create_facility_affiliation_record(health_professional_name, employment_deta
 #             fields=["name", "affiliation_status"],
 #         )
 
-#         existing_fulltime_affiliation = frappe.get_all(
+#         existing_fulltime_affiliation = frappe.get_list(
 #             "Facility Affiliation",
 #             filters={
 #                 "health_professional": health_professional_name,
@@ -559,6 +562,7 @@ def ensure_designation_exists(designation_name):
         "Designation",
         filters=[["designation_name", "like", f"{designation_name}"]],
         fields=["name", "designation_name"],
+        limit_page_length=0,
     )
 
     # Check for exact match (case-insensitive)

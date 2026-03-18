@@ -63,12 +63,12 @@ def create_team_user(**kwargs):
         "roles": [kwargs.get("role")] if kwargs.get("role") else [],
         "scopes": [],
     }
-    actor_company_permissions = frappe.get_all(
+    actor_company_permissions = frappe.get_list(
         "User Permission",
         filters={"user": frappe.session.user, "allow": "Company"},
         fields=["for_value", "is_default"],
         order_by="is_default desc, creation asc",
-        limit=1,
+        limit_page_length=1,
     )
     if actor_company_permissions:
         payload["scopes"].append(

@@ -94,26 +94,28 @@ def _generate_temp_password(length: int = 14) -> str:
 def _safe_get_docnames(doctype: str) -> List[str]:
     if not frappe.db.exists("DocType", doctype):
         return []
-    rows = frappe.get_all(doctype, fields=["name"], limit_page_length=0, order_by="name asc")
+    rows = frappe.get_list(doctype, fields=["name"], limit_page_length=0, order_by="name asc")
     return [row["name"] for row in rows]
 
 
 def _get_user_roles(user_id: str) -> List[str]:
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "Has Role",
         filters={"parent": user_id, "parenttype": "User"},
         fields=["role"],
         order_by="role asc",
+        limit_page_length=0,
     )
     return [row["role"] for row in rows if row["role"] not in SYSTEM_ROLES]
 
 
 def _get_user_scopes(user_id: str) -> List[Dict[str, Any]]:
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "User Permission",
         filters={"user": user_id, "allow": ["in", list(SCOPED_ALLOW_DOCTYPES)]},
         fields=["name", "allow", "for_value", "is_default", "apply_to_all_doctypes", "applicable_for"],
         order_by="allow asc, for_value asc",
+        limit_page_length=0,
     )
     return [
         {
@@ -172,7 +174,7 @@ def _parse_sort(sort: str) -> str:
 
 
 def _get_actor_visibility_restrictions(actor: str) -> List[Tuple[str, str]]:
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "User Permission",
         filters={"user": actor, "allow": ["in", list(VISIBILITY_ALLOW_DOCTYPES)]},
         fields=["allow", "for_value"],
@@ -188,7 +190,7 @@ def _can_actor_view_user(target_user: str, actor_roles: set, actor_restrictions:
     if not actor_restrictions:
         return False
 
-    target_rows = frappe.get_all(
+    target_rows = frappe.get_list(
         "User Permission",
         filters={"user": target_user, "allow": ["in", list(VISIBILITY_ALLOW_DOCTYPES)]},
         fields=["allow", "for_value"],
@@ -313,7 +315,7 @@ def get_reference_data() -> Dict[str, Any]:
     return _response(
         True,
         data={
-            "roles": [r["name"] for r in frappe.get_all("Role", fields=["name"], order_by="name asc") if r["name"] not in SYSTEM_ROLES],
+            "roles": [r["name"] for r in frappe.get_list("Role", fields=["name"], order_by="name asc", limit_page_length=0) if r["name"] not in SYSTEM_ROLES],
             "companies": _safe_get_docnames("Company"),
         },
     )

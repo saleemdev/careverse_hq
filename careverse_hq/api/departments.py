@@ -1,6 +1,7 @@
 import frappe, re
 from typing import Any, Dict
 from .utils import api_response, sanitize_request
+from .dashboard_utils import _count
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required, AuthError
 
 # ===== Helper Functions =====
@@ -208,7 +209,7 @@ def _fetch_departments(department_filters, start, page_size):
         return {"department_list": departments, "total_departments": 0}
     
     # Total count
-    department_count = frappe.db.count("Department", filters=department_filters)
+    department_count = _count("Department", filters=department_filters)
 
     return {
         "department_list": departments,

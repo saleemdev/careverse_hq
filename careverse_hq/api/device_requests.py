@@ -6,6 +6,7 @@ from .utils import api_response
 import json
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required
 from .utils import sanitize_request,api_response
+from .dashboard_utils import _count
 
 
 
@@ -49,7 +50,7 @@ def get_comments(**kwargs):
     
     try:
         # Get total count first
-        total_count = frappe.db.count("Comment", filters={
+        total_count = _count("Comment", filters={
             "reference_doctype": document_type,
             "reference_name": doc_id,
             "comment_type": "Comment"
@@ -59,7 +60,7 @@ def get_comments(**kwargs):
         offset = (page - 1) * per_page
         
         # Get paginated comments
-        comments = frappe.get_all("Comment",
+        comments = frappe.get_list("Comment",
             filters={
                 "reference_doctype": document_type,
                 "reference_name": doc_id,
@@ -217,9 +218,10 @@ def get_email_recipients(doc, exclude_user):
     usernames = []
     
  
-    all_users = frappe.get_all("User", 
-        filters={"enabled": 1, "user_type": "System User"}, 
-        fields=["name"]
+    all_users = frappe.get_list("User",
+        filters={"enabled": 1, "user_type": "System User"},
+        fields=["name"],
+        limit_page_length=0,
     )
     
     for user in all_users:
@@ -233,13 +235,14 @@ def get_email_recipients(doc, exclude_user):
             usernames.append(username)
     
  
-    managers = frappe.get_all(
+    managers = frappe.get_list(
         "Has Role",
         filters={
             "role": ["in", ["System Manager", "Asset Manager"]],
             "parent": ["!=", exclude_user]
         },
-        fields=["parent"]
+        fields=["parent"],
+        limit_page_length=0,
     )
     
     for manager in managers:
@@ -276,9 +279,10 @@ def send_email(document_type, doc_name, comment_text, commenter):
     """
     
     # Send to all managers
-    managers = frappe.get_all("User", 
+    managers = frappe.get_list("User",
         filters={"role_profile_name": "Asset Manager", "enabled": 1},
-        fields=["email"]
+        fields=["email"],
+        limit_page_length=0,
     )
     
     emails = [m.email for m in managers if m.email]

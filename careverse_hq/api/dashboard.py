@@ -12,7 +12,7 @@ from frappe.utils import getdate, today, add_days, add_months, get_first_day, ge
 from collections import defaultdict
 from .response import api_response
 from .dashboard_utils import (
-    get_user_company,
+    _count,
     validate_user_facilities,
     generate_monthly_trend,
     get_period_dates,
@@ -122,7 +122,7 @@ def get_employees(
         offset = (int(page) - 1) * int(page_size)
 
         # Get total count (Frappe automatically applies User Permissions)
-        total_count = frappe.db.count("Employee", filters=filters)
+        total_count = _count("Employee", filters=filters)
 
         # frappe.get_list automatically applies User Permissions
         employees = frappe.get_list(
@@ -141,11 +141,11 @@ def get_employees(
         # Calculate metrics
         metrics = {
             "total_employees": total_count,
-            "active_employees": frappe.db.count(
+            "active_employees": _count(
                 "Employee",
                 filters={**filters, "status": "Active"}
             ),
-            "licensed_practitioners": frappe.db.count(
+            "licensed_practitioners": _count(
                 "Employee",
                 filters={**filters, "custom_health_professional": ["is", "set"]}
             ),
@@ -153,7 +153,8 @@ def get_employees(
                 "Employee",
                 filters=filters,
                 fields=["department"],
-                distinct=True
+                distinct=True,
+                limit_page_length=0
             ))
         }
 
@@ -171,48 +172,37 @@ def get_employees(
 
 @frappe.whitelist()
 def get_assets(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     status: Optional[str] = None
 ):
-    """Get list of Health Automation Devices
+    """Get list of Health Automation Devices.
+
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
 
     Args:
-        company: Company name (optional, defaults to user's company)
         facilities: Comma-separated facility hie_ids (optional)
         page: Page number for pagination (default: 1)
         page_size: Number of records per page (default: 20)
         status: Filter by device status (optional)
-
-    Returns:
-        List of health automation devices filtered by company and optionally by facilities
     """
     try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
-
-        # Permission check
-        if not frappe.db.exists("User Permission", {"user": user, "allow": "Company", "for_value": company}):
-            return api_response(success=False, message="Permission denied", status_code=403)
-
-        # FIX: Use 'county' field (not 'company') to match HAD schema
-        filters = {"county": company}
+        filters = {}
         if status:
             filters["status"] = status
 
         if facilities:
             facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facility_ids = validate_user_facilities(user, company, facility_ids)
+            valid_facility_ids = validate_user_facilities(facility_ids)
             if valid_facility_ids:
                 # Support devices storing either Health Facility docname or facility ID.
                 facility_refs = set(valid_facility_ids)
-                for facility in frappe.get_all(
+                for facility in frappe.get_list(
                     "Health Facility",
                     filters={"hie_id": ["in", valid_facility_ids]},
-                    fields=["name", "hie_id"]
+                    fields=["name", "hie_id"],
+                    limit_page_length=0
                 ):
                     if facility.get("name"):
                         facility_refs.add(facility["name"])
@@ -226,9 +216,9 @@ def get_assets(
         offset = (int(page) - 1) * int(page_size)
 
         # Get total count for pagination
-        total_count = frappe.db.count("Health Automation Device", filters=filters)
+        total_count = _count("Health Automation Device", filters=filters)
 
-        assets = frappe.get_all(
+        assets = frappe.get_list(
             "Health Automation Device",
             filters=filters,
             fields=["name", "device_id", "device_name", "category", "status", "health_facility"],
@@ -240,18 +230,20 @@ def get_assets(
         facility_refs = list({a.get("health_facility") for a in assets if a.get("health_facility")})
         facility_map = {}
         if facility_refs:
-            facilities_data = frappe.get_all(
+            facilities_data = frappe.get_list(
                 "Health Facility",
                 filters={"hie_id": ["in", facility_refs]},
-                fields=["name", "hie_id", "facility_name"]
+                fields=["name", "hie_id", "facility_name"],
+                limit_page_length=0
             )
 
             # Some records may store Health Facility docname instead of HIE ID.
             if len(facilities_data) < len(facility_refs):
-                by_name_data = frappe.get_all(
+                by_name_data = frappe.get_list(
                     "Health Facility",
                     filters={"name": ["in", facility_refs]},
-                    fields=["name", "hie_id", "facility_name"]
+                    fields=["name", "hie_id", "facility_name"],
+                    limit_page_length=0
                 )
                 facilities_data.extend(by_name_data)
 
@@ -396,7 +388,7 @@ def get_affiliations(
         offset = (page - 1) * page_size
 
         # Get total count with permission-aware query
-        total_count = frappe.db.count("Facility Affiliation", filters=filters)
+        total_count = _count("Facility Affiliation", filters=filters)
 
         # Base fields always present on Facility Affiliation
         base_fields = [
@@ -435,14 +427,16 @@ def get_affiliations(
             facilities_data = frappe.get_list(
                 "Health Facility",
                 filters={"name": ["in", facility_ids]},
-                fields=["name", "facility_name", "hie_id"]
+                fields=["name", "facility_name", "hie_id"],
+                limit_page_length=0
             )
 
             if len(facilities_data) < len(facility_ids):
                 by_hie_id = frappe.get_list(
                     "Health Facility",
                     filters={"hie_id": ["in", facility_ids]},
-                    fields=["name", "facility_name", "hie_id"]
+                    fields=["name", "facility_name", "hie_id"],
+                    limit_page_length=0
                 )
                 facilities_data.extend(by_hie_id)
 
@@ -526,27 +520,23 @@ def get_affiliations(
 
 @frappe.whitelist()
 def get_leave_applications(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     status: Optional[str] = None
 ):
-    """Get list of leave applications"""
-    try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
-        if not company:
-            return api_response(success=False, message="Company context required", status_code=403)
+    """Get list of leave applications.
 
-        filters = {"company": company, "docstatus": ["<", 2]}
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
+    """
+    try:
+        filters = {"docstatus": ["<", 2]}
         if status:
             filters["status"] = status
 
         if facilities:
             facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facility_ids = validate_user_facilities(user, company, facility_ids)
+            valid_facility_ids = validate_user_facilities(facility_ids)
             if not valid_facility_ids:
                 return api_response(success=True, data={
                     "items": [],
@@ -554,10 +544,11 @@ def get_leave_applications(
                     "page": int(page),
                     "page_size": int(page_size),
                 })
-            employee_ids = frappe.get_all(
+            employee_ids = frappe.get_list(
                 "Employee",
-                filters={"company": company, "custom_facility_id": ["in", valid_facility_ids]},
-                pluck="name"
+                filters={"custom_facility_id": ["in", valid_facility_ids]},
+                pluck="name",
+                limit_page_length=0
             )
             if employee_ids:
                 filters["employee"] = ["in", employee_ids]
@@ -572,9 +563,9 @@ def get_leave_applications(
         offset = (int(page) - 1) * int(page_size)
 
         # Get total count for pagination
-        total_count = frappe.db.count("Leave Application", filters=filters)
+        total_count = _count("Leave Application", filters=filters)
 
-        leaves = frappe.get_all(
+        leaves = frappe.get_list(
             "Leave Application",
             filters=filters,
             fields=[
@@ -597,29 +588,18 @@ def get_leave_applications(
         return api_response(success=False, message=str(e), status_code=500)
 
 
-def _check_leave_application_access(docname: str, user: str, company: str, facility_ids: Optional[List[str]] = None):
+def _check_leave_application_access(docname: str, ptype: str = "read"):
     """
-    Load Leave Application doc and verify the current user has access (same company;
-    optionally scoped to facilities). Returns (doc, None) on success or (None, error_message).
+    Verify the current user can access a Leave Application via Frappe permissions.
+    Returns (doc, None) on success or (None, error_message) on failure.
     """
     if not docname:
         return None, "Leave application name is required"
-    try:
-        doc = frappe.get_doc("Leave Application", docname)
-    except Exception:
+    if not frappe.db.exists("Leave Application", docname):
         return None, "Leave application not found"
-    if doc.company != company:
+    if not frappe.has_permission("Leave Application", ptype, docname):
         return None, "You do not have permission to access this leave application"
-    if facility_ids is not None and facility_ids:
-        emp = frappe.db.get_value(
-            "Employee",
-            doc.employee,
-            ["custom_facility_id"],
-            as_dict=True,
-        )
-        facility_id = emp.get("custom_facility_id") if isinstance(emp, dict) else None
-        if facility_id and facility_id not in facility_ids:
-            return None, "You do not have permission to access this leave application"
+    doc = frappe.get_doc("Leave Application", docname)
     return doc, None
 
 
@@ -629,14 +609,9 @@ def get_leave_application_detail(name: Optional[str] = None):
     if not name:
         return api_response(success=False, message="Leave application name is required", status_code=400)
     try:
-        user = frappe.session.user
-        company = get_user_company(user)
-        if not company:
-            return api_response(success=False, message="Company context required", status_code=403)
-        doc, err = _check_leave_application_access(name, user, company, facility_ids=None)
+        doc, err = _check_leave_application_access(name)
         if err:
             return api_response(success=False, message=err, status_code=403)
-        # Return serializable fields for HR view
         fields_to_send = [
             "name", "employee", "employee_name", "leave_type", "from_date", "to_date",
             "total_leave_days", "status", "docstatus", "company",
@@ -655,11 +630,7 @@ def approve_leave_application(name: Optional[str] = None):
     if not name:
         return api_response(success=False, message="Leave application name is required", status_code=400)
     try:
-        user = frappe.session.user
-        company = get_user_company(user)
-        if not company:
-            return api_response(success=False, message="Company context required", status_code=403)
-        doc, err = _check_leave_application_access(name, user, company, facility_ids=None)
+        doc, err = _check_leave_application_access(name, "submit")
         if err:
             return api_response(success=False, message=err, status_code=403)
         if doc.docstatus == 1:
@@ -679,11 +650,7 @@ def reject_leave_application(name: Optional[str] = None):
     if not name:
         return api_response(success=False, message="Leave application name is required", status_code=400)
     try:
-        user = frappe.session.user
-        company = get_user_company(user)
-        if not company:
-            return api_response(success=False, message="Company context required", status_code=403)
-        doc, err = _check_leave_application_access(name, user, company, facility_ids=None)
+        doc, err = _check_leave_application_access(name, "write")
         if err:
             return api_response(success=False, message=err, status_code=403)
         if doc.docstatus == 2:
@@ -691,7 +658,6 @@ def reject_leave_application(name: Optional[str] = None):
         if doc.docstatus == 1:
             doc.cancel()
             return api_response(success=True, data={"status": "Cancelled"}, message="Leave application rejected")
-        # Draft (Open): mark as Rejected without submitting
         doc.status = "Rejected"
         doc.save()
         return api_response(success=True, data={"status": "Rejected"}, message="Leave application rejected")
@@ -702,27 +668,25 @@ def reject_leave_application(name: Optional[str] = None):
 
 @frappe.whitelist()
 def get_purchase_orders(
-    company: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     status: Optional[str] = None
 ):
-    """Get list of purchase orders"""
-    try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
+    """Get list of purchase orders.
 
-        filters = {"company": company, "docstatus": ["<", 2]}
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
+    """
+    try:
+        filters = {"docstatus": ["<", 2]}
         if status:
             filters["status"] = status
 
         offset = (int(page) - 1) * int(page_size)
 
         # Get total count for pagination
-        total_count = frappe.db.count("Purchase Order", filters=filters)
+        total_count = _count("Purchase Order", filters=filters)
 
-        pos = frappe.get_all(
+        pos = frappe.get_list(
             "Purchase Order",
             filters=filters,
             fields=["name", "supplier", "transaction_date", "grand_total", "status", "currency"],
@@ -744,27 +708,25 @@ def get_purchase_orders(
 
 @frappe.whitelist()
 def get_expense_claims(
-    company: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     status: Optional[str] = None
 ):
-    """Get list of expense claims"""
-    try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
+    """Get list of expense claims.
 
-        filters = {"company": company, "docstatus": ["<", 2]}
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
+    """
+    try:
+        filters = {"docstatus": ["<", 2]}
         if status:
             filters["status"] = status
 
         offset = (int(page) - 1) * int(page_size)
 
         # Get total count for pagination
-        total_count = frappe.db.count("Expense Claim", filters=filters)
+        total_count = _count("Expense Claim", filters=filters)
 
-        claims = frappe.get_all(
+        claims = frappe.get_list(
             "Expense Claim",
             filters=filters,
             fields=["name", "employee_name", "posting_date", "total_claimed_amount", "status"],
@@ -786,27 +748,25 @@ def get_expense_claims(
 
 @frappe.whitelist()
 def get_material_requests(
-    company: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     status: Optional[str] = None
 ):
-    """Get list of material requests"""
-    try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
+    """Get list of material requests.
 
-        filters = {"company": company, "docstatus": ["<", 2]}
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
+    """
+    try:
+        filters = {"docstatus": ["<", 2]}
         if status:
             filters["status"] = status
 
         offset = (int(page) - 1) * int(page_size)
 
         # Get total count for pagination
-        total_count = frappe.db.count("Material Request", filters=filters)
+        total_count = _count("Material Request", filters=filters)
 
-        mrs = frappe.get_all(
+        mrs = frappe.get_list(
             "Material Request",
             filters=filters,
             fields=["name", "transaction_date", "status", "material_request_type"],
@@ -845,9 +805,9 @@ def get_facilities(
         offset = (int(page) - 1) * int(page_size)
 
         # Get total count for pagination
-        total_count = frappe.db.count("Health Facility", filters=filters)
+        total_count = _count("Health Facility", filters=filters)
 
-        facilities = frappe.get_all(
+        facilities = frappe.get_list(
             "Health Facility",
             filters=filters,
             fields=["name", "facility_name", "kephl_level", "hie_id", "operational_status", "county"],
@@ -867,16 +827,16 @@ def get_facilities(
 
 
 @frappe.whitelist()
-def get_company_overview(company: Optional[str] = None):
+def get_company_overview():
     """
-    Get company overview statistics for the entire company.
+    Get company overview statistics.
 
-    Args:
-        company: Company name (optional, defaults to user's company)
+    RBAC: Every _count() call uses frappe.get_list which applies User Permissions
+    (including Company) automatically. No manual company filter needed.
 
     Returns:
         {
-            "active_employees": int,  # Employees with Active status
+            "active_employees": int,
             "total_departments": int,
             "total_facilities": int,
             "total_assets": int,
@@ -885,80 +845,15 @@ def get_company_overview(company: Optional[str] = None):
         }
     """
     try:
-        user = frappe.session.user
-
-        # Get user's company
-        if not company:
-            company = get_user_company(user)
-            if not company:
-                return api_response(
-                    success=False,
-                    message="No company assigned to user",
-                    status_code=403
-                )
-
-        # Verify permission
-        has_permission = frappe.db.exists("User Permission", {
-            "user": user,
-            "allow": "Company",
-            "for_value": company
-        })
-        if not has_permission:
-            return api_response(
-                success=False,
-                message="Permission denied",
-                status_code=403
-            )
-
-        # Get all company facilities for affiliation filtering
-        all_company_facility_ids = frappe.get_all(
-            "Health Facility",
-            filters={"organization_company": company},
-            pluck="hie_id"
-        )
-
-        # Get active health professionals (employees with Active status)
-        # Note: Not filtered by company - shows all active employees system-wide
-        # This is consistent with total_facilities metric which also doesn't filter
-        active_employees = frappe.db.count(
-            "Employee",
-            filters={"status": "Active"}
-        )
-
-        # Get total assets for the entire company
-        # FIX: Use 'county' field directly (verified in HAD schema)
-        total_assets = frappe.db.count("Health Automation Device", filters={"county": company})
-
-        # Get total departments for the entire company
-        total_departments = frappe.db.count("Department", filters={"company": company})
-
-        # Get total facilities (all facilities, no company filter)
-        total_facilities = frappe.db.count("Health Facility", filters={})
-
-        # Get affiliations for all company facilities
-        affiliation_base_filters = {}
-        if all_company_facility_ids:
-            affiliation_base_filters["health_facility"] = ["in", all_company_facility_ids]
-
-        active_affiliations = frappe.db.count(
-            "Facility Affiliation",
-            filters={**{"affiliation_status": "Active"}, **affiliation_base_filters}
-        )
-
-        pending_affiliations = frappe.db.count(
-            "Facility Affiliation",
-            filters={**{"affiliation_status": "Pending"}, **affiliation_base_filters}
-        )
-
         return api_response(
             success=True,
             data={
-                "active_employees": active_employees,
-                "total_departments": total_departments,
-                "total_facilities": total_facilities,
-                "total_assets": total_assets,
-                "active_affiliations": active_affiliations,
-                "pending_affiliations": pending_affiliations
+                "active_employees": _count("Employee", {"status": "Active"}),
+                "total_departments": _count("Department"),
+                "total_facilities": _count("Health Facility"),
+                "total_assets": _count("Health Automation Device"),
+                "active_affiliations": _count("Facility Affiliation", {"affiliation_status": "Active"}),
+                "pending_affiliations": _count("Facility Affiliation", {"affiliation_status": "Pending"}),
             }
         )
 
@@ -973,16 +868,16 @@ def get_company_overview(company: Optional[str] = None):
 
 @frappe.whitelist()
 def get_affiliation_statistics(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None
 ):
     """
     Get affiliation statistics with breakdown by status, employment type, and monthly trends.
-    
+
+    RBAC: frappe.get_list applies User Permissions automatically.
+
     Args:
-        company: Company name (optional)
         facilities: Comma-separated facility hie_ids (optional)
         date_from: Start date for filtering (optional)
         date_to: End date for filtering (optional)
@@ -1041,7 +936,8 @@ def get_affiliation_statistics(
                 "requested_date",
                 "health_professional",
                 "health_facility"
-            ]
+            ],
+            limit_page_length=0
         )
         
         # Aggregate by status
@@ -1096,7 +992,8 @@ def get_affiliation_statistics(
             professionals = frappe.get_list(
                 "Health Professional",
                 filters={"name": ["in", professional_ids]},
-                fields=["name", "professional_cadre", "licensing_body"]
+                fields=["name", "professional_cadre", "licensing_body"],
+                limit_page_length=0
             )
             cadre_map = {p.name: p.get("professional_cadre", "Unknown") for p in professionals}
             licensing_map = {p.name: p.get("licensing_body", "Unknown") for p in professionals}
@@ -1144,68 +1041,29 @@ def get_affiliation_statistics(
 
 @frappe.whitelist()
 def get_pending_affiliations(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     limit: int = 10
 ):
     """
     Get list of pending affiliations with details.
-    
+
+    RBAC: frappe.get_list applies User Permissions automatically.
+
     Args:
-        company: Company name (optional)
         facilities: Comma-separated facility hie_ids (optional)
         limit: Maximum number of records to return (default: 10)
-    
-    Returns:
-        List of pending affiliations with professional and facility names
     """
     try:
-        user = frappe.session.user
-        
-        # Get user's company
-        if not company:
-            company = get_user_company(user)
-            if not company:
-                return api_response(
-                    success=False,
-                    message="No company assigned to user",
-                    status_code=403
-                )
-        
-        # Verify permission
-        has_permission = frappe.db.exists("User Permission", {
-            "user": user,
-            "allow": "Company",
-            "for_value": company
-        })
-        if not has_permission:
-            return api_response(
-                success=False,
-                message="Permission denied",
-                status_code=403
-            )
-        
-        # Build filters
         filters = {"affiliation_status": "Pending"}
-        
-        # Facility filter
+
         if facilities:
             facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facilities = validate_user_facilities(user, company, facility_ids)
+            valid_facilities = validate_user_facilities(facility_ids)
             if valid_facilities:
                 filters["health_facility"] = ["in", valid_facilities]
-        else:
-            # Get all facilities for company
-            company_facilities = frappe.get_all(
-                "Health Facility",
-                filters={"organization_company": company},
-                pluck="hie_id"
-            )
-            if company_facilities:
-                filters["health_facility"] = ["in", company_facilities]
         
         # Get pending affiliations
-        pending = frappe.get_all(
+        pending = frappe.get_list(
             "Facility Affiliation",
             filters=filters,
             fields=[
@@ -1252,87 +1110,40 @@ def get_pending_affiliations(
 
 @frappe.whitelist()
 def get_facility_metrics_overview(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     metric_type: Optional[str] = None,
     period: str = "monthly"
 ):
     """
     Get facility metrics overview with current vs previous period comparison.
-    
+
+    RBAC: frappe.get_list applies User Permissions automatically.
+
     Args:
-        company: Company name (optional)
         facilities: Comma-separated facility hie_ids (optional)
         metric_type: Specific metric type to filter (optional)
         period: Period type - 'monthly', 'quarterly', or 'yearly' (default: 'monthly')
-    
-    Returns:
-        {
-            "current_period_total": float,
-            "previous_period_total": float,
-            "percentage_change": float,
-            "trend": [...],
-            "breakdown_by_facility": [...]
-        }
     """
     try:
-        user = frappe.session.user
-        
-        # Get user's company
-        if not company:
-            company = get_user_company(user)
-            if not company:
-                return api_response(
-                    success=False,
-                    message="No company assigned to user",
-                    status_code=403
-                )
-        
-        # Verify permission
-        has_permission = frappe.db.exists("User Permission", {
-            "user": user,
-            "allow": "Company",
-            "for_value": company
-        })
-        if not has_permission:
-            return api_response(
-                success=False,
-                message="Permission denied",
-                status_code=403
-            )
-        
-        # Get period dates
         periods = get_period_dates(period)
-        
-        # Build filters
+
         filters = {
-            "company": company,
             "is_latest": 1,
             "is_active": 1
         }
-        
-        # Facility filter
+
         if facilities:
             facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facilities = validate_user_facilities(user, company, facility_ids)
+            valid_facilities = validate_user_facilities(facility_ids)
             if valid_facilities:
-                # Get facility names from hie_ids
-                facility_names = frappe.get_all(
+                facility_names = frappe.get_list(
                     "Health Facility",
                     filters={"hie_id": ["in", valid_facilities]},
-                    pluck="name"
+                    pluck="name",
+                    limit_page_length=0
                 )
                 if facility_names:
                     filters["health_facility"] = ["in", facility_names]
-        else:
-            # Get all facilities for company
-            company_facilities = frappe.get_all(
-                "Health Facility",
-                filters={"organization_company": company},
-                pluck="name"
-            )
-            if company_facilities:
-                filters["health_facility"] = ["in", company_facilities]
         
         # Metric type filter
         if metric_type:
@@ -1343,10 +1154,11 @@ def get_facility_metrics_overview(
             "period_start_date": [">=", periods["current_start"]],
             "period_end_date": ["<=", periods["current_end"]]
         }}
-        current_metrics = frappe.get_all(
+        current_metrics = frappe.get_list(
             "Facility Metrics",
             filters=current_filters,
-            fields=["metric_value", "health_facility", "metric_type"]
+            fields=["metric_value", "health_facility", "metric_type"],
+            limit_page_length=0
         )
         
         # Get previous period metrics
@@ -1354,10 +1166,11 @@ def get_facility_metrics_overview(
             "period_start_date": [">=", periods["prev_start"]],
             "period_end_date": ["<=", periods["prev_end"]]
         }}
-        prev_metrics = frappe.get_all(
+        prev_metrics = frappe.get_list(
             "Facility Metrics",
             filters=prev_filters,
-            fields=["metric_value", "health_facility", "metric_type"]
+            fields=["metric_value", "health_facility", "metric_type"],
+            limit_page_length=0
         )
         
         # Calculate totals
@@ -1390,10 +1203,11 @@ def get_facility_metrics_overview(
                 "period_start_date": [">=", period_start],
                 "period_end_date": ["<=", period_end]
             }}
-            period_metrics = frappe.get_all(
+            period_metrics = frappe.get_list(
                 "Facility Metrics",
                 filters=trend_filters,
-                fields=["metric_value"]
+                fields=["metric_value"],
+                limit_page_length=0
             )
             period_total = sum(m.get("metric_value", 0) or 0 for m in period_metrics)
             trend.append({
@@ -1427,87 +1241,47 @@ def get_facility_metrics_overview(
 
 @frappe.whitelist()
 def get_financial_overview(
-    company: Optional[str] = None,
-    facilities: Optional[str] = None,
     fiscal_year: Optional[str] = None
 ):
     """
     Get financial overview including Purchase Orders, Material Requests, Expense Claims, and Budget.
-    
+
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
+
     Args:
-        company: Company name (optional)
-        facilities: Comma-separated facility hie_ids (optional)
         fiscal_year: Fiscal year (optional)
-    
-    Returns:
-        {
-            "purchase_orders": {...},
-            "material_requests": {...},
-            "expense_claims": {...},
-            "budget_summary": {...}
-        }
     """
     try:
-        user = frappe.session.user
-        
-        # Get user's company
-        if not company:
-            company = get_user_company(user)
-            if not company:
-                return api_response(
-                    success=False,
-                    message="No company assigned to user",
-                    status_code=403
-                )
-        
-        # Verify permission
-        has_permission = frappe.db.exists("User Permission", {
-            "user": user,
-            "allow": "Company",
-            "for_value": company
-        })
-        if not has_permission:
-            return api_response(
-                success=False,
-                message="Permission denied",
-                status_code=403
-            )
-        
-        # Base filters
-        base_filters = {"company": company}
-        
-        # Get Purchase Orders summary
-        po_filters = {**base_filters, **{"docstatus": ["<", 2]}}
-        purchase_orders = frappe.get_all(
+        base_filters = {"docstatus": ["<", 2]}
+
+        purchase_orders = frappe.get_list(
             "Purchase Order",
-            filters=po_filters,
-            fields=["name", "grand_total", "status"]
+            filters=base_filters,
+            fields=["name", "grand_total", "status"],
+            limit_page_length=0
         )
         po_pending = [po for po in purchase_orders if po.get("status") in ["Draft", "To Receive and Bill", "To Bill"]]
         po_total = sum(po.get("grand_total", 0) or 0 for po in purchase_orders)
         po_pending_total = sum(po.get("grand_total", 0) or 0 for po in po_pending)
-        
-        # Get Material Requests summary
-        mr_filters = {**base_filters, **{"docstatus": ["<", 2]}}
-        material_requests = frappe.get_all(
+
+        material_requests = frappe.get_list(
             "Material Request",
-            filters=mr_filters,
-            fields=["name", "status"]
+            filters=base_filters,
+            fields=["name", "status"],
+            limit_page_length=0
         )
         mr_pending = [mr for mr in material_requests if mr.get("status") in ["Draft", "Pending", "Submitted"]]
-        
-        # Get Expense Claims summary
-        ec_filters = {**base_filters, **{"docstatus": ["<", 2]}}
-        expense_claims = frappe.get_all(
+
+        expense_claims = frappe.get_list(
             "Expense Claim",
-            filters=ec_filters,
-            fields=["name", "total_claimed_amount", "status"]
+            filters=base_filters,
+            fields=["name", "total_claimed_amount", "status"],
+            limit_page_length=0
         )
         ec_pending = [ec for ec in expense_claims if ec.get("status") in ["Draft", "Submitted"]]
         ec_total = sum(ec.get("total_claimed_amount", 0) or 0 for ec in expense_claims)
         ec_pending_total = sum(ec.get("total_claimed_amount", 0) or 0 for ec in ec_pending)
-        
-        # Get Budget summary (if Budget DocType exists)
+
         budget_summary = {
             "total_budget": 0,
             "utilized": 0,
@@ -1515,20 +1289,16 @@ def get_financial_overview(
             "utilization_percent": 0
         }
         try:
-            if fiscal_year:
-                budget_filters = {**base_filters, **{"fiscal_year": fiscal_year}}
-            else:
-                budget_filters = base_filters
-            
-            budgets = frappe.get_all(
+            budget_filters = {"fiscal_year": fiscal_year} if fiscal_year else {}
+            budgets = frappe.get_list(
                 "Budget",
                 filters=budget_filters,
-                fields=["name", "total_budgeted_amount"]
+                fields=["name", "total_budgeted_amount"],
+                limit_page_length=0
             )
             if budgets:
                 budget_summary["total_budget"] = sum(b.get("total_budgeted_amount", 0) or 0 for b in budgets)
         except Exception:
-            # Budget DocType might not exist
             pass
         
         return api_response(
@@ -1565,79 +1335,54 @@ def get_financial_overview(
 
 @frappe.whitelist()
 def get_attendance_summary(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     date: Optional[str] = None
 ):
     """
     Get attendance summary for a specific date.
-    
+
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
+
     Args:
-        company: Company name (optional)
         facilities: Comma-separated facility hie_ids (optional)
         date: Date to get summary for (default: today)
-    
-    Returns:
-        {
-            "total_employees": int,
-            "present": int,
-            "absent": int,
-            "on_leave": int,
-            "late": int,
-            "attendance_rate": float,
-            "by_department": [...]
-        }
     """
     try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
-        
         if not date:
             date = today()
-            
-        # Permission check
-        if not frappe.db.exists("User Permission", {"user": user, "allow": "Company", "for_value": company}):
-            return api_response(success=False, message="Permission denied", status_code=403)
 
-        # Base filters for Attendance
-        filters = {"company": company, "attendance_date": date, "docstatus": ["<", 2]}
-        
-        # Valid facility IDs
+        filters = {"attendance_date": date, "docstatus": ["<", 2]}
+
         valid_facility_ids = []
         if facilities:
             facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facility_ids = validate_user_facilities(user, company, facility_ids)
+            valid_facility_ids = validate_user_facilities(facility_ids)
             if valid_facility_ids:
-                # Filter attendance by employees in these facilities
-                # Attendance doesn't directly link to facility in standard ERPNext
-                # We need to filter via Employee
-                employee_ids = frappe.get_all(
+                employee_ids = frappe.get_list(
                     "Employee",
-                    filters={"company": company, "custom_facility_id": ["in", valid_facility_ids]},
-                    pluck="name"
+                    filters={"custom_facility_id": ["in", valid_facility_ids]},
+                    pluck="name",
+                    limit_page_length=0
                 )
                 if employee_ids:
                     filters["employee"] = ["in", employee_ids]
                 else:
-                    # No employees in these facilities, return zero stats
                     return api_response(success=True, data={
                         "total_employees": 0, "present": 0, "absent": 0,
                         "on_leave": 0, "late": 0, "attendance_rate": 0, "by_department": []
                     })
 
-        # Get attendance records
-        attendance = frappe.get_all(
+        attendance = frappe.get_list(
             "Attendance",
             filters=filters,
-            fields=["status", "late_entry", "department"]
+            fields=["status", "late_entry", "department"],
+            limit_page_length=0
         )
-        
-        # Get total active employees for this context
-        emp_filters = {"company": company, "status": "Active"}
+
+        emp_filters = {"status": "Active"}
         if valid_facility_ids:
             emp_filters["custom_facility_id"] = ["in", valid_facility_ids]
-        total_employees = frappe.db.count("Employee", filters=emp_filters)
+        total_employees = _count("Employee", filters=emp_filters)
         
         stats = {
             "present": 0,
@@ -1698,7 +1443,6 @@ def get_attendance_summary(
 
 @frappe.whitelist()
 def get_attendance_records(
-    company: Optional[str] = None,
     facilities: Optional[str] = None,
     date: Optional[str] = None,
     department: Optional[str] = None,
@@ -1706,34 +1450,33 @@ def get_attendance_records(
 ):
     """
     Get detailed attendance records for a date.
+
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
     """
     try:
-        user = frappe.session.user
-        if not company:
-            company = get_user_company(user)
         if not date:
             date = today()
 
-        filters = {"company": company, "attendance_date": date, "docstatus": ["<", 2]}
+        filters = {"attendance_date": date, "docstatus": ["<", 2]}
         if department:
             filters["department"] = department
-            
-        # Facility filter logic
+
         if facilities:
             facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facility_ids = validate_user_facilities(user, company, facility_ids)
+            valid_facility_ids = validate_user_facilities(facility_ids)
             if valid_facility_ids:
-                employee_ids = frappe.get_all(
+                employee_ids = frappe.get_list(
                     "Employee",
-                    filters={"company": company, "custom_facility_id": ["in", valid_facility_ids]},
-                    pluck="name"
+                    filters={"custom_facility_id": ["in", valid_facility_ids]},
+                    pluck="name",
+                    limit_page_length=0
                 )
                 if employee_ids:
                     filters["employee"] = ["in", employee_ids]
                 else:
                     return api_response(success=True, data=[])
 
-        records = frappe.get_all(
+        records = frappe.get_list(
             "Attendance",
             filters=filters,
             fields=[
@@ -1764,56 +1507,25 @@ def get_attendance_records(
 
 @frappe.whitelist()
 def get_recent_activities(
-    company: Optional[str] = None,
-    facilities: Optional[str] = None,
     limit: int = 20,
     activity_type: Optional[str] = None
 ):
     """
-    Get recent activities from Activity Log or custom Activity DocType.
-    
+    Get recent activities from Activity Log.
+
+    RBAC: frappe.get_list applies User Permissions automatically.
+
     Args:
-        company: Company name (optional)
-        facilities: Comma-separated facility hie_ids (optional)
         limit: Maximum number of records (default: 20)
         activity_type: Filter by reference doctype (optional)
-    
-    Returns:
-        List of recent activities
     """
     try:
-        user = frappe.session.user
-        
-        # Get user's company
-        if not company:
-            company = get_user_company(user)
-            if not company:
-                return api_response(
-                    success=False,
-                    message="No company assigned to user",
-                    status_code=403
-                )
-        
-        # Verify permission
-        has_permission = frappe.db.exists("User Permission", {
-            "user": user,
-            "allow": "Company",
-            "for_value": company
-        })
-        if not has_permission:
-            return api_response(
-                success=False,
-                message="Permission denied",
-                status_code=403
-            )
-        
-        # Build filters for Activity Log
         filters = {}
         if activity_type:
             filters["reference_doctype"] = activity_type
         
         # Get recent activities
-        activities = frappe.get_all(
+        activities = frappe.get_list(
             "Activity Log",
             filters=filters,
             fields=[
@@ -1860,87 +1572,26 @@ def get_recent_activities(
 
 
 @frappe.whitelist()
-def get_license_compliance_overview(company: Optional[str] = None, facilities: Optional[str] = None):
+def get_license_compliance_overview(facilities: Optional[str] = None):
     """
     Get detailed facility license compliance overview.
-    Including active, expired, and pending licenses.
+
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
 
     Args:
-        company: Company name (optional, defaults to user's company)
         facilities: Comma-separated facility hie_ids (optional)
-
-    Returns:
-        {
-            "compliance_rate": float,
-            "total_active_licenses": int,
-            "expired_licenses": int,
-            "pending_licenses": int,
-            "licenses_expiring_soon": int,
-            "expiring_details": [...]
-        }
     """
     try:
-        user = frappe.session.user
-
-        # Get user's company
-        if not company:
-            company = get_user_company(user)
-            if not company:
-                return api_response(
-                    success=False,
-                    message="No company assigned to user",
-                    status_code=403
-                )
-
-        # Verify permission
-        has_permission = frappe.db.exists("User Permission", {
-            "user": user,
-            "allow": "Company",
-            "for_value": company
-        })
-        if not has_permission:
-            return api_response(
-                success=False,
-                message="Permission denied",
-                status_code=403
-            )
-
-        # Parse and validate facility IDs if provided
-        valid_facility_ids = []
-        if facilities:
-            facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
-            valid_facility_ids = validate_user_facilities(user, company, facility_ids)
-
-        # Build filters
         license_filters = {}
 
-        if valid_facility_ids:
-            license_filters["health_facility"] = ["in", valid_facility_ids]
-        else:
-            # Get all facilities for company if none selected
-            all_facility_ids = frappe.get_all(
-                "Health Facility",
-                filters={"organization_company": company},
-                pluck="hie_id"
-            )
-            if all_facility_ids:
-                license_filters["health_facility"] = ["in", all_facility_ids]
-            else:
-                # No facilities for this company
-                return api_response(
-                    success=True,
-                    data={
-                        "compliance_rate": 0,
-                        "total_active_licenses": 0,
-                        "expired_licenses": 0,
-                        "pending_licenses": 0,
-                        "licenses_expiring_soon": 0,
-                        "expiring_details": []
-                    }
-                )
+        if facilities:
+            facility_ids = [f.strip() for f in facilities.split(",") if f.strip()]
+            valid_facility_ids = validate_user_facilities(facility_ids)
+            if valid_facility_ids:
+                license_filters["health_facility"] = ["in", valid_facility_ids]
 
         # Get all licenses (all docstatus, filtered by company/facilities)
-        all_licenses = frappe.get_all(
+        all_licenses = frappe.get_list(
             "License Record",
             filters=license_filters,
             fields=[
@@ -1948,7 +1599,8 @@ def get_license_compliance_overview(company: Optional[str] = None, facilities: O
                 "license_type_name", "regulatory_body",
                 "expiry_date", "license_fee", "status"
             ],
-            order_by="modified desc"
+            order_by="modified desc",
+            limit_page_length=0
         )
 
         # Calculate metrics from filtered records

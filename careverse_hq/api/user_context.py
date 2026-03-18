@@ -100,6 +100,7 @@ def get_user_company_context():
 					"sub_county",
 				],
 				order_by="facility_name asc",
+				limit_page_length=0,
 			)
 
 		return api_response(
@@ -182,7 +183,8 @@ def get_facilities_for_company(company: str):
 					"county",
 					"sub_county"
 				],
-				order_by="facility_name asc"
+				order_by="facility_name asc",
+				limit_page_length=0,
 			)
 
 		return api_response(

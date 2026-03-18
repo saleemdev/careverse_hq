@@ -285,6 +285,7 @@ def _review_license_appeal(data):
         filters={"license_number": license_id},
         fields=["name"],
         ignore_permissions=False,
+        limit_page_length=0,
     )
     if not accessible_license:
         if frappe.db.exists("License Record", {"license_number": license_id}):
@@ -306,6 +307,7 @@ def _review_license_appeal(data):
         filters={"name": appeal_id},
         fields=["name"],
         ignore_permissions=False,
+        limit_page_length=0,
     )
     if not accessible_appeal:
         if frappe.db.exists("License Appeal", appeal_id):

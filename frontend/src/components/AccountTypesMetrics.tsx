@@ -31,7 +31,7 @@ const AccountTypesMetrics: React.FC<AccountTypesMetricsProps> = ({ company }) =>
     const fetchAccountBalances = async () => {
         setLoading(true);
         try {
-            const response = await financeApi.getAccountBalances(company);
+            const response = await financeApi.getAccountBalances();
             if (response.success) {
                 setBalances(response.data);
             }

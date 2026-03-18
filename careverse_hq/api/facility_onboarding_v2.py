@@ -270,7 +270,7 @@ def create_new_facility_v2(**kwargs):
     additional_details = kwargs.get("additional_details", {})
     
     # Check if facility already exists
-    existing = frappe.get_all(
+    existing = frappe.get_list(
         "Health Facility",
         filters={"name": facility_id},
         pluck="name",

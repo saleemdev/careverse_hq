@@ -447,10 +447,11 @@ def register_organization_user():
         try:
             # 1. Check if org exists, if not, create organization first (required for user)
             org_name = org_details.get("name")
-            existing_orgs = frappe.get_all(
+            existing_orgs = frappe.get_list(
                 "Healthcare Organization",
                 filters={"organization_name": org_name},
                 fields=["name"],
+                limit_page_length=0,
             )
 
             if existing_orgs:
@@ -690,7 +691,7 @@ def verify_invitation_token():
         # Hash the token for efficient database lookup (token_hash field is indexed)
         token_hash = hashlib.sha256(token.encode()).hexdigest()
 
-        invitations = frappe.get_all(
+        invitations = frappe.get_list(
             "Healthcare Organization Invitation",
             filters={"token_hash": token_hash, "is_active": 1},
             fields=[
@@ -705,6 +706,7 @@ def verify_invitation_token():
                 "token",
                 "invited_by",
             ],
+            limit_page_length=0,
         )
 
         if not invitations:
@@ -1167,10 +1169,11 @@ def create_healthcare_user_role(role_name):
     Checks if a healthcare organization user role exists and creates it if it doesn't.
     """
     # Check if role exists in Healthcare Organization User Role doctype
-    existing_roles = frappe.get_all(
+    existing_roles = frappe.get_list(
         "Healthcare Organization User Role",
         filters={"role_name": role_name},
         fields=["name"],
+        limit_page_length=0,
     )
 
     # If role doesn't exist, create it
@@ -1206,10 +1209,11 @@ def validate_if_already_admin(user_details, org_details):
     role = user_details.get("role")
     first_name = user_details.get("first_name")
     
-    existing_orgs = frappe.get_all(
+    existing_orgs = frappe.get_list(
         "Healthcare Organization",
         filters={"organization_name": org_name},
         fields=["name"],
+        limit_page_length=0,
     )
 
     if existing_orgs:
@@ -1319,7 +1323,7 @@ def create_employee_from_user(user_email):
     user = frappe.get_doc("User", user_email)
 
     # Step 2: Get the Healthcare Organization User document
-    healthcare_user = frappe.get_all(
+    healthcare_user = frappe.get_list(
         "Healthcare Organization User",
         filters={"user": user_email},
         fields=["*"],
@@ -1746,10 +1750,11 @@ def process_organization_registration_async(
         try:
             # 1. Create or get organization
             org_name = org_details.get("name")
-            existing_orgs = frappe.get_all(
+            existing_orgs = frappe.get_list(
                 "Healthcare Organization",
                 filters={"organization_name": org_name},
                 fields=["name"],
+                limit_page_length=0,
             )
 
             if existing_orgs:
@@ -2164,10 +2169,11 @@ def migrate_user_identity_hashes():
 
     try:
         # Get all Healthcare Organization Users without user_identity_hash
-        users = frappe.get_all(
+        users = frappe.get_list(
             "Healthcare Organization User",
             filters=[["user_identity_hash", "in", ["", None]]],
             fields=["name", "identification_type", "identification_number"],
+            limit_page_length=0,
         )
 
         updated_count = 0

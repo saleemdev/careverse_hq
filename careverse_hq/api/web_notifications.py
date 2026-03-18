@@ -2,6 +2,7 @@ import frappe, re
 from frappe import _, _dict
 from typing import Any, Dict
 from .utils import api_response, sanitize_request
+from .dashboard_utils import _count
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required, AuthError
 from healthpro_erp.healthpro_erp.doctype.webapp_notification.webapp_notification import PRIORITIES, SENDER_TYPES, ACTIONABLE
 
@@ -154,12 +155,12 @@ def _fetch_notifications(notifications_filters, start, page_size):
         }
     
     # Total count
-    notifications_count = frappe.db.count("WebApp Notification", filters=notifications_filters)
+    notifications_count = _count("WebApp Notification", filters=notifications_filters)
     
     # Unread count
     if notifications_filters.get("is_read") != 0:
         notifications_filters["is_read"] = 0
-        unread_notifications_count = frappe.db.count("WebApp Notification", filters=notifications_filters)
+        unread_notifications_count = _count("WebApp Notification", filters=notifications_filters)
     else:
         unread_notifications_count = notifications_count
     
@@ -182,7 +183,8 @@ def _mark_notifications_as_read(notifications_filters):
         fields=[
             "name",
             "is_read"
-        ]
+        ],
+        limit_page_length=0
     )
     
     # Mark notifications read

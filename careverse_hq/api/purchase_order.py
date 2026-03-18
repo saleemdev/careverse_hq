@@ -71,7 +71,8 @@ def _update_linked_device_requests(po_id):
     device_requests = frappe.get_list(
         "Health Automation Device Request",
         filters={"purchase_order": po_id},
-        fields=["name"]
+        fields=["name"],
+        limit_page_length=0
     )
     
     # Iterate over Health Automation Device Requests

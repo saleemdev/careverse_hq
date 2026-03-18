@@ -292,20 +292,21 @@ def check_practitioner_full_time_affiliation(**kwargs):
 def _practitioner_full_time_affiliation(identification_type, identification_number):
     try:
         # Check for duplicate affiliation
-        existing_affiliation = frappe.get_all(
+        existing_affiliation = frappe.get_list(
             "Health Professional",
             filters={
                 "identification_type": identification_type,
                 "identification_number": identification_number,
             },
             fields=["name"],
+            limit_page_length=0,
         )
         if not existing_affiliation:
             return []
 
         health_professional_name = existing_affiliation[0].get("name")
 
-        existing_fulltime_affiliation = frappe.get_all(
+        existing_fulltime_affiliation = frappe.get_list(
             "Facility Affiliation",
             filters={
                 "health_professional": health_professional_name,
@@ -313,6 +314,7 @@ def _practitioner_full_time_affiliation(identification_type, identification_numb
                 "affiliation_status": ["in", ["Pending", "Confirmed", "Active"]],
             },
             fields=["name", "affiliation_status"],
+            limit_page_length=0,
         )
 
         if existing_fulltime_affiliation:
@@ -992,6 +994,7 @@ def fetch_pending_employment_confirmations_v2(**kwargs):
                     "verification_token",
                 ],
                 order_by="requested_date desc",
+                limit_page_length=0,
             )
 
             # Format the response data
@@ -1470,6 +1473,7 @@ def get_all_pending_confirmations(current_user_email=None, practitioner_id=None)
             "verification_token",
         ],
         order_by="requested_date desc",
+        limit_page_length=0,
     )
 
     # Format confirmations

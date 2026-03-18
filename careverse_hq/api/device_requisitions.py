@@ -100,7 +100,8 @@ def _get_county_aggregation(filters):
             "CAST(SUM(IF(docstatus = 2, 1, 0)) AS UNSIGNED) as rejected",
         ],
         group_by="county",
-        order_by="county"
+        order_by="county",
+        limit_page_length=0
     )
     
     return county_aggregation
@@ -136,7 +137,8 @@ def _get_subcounty_aggregation(filters, start, page_size):
             "device_requested as item_name",
             "CAST(SUM(quantity) AS UNSIGNED) as total_requested",
         ],
-        group_by="device_requested"
+        group_by="device_requested",
+        limit_page_length=0
     )
     
     total_count_summary = frappe.get_list(
@@ -145,7 +147,8 @@ def _get_subcounty_aggregation(filters, start, page_size):
         fields=[
             "COUNT(name) as total_requisitions",
             "COUNT(distinct sub_county) as total_subcounties",
-        ]
+        ],
+        limit_page_length=0
     )
     total_count_summary = total_count_summary[0] if total_count_summary else {"total_requisitions": 0, "total_subcounties": 0}
     
@@ -176,7 +179,8 @@ def _get_county_aggregation_v1(filters):
             "county",
             "docstatus"
         ],
-        order_by="county"
+        order_by="county",
+        limit_page_length=0
     )
     
     # Validate we have data with required fields
@@ -238,7 +242,8 @@ def _get_subcounty_aggregation_v1(filters, start, page_size):
             "docstatus",
             "device_requested"
         ],
-        order_by="sub_county"
+        order_by="sub_county",
+        limit_page_length=0
     )
     
     # Validate required fields

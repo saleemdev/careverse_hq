@@ -66,12 +66,13 @@ class PermissionManagement:
     def get_all(self) -> Tuple[Dict, int]:
         """Get all permissions"""
         try:
-            permissions = frappe.get_all(
+            permissions = frappe.get_list(
                 self.permission_doctype,
-                fields=["name", "role", "parent", "permlevel", "read", "write", 
-                       "create", "delete", "submit", "cancel", "amend", "print", 
+                fields=["name", "role", "parent", "permlevel", "read", "write",
+                       "create", "delete", "submit", "cancel", "amend", "print",
                        "email", "report", "import", "export", "share"],
-                order_by="parent, role"
+                order_by="parent, role",
+                limit_page_length=0
             )
             
             return {
@@ -151,11 +152,12 @@ class PermissionManagement:
             if not frappe.db.exists(self.user_doctype, user_id):
                 return {"message": "User not found"}, 404
 
-            roles = frappe.get_all(
+            roles = frappe.get_list(
                 "Has Role",
                 filters={"parent": user_id, "parenttype": "User"},
                 fields=["role"],
-                order_by="role"
+                order_by="role",
+                limit_page_length=0
             )
             return roles, 200
 
@@ -231,11 +233,12 @@ class PermissionManagement:
             user_roles = frappe.get_roles(user_id)
 
             # Get permissions for these roles
-            permissions = frappe.get_all(
+            permissions = frappe.get_list(
                 self.permission_doctype,
                 filters={"role": ["in", user_roles]},
                 fields=["*"],
-                order_by="parent, role"
+                order_by="parent, role",
+                limit_page_length=0
             )
 
             return permissions, 200
@@ -298,13 +301,14 @@ class PermissionManagement:
             if not frappe.db.exists(self.role_doctype, role_name):
                 return {"message": "Role not found"}, 404
 
-            permissions = frappe.get_all(
+            permissions = frappe.get_list(
                 self.permission_doctype,
                 filters={"role": role_name},
-                fields=["name", "role", "parent", "permlevel", "read", "write", 
-                       "create", "delete", "submit", "cancel", "amend", "print", 
+                fields=["name", "role", "parent", "permlevel", "read", "write",
+                       "create", "delete", "submit", "cancel", "amend", "print",
                        "email", "report", "import", "export", "share"],
-                order_by="parent"
+                order_by="parent",
+                limit_page_length=0
             )
             
             return {

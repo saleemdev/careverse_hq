@@ -150,10 +150,11 @@ def notify_approvers(doc):
     :param doc: Material Request document
     """
     try:
-        approvers = frappe.get_all(
-            "Has Role", 
+        approvers = frappe.get_list(
+            "Has Role",
             filters={"role": "CEO", "parenttype": "User"},
-            fields=["parent"]
+            fields=["parent"],
+            limit_page_length=0
         )
         
         if not approvers:

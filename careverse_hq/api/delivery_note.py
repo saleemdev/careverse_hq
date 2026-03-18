@@ -7,6 +7,7 @@ from typing import Any, Dict
 from .purchase_order import _update_linked_device_requests
 from .utils import api_response, handle_workflow, get_uploaded_documents, sanitize_request
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required, AuthError
+from .dashboard_utils import _count
 
 
 # ===== Helper Functions =====
@@ -148,7 +149,8 @@ def _validate_criteria_for_purchase_receipt_generation(po):
             "workflow_state": "Draft",
             "purchase_order": po_id
         },
-        pluck="name"
+        pluck="name",
+        limit_page_length=0,
     )
     
     if draft_pr:
@@ -184,7 +186,7 @@ def _get_po_items_grouped(po):
     return item_map
     
 def _get_delivered_po_items_grouped(po_id: str):
-    
+
     pr_ids = frappe.get_list(
         "Purchase Receipt",
         filters={
@@ -194,7 +196,8 @@ def _get_delivered_po_items_grouped(po_id: str):
         fields=[
             "name"
         ],
-        group_by="name"
+        group_by="name",
+        limit_page_length=0,
     )
     purchase_receipts = [frappe.get_doc("Purchase Receipt", pr_id.name) for pr_id in pr_ids]
     
@@ -227,10 +230,11 @@ def _get_delivered_items_detail(po_id: str):
         fields=[
             "name"
         ],
-        group_by="name"
+        group_by="name",
+        limit_page_length=0,
     )
     purchase_receipts = [frappe.get_doc("Purchase Receipt", pr_id.name) for pr_id in pr_ids]
-    
+
     # Ensure qty is int (frappe.db.sql may return Decimal)
     total_delivered_items = 0
     item_map = {}
@@ -645,7 +649,7 @@ def _get_delivery_notes_list(filters, start, page_size):
         r["total_items"] = int(item_map.get(r["note_id"], 0))
 
     # Total count
-    total_count = frappe.db.count("Purchase Receipt", filters=filters)
+    total_count = _count("Purchase Receipt", filters=filters)
     
     return {
         "delivery_notes_list": receipts,

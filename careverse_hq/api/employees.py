@@ -37,7 +37,6 @@ def get_employees(
     page_size: int = 20,
     search: Optional[str] = None,
     status: Optional[str] = None,
-    company: Optional[str] = None,
     facility: Optional[str] = None,
     department: Optional[str] = None,
     is_licensed: Optional[bool] = None,
@@ -46,15 +45,13 @@ def get_employees(
     """
     Get paginated list of employees.
 
-    Frappe RBAC automatically applies Company-based User Permissions.
-    No default filters - all filters are user-driven.
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
 
     Args:
         page: Page number (1-indexed)
         page_size: Number of records per page (max 100)
         search: Search term (employee_name, cell_number, company_email, personal_email)
         status: Filter by status (Active, Left, etc.) - optional
-        company: Filter by company - optional
         facility: Filter by facility (custom_facility_id) - optional
         department: Filter by department - optional
         is_licensed: Filter licensed practitioners (employees with HP link) - optional
@@ -76,7 +73,6 @@ def get_employees(
         # Normalize incoming optional string parameters first.
         search = _normalize_optional_string(search)
         status = _normalize_optional_string(status)
-        company = _normalize_optional_string(company)
         facility = _normalize_optional_string(facility)
         department = _normalize_optional_string(department)
         cadre = _normalize_optional_string(cadre)
@@ -94,9 +90,6 @@ def get_employees(
         else:
             filters["status"] = "Active"
 
-        if company:
-            filters["company"] = company
-
         if facility:
             filters["custom_facility_id"] = facility
 
@@ -110,10 +103,11 @@ def get_employees(
 
         # If cadre is provided, pre-filter employees by linked HPs with that cadre.
         if cadre:
-            hp_names = frappe.get_all(
+            hp_names = frappe.get_list(
                 "Health Professional",
                 filters={"professional_cadre": cadre},
-                pluck="name"
+                pluck="name",
+                limit_page_length=0
             )
 
             if not hp_names:
@@ -336,7 +330,8 @@ def get_employee_detail(id: str):
                     "Facility Affiliation",
                     filters=filter_dict,
                     fields=aff_fields,
-                    order_by="start_date desc"
+                    order_by="start_date desc",
+                    limit_page_length=0
                 )
                 affiliations.extend(affs)
             except Exception as e:
@@ -391,7 +386,8 @@ def get_professional_cadres():
             "Employee",
             filters={"custom_health_professional": ["is", "set"]},
             fields=["custom_health_professional"],
-            distinct=True
+            distinct=True,
+            limit_page_length=0
         )
 
         if not employees_with_hp:
@@ -408,7 +404,8 @@ def get_professional_cadres():
             "Health Professional",
             filters={"name": ["in", hp_names]},
             fields=["professional_cadre"],
-            distinct=True
+            distinct=True,
+            limit_page_length=0
         )
 
         # Format as options
@@ -429,29 +426,19 @@ def get_professional_cadres():
 
 
 @frappe.whitelist()
-def get_departments(company: Optional[str] = None):
+def get_departments():
     """
-    Get departments list (optionally filtered by company).
+    Get departments list.
 
-    Args:
-        company: Company name (optional)
-
-    Returns:
-        dict: {
-            success: bool,
-            data: [{label, value}, ...]
-        }
+    RBAC: frappe.get_list applies User Permissions (including Company) automatically.
     """
     try:
-        filters = {}
-        if company:
-            filters["company"] = company
-
         departments = frappe.get_list(
             "Department",
             filters=filters,
             fields=["name", "department_name"],
-            order_by="department_name asc"
+            order_by="department_name asc",
+            limit_page_length=0
         )
 
         options = [
@@ -484,7 +471,8 @@ def get_designations():
         designations = frappe.get_list(
             "Designation",
             fields=["name", "designation_name"],
-            order_by="designation_name asc"
+            order_by="designation_name asc",
+            limit_page_length=0
         )
 
         options = [

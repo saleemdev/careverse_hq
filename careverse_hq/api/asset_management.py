@@ -7,7 +7,7 @@ from careverse_hq.api.facilities import api_response
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required
 from datetime import datetime
 from typing import Dict, Optional, Any
-from .dashboard_utils import resolve_health_facility_reference
+from .dashboard_utils import resolve_health_facility_reference, _count
 
 
 @frappe.whitelist()
@@ -105,7 +105,7 @@ def _generate_assets(purchase_receipt,new_state = None):
         )
     
     # Get requisition to retrieve health facility
-    requisitions = frappe.get_all(
+    requisitions = frappe.get_list(
         "Health Automation Device Request",
         filters={"purchase_order": pr.get("custom_purchase_order")},
         limit=1,
@@ -366,31 +366,34 @@ def get_assets_metrics(**kwargs):
     if organization:
         #load the organization to get the facilities ids
         # Get requisition to retrieve health facility
-        facilities = frappe.get_all(
+        facilities = frappe.get_list(
             "Health Facility",
             filters={"healthcare_organization": organization},
-            pluck="name"
+            pluck="name",
+            limit_page_length=0
         )
-    
+
     if region:
         #load the organization to get the facilities ids
         # Get requisition to retrieve health facility
-        facilities = frappe.get_all(
+        facilities = frappe.get_list(
             "Health Facility",
             filters={"healthcare_organization_region": region},
-            pluck="name"
+            pluck="name",
+            limit_page_length=0
         )
-    
+
     if facility:
         facilities=[facility]
 
-    status_counts = frappe.get_all(
+    status_counts = frappe.get_list(
         "Health Automation Device",
         filters={
             "health_facility": ["in", facilities]
         },
         fields=["status", "count(*) as count"],
-        group_by="status"
+        group_by="status",
+        limit_page_length=0
     )
     
 
@@ -457,18 +460,19 @@ def get_assets(**kwargs):
             ]
         
         # Get total count for pagination
-        total_items = frappe.db.count(
+        total_items = _count(
             "Health Automation Device",
             filters=filters
         )
         
         # Apply search filter separately for count if needed
         if or_filters:
-            total_items = len(frappe.get_all(
+            total_items = len(frappe.get_list(
                 "Health Automation Device",
                 filters=filters,
                 or_filters=or_filters,
-                pluck="name"
+                pluck="name",
+                limit_page_length=0
             ))
         
         # Calculate pagination
@@ -476,7 +480,7 @@ def get_assets(**kwargs):
         start = (params['page'] - 1) * params['limit']
         
         # Fetch assets with pagination
-        assets = frappe.get_all(
+        assets = frappe.get_list(
             "Health Automation Device",
             filters=filters,
             or_filters=or_filters if or_filters else None,
@@ -566,12 +570,13 @@ def _validate_scope(kwargs):
                 )
             }
         
-        facilities = frappe.get_all(
+        facilities = frappe.get_list(
             "Health Facility",
             filters={"healthcare_organization": organization},
-            pluck="name"
+            pluck="name",
+            limit_page_length=0
         )
-    
+
     elif region:
         if not frappe.db.exists("Healthcare Organization Region", region):
             return {
@@ -583,12 +588,13 @@ def _validate_scope(kwargs):
                 )
             }
         
-        facilities = frappe.get_all(
+        facilities = frappe.get_list(
             "Health Facility",
             filters={"healthcare_organization_region": region},
-            pluck="name"
+            pluck="name",
+            limit_page_length=0
         )
-    
+
     elif facility:
         if not frappe.db.exists("Health Facility", facility):
             return {
@@ -1731,7 +1737,7 @@ def get_asset_audit_logs(**kwargs):
     
     try:
         # Get total count
-        total_count = frappe.db.count(
+        total_count = _count(
             "Version",
             filters={
                 "ref_doctype": "Health Automation Device",

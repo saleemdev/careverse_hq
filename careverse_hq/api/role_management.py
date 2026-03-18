@@ -73,10 +73,11 @@ class RoleManagement:
     def get_all(self) -> Tuple[List[Dict], int]:
         """Get all roles"""
         try:
-            roles = frappe.get_all(
+            roles = frappe.get_list(
                 self.role_doctype,
                 fields=["name", "role_name", "desk_access", "disabled", "is_custom"],
-                order_by="role_name"
+                order_by="role_name",
+                limit_page_length=0
             )
             return roles, 200
         except Exception as e:
@@ -117,10 +118,11 @@ class RoleManagement:
             # Update permissions if provided
             if data.get("permissions"):
                 # First, remove existing permissions
-                existing_permissions = frappe.get_all(
+                existing_permissions = frappe.get_list(
                     "DocPerm",
                     filters={"role": role_name},
-                    fields=["name"]
+                    fields=["name"],
+                    limit_page_length=0
                 )
                 for perm in existing_permissions:
                     frappe.delete_doc("DocPerm", perm.name, ignore_permissions=True)
@@ -186,17 +188,19 @@ class RoleManagement:
             if not frappe.db.exists(self.role_doctype, role_name):
                 return {"message": "Role not found"}, 404
 
-            users = frappe.get_all(
+            users = frappe.get_list(
                 self.user_role_doctype,
                 filters={"role": role_name},
                 fields=["parent", "parenttype"],
-                pluck="parent"
+                pluck="parent",
+                limit_page_length=0
             )
 
-            user_details = frappe.get_all(
+            user_details = frappe.get_list(
                 "User",
                 filters={"name": ["in", users]},
-                fields=["name", "first_name", "last_name", "email", "enabled"]
+                fields=["name", "first_name", "last_name", "email", "enabled"],
+                limit_page_length=0
             )
 
             return user_details, 200
@@ -218,10 +222,11 @@ class RoleManagement:
                 return {"message": "No users provided"}, 400
 
             # Validate users exist
-            existing_users = frappe.get_all(
+            existing_users = frappe.get_list(
                 "User",
                 filters={"name": ["in", user_names]},
-                pluck="name"
+                pluck="name",
+                limit_page_length=0
             )
 
             if len(existing_users) != len(user_names):

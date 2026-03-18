@@ -862,13 +862,14 @@ def get_user_permitted_suppliers(user_email):
     """
     try:
         # Check if user has any supplier permissions
-        permissions = frappe.get_all(
+        permissions = frappe.get_list(
             "User Permission",
             filters={
                 "user": user_email,
                 "allow": "Supplier"
             },
-            fields=["for_value"]
+            fields=["for_value"],
+            limit_page_length=0
         )
         
         if not permissions:
@@ -907,22 +908,24 @@ def get_user_supplier(user_email):
         
         # Option 2: Check through Contact linked to Supplier
         # Find contacts with this email
-        contacts = frappe.get_all(
+        contacts = frappe.get_list(
             "Contact",
             filters={"email_id": user_email},
-            fields=["name"]
+            fields=["name"],
+            limit_page_length=0
         )
         
         for contact in contacts:
             # Check if this contact is linked to a supplier via Dynamic Link
-            links = frappe.get_all(
+            links = frappe.get_list(
                 "Dynamic Link",
                 filters={
                     "parent": contact.name,
                     "parenttype": "Contact",
                     "link_doctype": "Supplier"
                 },
-                fields=["link_name"]
+                fields=["link_name"],
+                limit_page_length=0
             )
             
             if links:
@@ -930,22 +933,24 @@ def get_user_supplier(user_email):
         
         # Option 3: Check Contact Email child table
         # Some setups use Contact Email child table instead of email_id
-        contact_emails = frappe.get_all(
+        contact_emails = frappe.get_list(
             "Contact Email",
             filters={"email_id": user_email},
-            fields=["parent"]
+            fields=["parent"],
+            limit_page_length=0
         )
         
         for contact_email in contact_emails:
             # Check if this contact is linked to a supplier
-            links = frappe.get_all(
+            links = frappe.get_list(
                 "Dynamic Link",
                 filters={
                     "parent": contact_email.parent,
                     "parenttype": "Contact",
                     "link_doctype": "Supplier"
                 },
-                fields=["link_name"]
+                fields=["link_name"],
+                limit_page_length=0
             )
             
             if links:
@@ -959,10 +964,11 @@ def get_user_supplier(user_email):
         
         # Option 5: Check if supplier_primary_contact email matches
         # This is a fallback option
-        suppliers = frappe.get_all(
+        suppliers = frappe.get_list(
             "Supplier",
             filters={"email_id": user_email},
-            fields=["name"]
+            fields=["name"],
+            limit_page_length=0
         )
         
         if suppliers:

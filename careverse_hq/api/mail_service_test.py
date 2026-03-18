@@ -53,7 +53,7 @@ def send_test_email(
         )
 
         # Get the email queue ID
-        email_queue = frappe.get_all(
+        email_queue = frappe.get_list(
             "Email Queue",
             filters={"message": ["like", f"%{subject}%"]},
             fields=["name"],

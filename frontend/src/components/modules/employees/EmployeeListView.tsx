@@ -201,7 +201,7 @@ const EmployeeListView: React.FC = () => {
             try {
                 const [cadreResponse, deptResponse] = await Promise.all([
                     employeesApi.getCadreOptions(),
-                    employeesApi.getDepartments(filters.company)
+                    employeesApi.getDepartments()
                 ]);
 
                 if (cadreResponse.success && cadreResponse.data) {

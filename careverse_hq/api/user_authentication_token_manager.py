@@ -379,6 +379,7 @@ class WebAppAuthTokenManager:
                 facilities = frappe.get_list(
                     "Health Facility",
                     {"facility_administrator": user_data.get("user_id")},
+                    limit_page_length=0,
                 )
                 access_scope.update(
                     {
@@ -393,7 +394,8 @@ class WebAppAuthTokenManager:
             role in ["Facility Owner"] for role in roles
         ):
             facilities = frappe.get_list(
-                "Health Facility", {"facility_owner": user_data.get("user_id")}
+                "Health Facility", {"facility_owner": user_data.get("user_id")},
+                limit_page_length=0,
             )
             access_scope.update(
                 {
@@ -484,6 +486,7 @@ class WebAppAuthTokenManager:
             "Facility Affiliation",
             filters={"user": user_id},
             fields=["health_facility"],
+            limit_page_length=0,
         )
         return [affiliation.health_facility for affiliation in affiliations]
 
@@ -762,7 +765,8 @@ def get_user_requests():
 
         # Frappe automatically applies RBAC permissions on top of these filters
         requests = frappe.get_list(
-            "Request", filters=filters, fields=["name", "subject", "status", "creation"]
+            "Request", filters=filters, fields=["name", "subject", "status", "creation"],
+            limit_page_length=0,
         )
 
         return api_response(success=True, data={"requests": requests}, status_code=200)
@@ -789,6 +793,7 @@ def get_organization_patients():
             "Patient",
             filters={"organization": org_id},
             fields=["name", "patient_name", "mobile"],
+            limit_page_length=0,
         )
 
         return api_response(success=True, data={"patients": patients}, status_code=200)

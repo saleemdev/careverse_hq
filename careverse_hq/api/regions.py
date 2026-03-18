@@ -293,6 +293,7 @@ def get_regions(**kwargs):
                 "parent_organization",
                 "company",
             ],
+            limit_page_length=0,
         )
 
         return api_response(success=True, data=regions, status_code=200)

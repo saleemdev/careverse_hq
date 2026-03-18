@@ -314,13 +314,13 @@ export const approvalApi = {
 // Budget & Finance API
 export const financeApi = {
     // Get chart of accounts summary
-    getChartOfAccountsSummary: async (company?: string): Promise<ApiResponse> => {
-        return frappeCall('careverse_hq.api.finance.get_chart_of_accounts_summary', { company });
+    getChartOfAccountsSummary: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.finance.get_chart_of_accounts_summary');
     },
 
     // Get important account balances
-    getAccountBalances: async (company?: string): Promise<ApiResponse> => {
-        return frappeCall('careverse_hq.api.finance.get_account_balances', { company });
+    getAccountBalances: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.finance.get_account_balances');
     },
 
     // Get budget summary
@@ -525,7 +525,6 @@ export const employeesApi = {
         page_size?: number;
         search?: string;
         status?: string;
-        company?: string;
         facility?: string;
         department?: string;
         cadre?: string;
@@ -544,10 +543,8 @@ export const employeesApi = {
     },
 
     // Get departments dropdown
-    getDepartments: async (company?: string): Promise<ApiResponse> => {
-        const params: Record<string, any> = {};
-        if (company) params.company = company;
-        return frappeCall('careverse_hq.api.employees.get_departments', params);
+    getDepartments: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.employees.get_departments');
     },
 
     // Get designations dropdown
@@ -699,8 +696,8 @@ export const affiliationsApi = {
     },
 
     // Get pending affiliations count
-    getPendingAffiliations: async (company?: string): Promise<ApiResponse> => {
-        return frappeCall('careverse_hq.api.dashboard.get_pending_affiliations', { company });
+    getPendingAffiliations: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.dashboard.get_pending_affiliations');
     },
 
     // Get affiliation statistics

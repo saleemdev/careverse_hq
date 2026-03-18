@@ -12,7 +12,7 @@ import frappe
 from typing import Optional, List, Dict, Any
 from frappe.utils import getdate
 from .response import api_response
-from .dashboard_utils import resolve_health_facility_reference
+from .dashboard_utils import resolve_health_facility_reference, _count
 
 def _normalize_optional_string(value: Optional[str]) -> Optional[str]:
     """Normalize optional string params from HTTP (strip, treat empty/undefined as None)."""
@@ -686,7 +686,7 @@ def _get_real_claims(
     if claim_upstream_error_group:
         filters["claim_upstream_error_group"] = claim_upstream_error_group.strip()
 
-    total_count = frappe.db.count("Facility Claim", filters=filters)
+    total_count = _count("Facility Claim", filters=filters)
     # Use get_list (not get_all) so Frappe's Role Permissions + User Permissions
     # naturally scope data: company users see their tenant, oversight users see all.
     items = frappe.get_list(
@@ -705,6 +705,7 @@ def _get_real_claims(
         "Facility Claim",
         filters=summary_filters,
         fields=["claim_status"],
+        limit_page_length=0,
     ):
         s = (row.get("claim_status") or "unknown").lower()
         status_counts[s] = status_counts.get(s, 0) + 1
@@ -1044,6 +1045,7 @@ def get_facility_claim_filter_options(
             filters=common_filters,
             distinct=True,
             pluck="insurer",
+            limit_page_length=0,
         )
         insurers = sorted([i for i in insurer_rows if i])
 
@@ -1052,6 +1054,7 @@ def get_facility_claim_filter_options(
             filters=common_filters,
             distinct=True,
             pluck="use",
+            limit_page_length=0,
         )
         uses = sorted([u for u in use_rows if u])
 
@@ -1060,6 +1063,7 @@ def get_facility_claim_filter_options(
             filters=common_filters,
             distinct=True,
             pluck="claim_upstream_error_group",
+            limit_page_length=0,
         )
         error_groups = sorted([e for e in error_group_rows if e])
 

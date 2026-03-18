@@ -176,7 +176,7 @@ def _create_user_permissions(
                 total_processed += 1
                 try:
                     # Duplicate check
-                    existing = frappe.get_all(
+                    existing = frappe.get_list(
                         "User Permission",
                         filters={
                             "user": canonical_user,

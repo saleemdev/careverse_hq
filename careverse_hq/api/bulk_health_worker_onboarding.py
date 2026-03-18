@@ -12,7 +12,7 @@ from datetime import datetime
 import csv
 import io
 import json
-from .dashboard_utils import resolve_health_facility_reference
+from .dashboard_utils import resolve_health_facility_reference, _count
 
 
 @frappe.whitelist()
@@ -26,6 +26,7 @@ def get_facilities():
             "Health Facility",
             fields=["hie_id", "facility_name"],
             order_by="facility_name asc",
+            limit_page_length=0,
         )
         return api_response(success=True, data=facilities, status_code=200)
     except Exception as e:
@@ -83,18 +84,20 @@ def upload_bulk_health_workers(**kwargs):
             # Use logged-in user
             requested_by = frappe.session.user
 
-        # Check if facility exists
-        if not frappe.db.exists("Health Facility", {"hie_id": facility_fid}):
+        # Verify facility exists AND user has permission to access it
+        facility_matches = frappe.get_list(
+            "Health Facility",
+            filters={"hie_id": facility_fid},
+            fields=["name"],
+            limit_page_length=1,
+        )
+        if not facility_matches:
             return api_response(
                 success=False,
-                message=f"Facility with FID '{facility_fid}' does not exist",
+                message=f"Facility with FID '{facility_fid}' not found or access denied",
                 status_code=404,
             )
-
-        # Get facility name
-        facility_name = frappe.db.get_value(
-            "Health Facility", {"hie_id": facility_fid}, "name"
-        )
+        facility_name = facility_matches[0].name
 
         # Parse records (CSV or JSON)
         records = _parse_records_input(records_input)
@@ -203,10 +206,11 @@ def get_bulk_records_by_facility(**kwargs):
             )
 
         # Get all job IDs for this facility
-        job_ids = frappe.db.get_all(
+        job_ids = frappe.get_list(
             "Bulk Health Worker Upload",
             filters={"facility": facility_name},
             pluck="name",
+            limit_page_length=0,
         )
 
         if not job_ids:
@@ -232,13 +236,13 @@ def get_bulk_records_by_facility(**kwargs):
             filters["onboarding_status"] = onboarding_status
 
         # Get total count
-        total_count = frappe.db.count("Bulk Health Worker Upload Item", filters=filters)
+        total_count = _count("Bulk Health Worker Upload Item", filters=filters)
 
         # Calculate offset
         offset = (page - 1) * per_page
 
         # Get records
-        records = frappe.db.get_all(
+        records = frappe.get_list(
             "Bulk Health Worker Upload Item",
             filters=filters,
             fields=[
@@ -334,13 +338,13 @@ def get_bulk_records_by_job(**kwargs):
             filters["onboarding_status"] = onboarding_status
 
         # Get total count
-        total_count = frappe.db.count("Bulk Health Worker Upload Item", filters=filters)
+        total_count = _count("Bulk Health Worker Upload Item", filters=filters)
 
         # Calculate offset
         offset = (page - 1) * per_page
 
         # Get records
-        records = frappe.db.get_all(
+        records = frappe.get_list(
             "Bulk Health Worker Upload Item",
             filters=filters,
             fields=[
@@ -423,7 +427,7 @@ def get_bulk_upload_jobs(**kwargs):
         offset = (page - 1) * per_page
 
         # Get total count (frappe auto-applies User Permissions)
-        total_count = frappe.db.count("Bulk Health Worker Upload", filters=filters)
+        total_count = _count("Bulk Health Worker Upload", filters=filters)
 
         # Fetch jobs using frappe.get_list (auto-applies User Permissions)
         jobs = frappe.get_list(
@@ -463,7 +467,8 @@ def get_bulk_upload_jobs(**kwargs):
             facilities_data = frappe.get_list(
                 "Health Facility",
                 filters={"name": ["in", facility_ids]},
-                fields=["name", "facility_name", "hie_id"]
+                fields=["name", "facility_name", "hie_id"],
+                limit_page_length=0
             )
 
             # Fallback: some rows may store HIE IDs in the facility field.
@@ -471,7 +476,8 @@ def get_bulk_upload_jobs(**kwargs):
                 facilities_by_hie = frappe.get_list(
                     "Health Facility",
                     filters={"hie_id": ["in", facility_ids]},
-                    fields=["name", "facility_name", "hie_id"]
+                    fields=["name", "facility_name", "hie_id"],
+                    limit_page_length=0
                 )
                 facilities_data.extend(facilities_by_hie)
 
@@ -566,16 +572,20 @@ def get_bulk_upload_job_details(job_id):
         - Progress metrics (total, verified, created, failed, pending)
     """
     try:
-        # Fetch job document using frappe.get_doc (auto-applies User Permissions)
-        job = frappe.get_doc("Bulk Health Worker Upload", job_id)
-
-        # Check if user has permission (frappe.get_doc will throw exception if no permission)
-        if not job:
+        # Verify document exists and user has permission
+        if not frappe.db.exists("Bulk Health Worker Upload", job_id):
+            return api_response(
+                success=False,
+                message="Job not found",
+                status_code=404
+            )
+        if not frappe.has_permission("Bulk Health Worker Upload", "read", job_id):
             return api_response(
                 success=False,
                 message="Job not found or access denied",
-                status_code=404
+                status_code=403
             )
+        job = frappe.get_doc("Bulk Health Worker Upload", job_id)
 
         # Get facility details
         facility_name = ""
@@ -586,7 +596,7 @@ def get_bulk_upload_job_details(job_id):
             facility_id = resolved.get("facility_id") or job.facility
 
         # Get all child items efficiently
-        items = frappe.get_all(
+        items = frappe.get_list(
             "Bulk Health Worker Upload Item",
             filters={"parent": job_id},
             fields=[
@@ -727,7 +737,7 @@ def process_bulk_upload(upload_id):
         frappe.db.commit()
 
         # Get all child records
-        child_records = frappe.get_all(
+        child_records = frappe.get_list(
             "Bulk Health Worker Upload Item",
             filters={"parent": upload_id},
             fields=[
@@ -744,6 +754,7 @@ def process_bulk_upload(upload_id):
                 "requested_by",
             ],
             order_by="`row_number` asc",  # Escaped because row_number is a SQL reserved keyword
+            limit_page_length=0,
         )
 
         # Process each record sequentially
@@ -1154,10 +1165,11 @@ def _calculate_summary_metrics(facility_name=None, job_id=None):
 
     if facility_name:
         # Get all job IDs for this facility
-        job_ids = frappe.db.get_all(
+        job_ids = frappe.get_list(
             "Bulk Health Worker Upload",
             filters={"facility": facility_name},
             pluck="name",
+            limit_page_length=0,
         )
         if job_ids:
             filters["parent"] = ["in", job_ids]
@@ -1173,10 +1185,11 @@ def _calculate_summary_metrics(facility_name=None, job_id=None):
         filters["parent"] = job_id
 
     # Get all records matching filters
-    all_records = frappe.db.get_all(
+    all_records = frappe.get_list(
         "Bulk Health Worker Upload Item",
         filters=filters,
         fields=["verification_status", "onboarding_status"],
+        limit_page_length=0,
     )
 
     total = len(all_records)

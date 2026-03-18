@@ -11,6 +11,7 @@ All endpoints respect user permissions via Frappe's permission system.
 import frappe
 import json
 from careverse_hq.api.utils import api_response, sanitize_request
+from careverse_hq.api.dashboard_utils import _count
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required
 
 
@@ -119,7 +120,7 @@ def get_latest_metrics(**kwargs):
             facility_filters["name"] = health_facility
 
         # Get total count of accessible facilities (for pagination)
-        total_facilities = frappe.db.count("Health Facility", filters=facility_filters)
+        total_facilities = _count("Health Facility", filters=facility_filters)
 
         # Calculate pagination start
         start = (page_number - 1) * page_size
@@ -186,7 +187,8 @@ def get_latest_metrics(**kwargs):
                     "metric_details",
                 ],
                 filters=metric_filters,
-                ignore_permissions=False, 
+                ignore_permissions=False,
+                limit_page_length=0,
             )
 
             # Group metrics by type

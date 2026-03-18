@@ -48,10 +48,11 @@ def fetch_user_profile_with_org():
 
         user = users[0]
 
-        roles = frappe.get_all(
+        roles = frappe.get_list(
             "Has Role",
             filters={"parent": user_id},
-            fields=["role"]
+            fields=["role"],
+            limit_page_length=0
         )
 
         user_profile = {

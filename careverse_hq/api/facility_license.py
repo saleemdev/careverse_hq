@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 from frappe.exceptions import ValidationError, PermissionError, DoesNotExistError
 from healthpro_erp.healthpro_erp.decorators.permissions import auth_required, AuthError
 from .utils import api_response, upload_file, sync_data_to_c360
+from .dashboard_utils import _count
 
 
 def _post_license_application_to_c360(license_doc):
@@ -418,6 +419,7 @@ def get_facility_license(**kwargs):
                 "reviewed_by",
                 "review_date",
             ],
+            limit_page_length=0,
         )
 
         # Prepare response data
@@ -503,6 +505,7 @@ def update_facility_license(**kwargs):
             filters={"name": license_id},
             fields=["name"],
             ignore_permissions=False,
+            limit_page_length=0,
         )
 
         # Check if license exists and user has permission to view it
@@ -702,6 +705,7 @@ def update_facility_license_c360(**kwargs):
             filters={"name": license_id},
             fields=["name"],
             ignore_permissions=False,
+            limit_page_length=0,
         )
 
         # Check if license exists and user has permission to view it
@@ -837,6 +841,7 @@ def delete_facility_license(**kwargs):
             filters={"name": license_id},
             fields=["name", "license_number"],
             ignore_permissions=False,
+            limit_page_length=0,
         )
 
         # Check if license exists and user has permission to view it
@@ -1105,7 +1110,7 @@ def build_filters(
 
 def get_total_count(filters):
     """Get total number of license records"""
-    return frappe.db.count("License Record", filters=filters)
+    return _count("License Record", filters=filters)
 
 
 def get_status_breakdown(filters):
@@ -1126,10 +1131,11 @@ def get_status_breakdown(filters):
     status_counts = {status: 0 for status in all_statuses}
 
     # Get actual counts
-    licenses = frappe.get_all(
+    licenses = frappe.get_list(
         "License Record",
         fields=["status"],
         filters=filters,
+        limit_page_length=0,
     )
 
     # Update with actual counts
@@ -1146,10 +1152,11 @@ def get_license_type_breakdown(filters):
     type_filters = filters.copy()
     type_filters["license_type"] = ["is", "set"]
 
-    licenses = frappe.get_all(
+    licenses = frappe.get_list(
         "License Record",
         fields=["license_type"],
         filters=type_filters,
+        limit_page_length=0,
     )
 
     type_counts = {}
@@ -1173,10 +1180,11 @@ def get_application_type_breakdown(filters):
     app_filters["application_type"] = ["is", "set"]
 
     # Get actual counts
-    licenses = frappe.get_all(
+    licenses = frappe.get_list(
         "License Record",
         fields=["application_type"],
         filters=app_filters,
+        limit_page_length=0,
     )
 
     # Update with actual counts
@@ -1200,7 +1208,7 @@ def get_expiring_soon_count(filters):
         {"expiry_date": ["between", [today, future_date]], "status": "Active"}
     )
 
-    return frappe.db.count("License Record", filters=expiry_filters)
+    return _count("License Record", filters=expiry_filters)
 
 
 def get_expired_count(filters):
@@ -1213,7 +1221,7 @@ def get_expired_count(filters):
         {"expiry_date": ["<", today], "status": ["not in", ["Expired", "Revoked"]]}
     )
 
-    return frappe.db.count("License Record", filters=expired_filters)
+    return _count("License Record", filters=expired_filters)
 
 
 def get_active_count(filters):
@@ -1222,16 +1230,17 @@ def get_active_count(filters):
     active_filters = filters.copy()
     active_filters["status"] = "Active"
 
-    return frappe.db.count("License Record", filters=active_filters)
+    return _count("License Record", filters=active_filters)
 
 
 def get_payment_stats(filters):
     """Get payment statistics using ORM"""
     # Get all records with permission check
-    licenses = frappe.get_all(
+    licenses = frappe.get_list(
         "License Record",
         fields=["name", "license_fee_paid", "license_fee"],
         filters=filters,
+        limit_page_length=0,
     )
 
     total = len(licenses)
@@ -1268,13 +1277,14 @@ def license_reminder_scheduler():
     # if not send email to the facility admin and regional admins
     # Also load the items that are active but date is less than today and update their status to expired
 
-    expiring_licenses = frappe.get_all(
+    expiring_licenses = frappe.get_list(
         "License Record",
         filters={
             "expiry_date": ["<=", add_days(nowdate(), max_day)],
             "status": "Active",
         },
         fields=["name", "license_number", "status", "health_facility", "expiry_date"],
+        limit_page_length=0,
     )
 
     emails_sent = 0
@@ -1298,10 +1308,11 @@ def license_reminder_scheduler():
             continue  # skip if not a notification day
 
         # check if there is a draft license linked to this one
-        draft_license = frappe.get_all(
+        draft_license = frappe.get_list(
             "License Record",
             filters={"linked_license": license.name, "docstatus": 0},
             fields=["name"],
+            limit_page_length=0,
         )
         if draft_license:
             continue  # skip if there is a draft license
