@@ -310,7 +310,7 @@ def _practitioner_full_time_affiliation(identification_type, identification_numb
             "Facility Affiliation",
             filters={
                 "health_professional": health_professional_name,
-                "employment_type": "Full-time Employee",
+                "employment_type": ["in", list(FULL_TIME_EMPLOYMENT_TYPES)],
                 "affiliation_status": ["in", ["Pending", "Confirmed", "Active"]],
             },
             fields=["name", "affiliation_status"],

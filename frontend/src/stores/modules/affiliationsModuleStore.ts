@@ -66,10 +66,14 @@ const useAffiliationsModuleStore = create<AffiliationsModuleStore>((set, get) =>
     fetchAffiliations: async (facilityIds) => {
         set({ loading: true });
         const { filters } = get();
+        const facilities =
+            facilityIds === undefined
+                ? filters.facilities
+                : facilityIds;
         try {
             const response = await affiliationsApi.getAffiliationsList({
                 ...filters,
-                facilities: facilityIds,
+                facilities,
             });
             if (response.success) {
                 set({

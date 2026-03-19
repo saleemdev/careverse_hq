@@ -35,6 +35,7 @@ const FULL_ACCESS_ROUTES = [
     'assets',
     'facilities',
     'affiliations',
+    'add-affiliation',
     'bulk-upload',
     'bulk-upload/new',
     'bulk-upload/status',

@@ -564,12 +564,27 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                     border-color: #2d8cf0 !important;
                 }
                 .bulk-upload-action-cta.ant-btn-primary:disabled,
-                .bulk-upload-action-cta.ant-btn-primary[disabled] {
-                    background: #8fb9ee !important;
-                    border-color: #8fb9ee !important;
-                    color: #ffffff !important;
+                .bulk-upload-action-cta.ant-btn-primary[disabled],
+                .bulk-upload-action-cta.ant-btn-primary.ant-btn-disabled {
+                    background: var(--btn-primary-disabled-bg) !important;
+                    background-image: none !important;
+                    border-color: var(--btn-primary-disabled-border) !important;
+                    color: var(--btn-primary-disabled-text) !important;
+                    text-shadow: none !important;
                     opacity: 1 !important;
                     box-shadow: none !important;
+                    transform: none !important;
+                }
+                .bulk-upload-action-cta.ant-btn-primary:disabled:hover,
+                .bulk-upload-action-cta.ant-btn-primary[disabled]:hover,
+                .bulk-upload-action-cta.ant-btn-primary.ant-btn-disabled:hover,
+                .bulk-upload-action-cta.ant-btn-primary:disabled:active,
+                .bulk-upload-action-cta.ant-btn-primary[disabled]:active,
+                .bulk-upload-action-cta.ant-btn-primary.ant-btn-disabled:active {
+                    background: var(--btn-primary-disabled-bg) !important;
+                    border-color: var(--btn-primary-disabled-border) !important;
+                    box-shadow: none !important;
+                    transform: none !important;
                 }
             `}</style>
         </div>

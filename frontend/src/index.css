@@ -66,6 +66,9 @@
   --text-tertiary: #8c8c8c;
   --border-color: #e8e8e8;
   --border-color-light: #f0f0f0;
+  --btn-primary-disabled-bg: #dce7f4;
+  --btn-primary-disabled-border: #bccde2;
+  --btn-primary-disabled-text: #2f4866;
 }
 
 /* Dark Mode Colors */
@@ -78,6 +81,9 @@
   --text-tertiary: #737373;
   --border-color: #303030;
   --border-color-light: #424242;
+  --btn-primary-disabled-bg: #39424f;
+  --btn-primary-disabled-border: #4a596d;
+  --btn-primary-disabled-text: #e6edf7;
 }
 
 /* Global Styles */
@@ -205,13 +211,50 @@ a:hover {
   transition: transform var(--transition-fast), box-shadow var(--transition-fast) !important;
 }
 
-.ant-btn-primary:hover {
+.ant-btn-primary:not(:disabled):not([disabled]):not(.ant-btn-disabled):hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(24, 144, 255, 0.5) !important;
 }
 
-.ant-btn-primary:active {
+.ant-btn-primary:not(:disabled):not([disabled]):not(.ant-btn-disabled):active {
   transform: translateY(0);
+}
+
+/* Keep disabled primary buttons readable and non-deceptive.
+   Global gradient overrides above would otherwise make disabled text low-contrast. */
+.ant-btn-primary:disabled,
+.ant-btn-primary[disabled],
+.ant-btn-primary.ant-btn-disabled,
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid:disabled,
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid[disabled],
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-disabled {
+  background: var(--btn-primary-disabled-bg) !important;
+  background-image: none !important;
+  border: 1px solid var(--btn-primary-disabled-border) !important;
+  color: var(--btn-primary-disabled-text) !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+.ant-btn-primary:disabled:hover,
+.ant-btn-primary[disabled]:hover,
+.ant-btn-primary.ant-btn-disabled:hover,
+.ant-btn-primary:disabled:active,
+.ant-btn-primary[disabled]:active,
+.ant-btn-primary.ant-btn-disabled:active,
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid:disabled:hover,
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid[disabled]:hover,
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-disabled:hover,
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid:disabled:active,
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid[disabled]:active,
+.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ant-btn-disabled:active {
+  background: var(--btn-primary-disabled-bg) !important;
+  background-image: none !important;
+  border-color: var(--btn-primary-disabled-border) !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 /* Progress Bar Enhancements */

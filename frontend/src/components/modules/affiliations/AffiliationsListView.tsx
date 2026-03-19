@@ -767,6 +767,15 @@ const AffiliationsListView: React.FC = () => {
                             {/* Refresh Button */}
                             <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
 
+                            {/* Add Affiliation Button */}
+                            <Button
+                                type="primary"
+                                icon={<LinkOutlined />}
+                                onClick={() => { window.location.hash = '#add-affiliation'; }}
+                            >
+                                {isMobile ? 'Add' : 'Add Affiliation'}
+                            </Button>
+
                             {/* Active Filter Count Badge */}
                             {(filters.status || (filters.facilities && filters.facilities.length > 0) || filters.professional_name || filters.dateFrom || filters.expiryFrom) && (
                                 <Tag color="blue" style={{ marginLeft: 4 }}>

@@ -10,7 +10,9 @@ import UnauthorizedPage from './components/UnauthorizedPage';
 import CompanyPermissionRequired from './components/CompanyPermissionRequired';
 import ExecutiveDashboard from './components/ExecutiveDashboard';
 import EmployeeListView from './components/modules/employees/EmployeeListView';
-import AssetsListView from './components/modules/assets/AssetsListView';
+import ERPNextAssetsListView from './components/modules/assets/ERPNextAssetsListView';
+import AssetDetailView from './components/modules/assets/AssetDetailView';
+import AssetCreateForm from './components/modules/assets/AssetCreateForm';
 import FacilitiesListView from './components/modules/facilities/FacilitiesListView';
 import AffiliationsListView from './components/modules/affiliations/AffiliationsListView';
 import LicensesListView from './components/modules/licenses/LicensesListView';
@@ -19,6 +21,7 @@ import EmptyState from './components/shared/EmptyState/EmptyState';
 import BulkUploadListPage from './pages/affiliations/BulkUploadListPage';
 import BulkUploadPage from './pages/affiliations/BulkUploadPage';
 import BulkUploadDetailView from './pages/affiliations/BulkUploadDetailView';
+import SingleAffiliationPage from './pages/affiliations/SingleAffiliationPage';
 import UserManagementPage from './pages/user-management/UserManagementPage';
 import UserListPage from './pages/user-management/UserListPage';
 import CreateUserPage from './pages/user-management/CreateUserPage';
@@ -354,7 +357,13 @@ function App() {
         return <EmployeeListView />;
 
       case 'assets':
-        return <AssetsListView />;
+        if (currentDetailId === 'new') {
+          return <AssetCreateForm navigateToRoute={navigateToRoute} />;
+        }
+        if (currentDetailId) {
+          return <AssetDetailView assetId={currentDetailId} navigateToRoute={navigateToRoute} />;
+        }
+        return <ERPNextAssetsListView navigateToRoute={navigateToRoute} />;
 
       case 'facilities':
         return <FacilitiesListView />;
@@ -395,6 +404,9 @@ function App() {
       // Affiliations route
       case 'affiliations':
         return <AffiliationsListView />;
+
+      case 'add-affiliation':
+        return <SingleAffiliationPage navigateToRoute={navigateToRoute} />;
 
       // Bulk Upload routes
       case 'bulk-upload':

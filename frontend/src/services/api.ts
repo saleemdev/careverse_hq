@@ -63,7 +63,30 @@ const apiCall = async <T = any>(
         }
 
         if (!response.ok) {
-            const errorMsg = result.message || result.exc || 'Request failed';
+            // Frappe wraps api_response dicts in {"message": {...}}, so result.message
+            // can be an object like {"status":"error","message":"actual error text"}.
+            const raw = result.message;
+            const errorMsg =
+                (typeof raw === 'object' && raw !== null && typeof raw.message === 'string')
+                    ? raw.message
+                    : (typeof raw === 'string' ? raw : null)
+                        || result.exc
+                        || 'Request failed';
+            notifyApiError(errorMsg);
+            return {
+                success: false,
+                error: errorMsg,
+            };
+        }
+
+        // Detect api_response failures that arrived with HTTP 200.
+        // Keep this check scoped to top-level `status` to avoid interpreting
+        // arbitrary nested domain objects that may also contain a `status` field.
+        if (result?.status === 'error') {
+            const errorMsg =
+                typeof result.message === 'string'
+                    ? result.message
+                    : 'Operation failed';
             notifyApiError(errorMsg);
             return {
                 success: false,
@@ -74,6 +97,7 @@ const apiCall = async <T = any>(
         // Frappe can return either { status, data, message } or { message: { status, data } }
         // Prefer result.data when present so { status, data, message } is handled correctly
         const apiResponse = result.message ?? result;
+
         const finalData =
             (result.data !== undefined && result.data !== null)
                 ? result.data
@@ -141,7 +165,13 @@ export const callFrappePostMethod = async <T = any>(
                 args,
                 callback: (r: any) => {
                     if (r?.exc) {
-                        resolve({ success: false, error: 'Request failed.', data: r as any });
+                        // exc is a Python traceback string; try to extract the
+                        // last meaningful line, or fall back to the payload message.
+                        const payload = r?.message ?? r;
+                        const excMsg = (typeof payload === 'object' && payload !== null && typeof payload.message === 'string')
+                            ? payload.message
+                            : 'Request failed.';
+                        resolve({ success: false, error: excMsg, data: r as any });
                         return;
                     }
                     const payload = r?.message ?? r;
@@ -158,7 +188,14 @@ export const callFrappePostMethod = async <T = any>(
                     resolve({ success: true, data });
                 },
                 error: (err: any) => {
-                    resolve({ success: false, error: err?.message || 'Request failed.', data: err as any });
+                    // err can be an XHR response, parsed JSON, or Error object.
+                    // Extract the deepest string message available.
+                    const raw = err?.responseJSON?.message ?? err?.message ?? err;
+                    const errMsg =
+                        (typeof raw === 'object' && raw !== null && typeof raw.message === 'string')
+                            ? raw.message
+                            : (typeof raw === 'string' ? raw : 'Request failed.');
+                    resolve({ success: false, error: errMsg, data: err as any });
                 },
             });
         });
@@ -659,6 +696,39 @@ export const facilitiesApi = {
 
 // Affiliations API - Facility Affiliations management
 export const affiliationsApi = {
+    // Facilities list used by Add Single Affiliation flow
+    getAffiliationFacilities: async (): Promise<ApiResponse<Array<{ hie_id: string; facility_name: string }>>> => {
+        return frappeCall('careverse_hq.api.bulk_health_worker_onboarding.get_facilities');
+    },
+
+    // Search HP in local DB first, then HWR fallback for Add Single Affiliation
+    searchHealthProfessional: async (
+        searchTerm: string,
+        searchBy: 'national_id' | 'alien_id' | 'registration_number' = 'national_id',
+        searchMode: 'auto' | 'local' | 'hwr' = 'auto'
+    ): Promise<ApiResponse<{ results: any[]; source: 'local' | 'hwr' | 'none' }>> => {
+        return callFrappePostMethod('careverse_hq.api.single_affiliation.search_health_professional', {
+            search_term: searchTerm,
+            search_by: searchBy,
+            search_mode: searchMode,
+        });
+    },
+
+    // Create one facility affiliation (existing HP or HWR-cached HP)
+    createSingleAffiliation: async (params: {
+        hp_name?: string;
+        hwr_cache_key?: string;
+        employment_details: {
+            fid: string;
+            employment_type: string;
+            designation: string;
+            start_date: string;
+            end_date?: string;
+        };
+    }): Promise<ApiResponse<{ health_professional: string; facility_affiliation: string; is_new_hp?: boolean }>> => {
+        return callFrappePostMethod('careverse_hq.api.single_affiliation.create_single_affiliation', params);
+    },
+
     // Get all affiliations with optional filters
     getAffiliations: async (filters?: {
         status?: string;
@@ -1155,6 +1225,138 @@ export const licensesApi = {
     },
 };
 
+// ERPNext Assets API (new — uses ERPNext Asset doctype natively)
+export const erpnextAssetsApi = {
+    getDashboard: async (params: {
+        facilities?: string[];
+    }): Promise<ApiResponse> => {
+        const q: Record<string, any> = {};
+        if (params.facilities?.length) q.facilities = params.facilities.join(',');
+        return frappeCall('careverse_hq.api.erpnext_assets.get_asset_dashboard', q);
+    },
+
+    getAssetsList: async (params: {
+        facilities?: string[];
+        page?: number;
+        pageSize?: number;
+        status?: string;
+        category?: string;
+        search?: string;
+        sortBy?: string;
+        sortOrder?: string;
+    }): Promise<ApiResponse> => {
+        const q: Record<string, any> = {};
+        if (params.facilities?.length) q.facilities = params.facilities.join(',');
+        if (params.page) q.page = params.page;
+        if (params.pageSize) q.page_size = params.pageSize;
+        if (params.status) q.status = params.status;
+        if (params.category) q.category = params.category;
+        if (params.search) q.search = params.search;
+        if (params.sortBy) q.sort_by = params.sortBy;
+        if (params.sortOrder) q.sort_order = params.sortOrder;
+        return frappeCall('careverse_hq.api.erpnext_assets.get_assets_list', q);
+    },
+
+    getAssetDetail: async (assetName: string): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.erpnext_assets.get_asset_detail', { asset_name: assetName });
+    },
+
+    createAsset: async (data: Record<string, any>): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_asset', data);
+    },
+
+    submitAsset: async (assetName: string): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.submit_asset', { asset_name: assetName });
+    },
+
+    createMaintenanceRequest: async (data: Record<string, any>): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_maintenance_request', data);
+    },
+
+    getMaintenanceSchedule: async (assetName: string): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.erpnext_assets.get_maintenance_schedule', { asset_name: assetName });
+    },
+
+    completeMaintenanceLog: async (data: Record<string, any>): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.complete_maintenance_log', data);
+    },
+
+    createRepairRequest: async (data: Record<string, any>): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_repair_request', data);
+    },
+
+    completeRepair: async (data: Record<string, any>): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.complete_repair', data);
+    },
+
+    getRepairs: async (assetName: string, repairStatus?: string): Promise<ApiResponse> => {
+        const q: Record<string, any> = { asset_name: assetName };
+        if (repairStatus) q.repair_status = repairStatus;
+        return frappeCall('careverse_hq.api.erpnext_assets.get_repairs', q);
+    },
+
+    createMovement: async (data: Record<string, any>): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_asset_movement', data);
+    },
+
+    getMovements: async (assetName: string): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.erpnext_assets.get_asset_movements', { asset_name: assetName });
+    },
+
+    getDepreciationSummary: async (assetName: string): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.erpnext_assets.get_depreciation_summary', { asset_name: assetName });
+    },
+
+    getCategories: async (search?: string): Promise<ApiResponse> => {
+        const q: Record<string, any> = {};
+        if (search) q.search = search;
+        return frappeCall('careverse_hq.api.erpnext_assets.get_asset_categories', q);
+    },
+
+    getMaintenanceTeams: async (company?: string): Promise<ApiResponse> => {
+        const q: Record<string, any> = {};
+        if (company) q.company = company;
+        return frappeCall('careverse_hq.api.erpnext_assets.get_maintenance_teams', q);
+    },
+
+    // Item management (for asset creation flow)
+    searchFixedAssetItems: async (search: string, limit?: number): Promise<ApiResponse> => {
+        const q: Record<string, any> = { search };
+        if (limit) q.limit = limit;
+        return frappeCall('careverse_hq.api.erpnext_assets.search_fixed_asset_items', q);
+    },
+
+    createFixedAssetItem: async (data: Record<string, any>): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_fixed_asset_item', data);
+    },
+
+    getItemNamingConfig: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.erpnext_assets.get_item_naming_config');
+    },
+
+    getItemGroups: async (search?: string): Promise<ApiResponse> => {
+        const q: Record<string, any> = {};
+        if (search) q.search = search;
+        return frappeCall('careverse_hq.api.erpnext_assets.get_item_groups', q);
+    },
+
+    getUserCompanies: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.erpnext_assets.get_user_companies');
+    },
+
+    searchEmployees: async (search: string, company?: string): Promise<ApiResponse> => {
+        const q: Record<string, any> = { search };
+        if (company) q.company = company;
+        return frappeCall('careverse_hq.api.erpnext_assets.search_employees', q);
+    },
+
+    getDepartments: async (company?: string): Promise<ApiResponse> => {
+        const q: Record<string, any> = {};
+        if (company) q.company = company;
+        return frappeCall('careverse_hq.api.erpnext_assets.get_departments', q);
+    },
+};
+
 export default {
     dashboard: dashboardApi,
     approvals: approvalApi,
@@ -1167,5 +1369,6 @@ export default {
     userManagement: userManagementApi,
     companies: companiesApi,
     licenses: licensesApi,
+    erpnextAssets: erpnextAssetsApi,
     mock: mockData,
 };

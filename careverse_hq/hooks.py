@@ -143,6 +143,12 @@ home_page = "index"
 # 	}
 # }
 
+doc_events = {
+	"Health Facility": {
+		"on_update": "careverse_hq.api.location_sync.sync_facility_to_location"
+	}
+}
+
 # Scheduled Tasks
 # ---------------
 

@@ -2,13 +2,36 @@ from healthpro_erp.healthpro_erp.decorators.permissions import auth_required
 from .utils import *
 import frappe
 from frappe import _
-from frappe.utils import now
+from frappe.utils import now, getdate
 from datetime import datetime, timedelta
 from .user_registration import create_employee_from_user
 
-from .healthpro_mobile_app.mobile_notifications import send_firebase_notification
+try:
+    from .healthpro_mobile_app.mobile_notifications import send_firebase_notification
+except ImportError:
+    def send_firebase_notification(notification_bundle):
+        frappe.log_error(
+            title="Mobile Notification Module Missing",
+            message=(
+                "Skipped send_firebase_notification because "
+                "careverse_hq.api.healthpro_mobile_app is unavailable."
+            ),
+        )
 
 _cryptoService = SecureTransportManager()
+FULL_TIME_EMPLOYMENT_TYPES = ("Full-time Employee", "Full-time")
+EMPLOYMENT_TYPE_ALIASES = {
+    "Full-time": "Full-time Employee",
+    "Part-time": "Part-time Employee",
+}
+
+
+def normalize_employment_type(employment_type):
+    if not employment_type:
+        return ""
+
+    normalized = str(employment_type).strip()
+    return EMPLOYMENT_TYPE_ALIASES.get(normalized, normalized)
 
 
 @frappe.whitelist()
@@ -193,6 +216,10 @@ def create_facility_affiliation_record_v1(health_professional_name, employment_d
                 "message": "affiliation_token_expiry_days not configured in settings",
             }
 
+        employment_details = dict(employment_details or {})
+        employment_details["employment_type"] = normalize_employment_type(
+            employment_details.get("employment_type", "")
+        )
         health_facility = employment_details.get("fid")
 
         if not health_facility:
@@ -297,6 +324,11 @@ def _create_facility_affiliation_record_internal(
                 "message": "affiliation_token_expiry_days not configured in settings",
             }
 
+        employment_details = dict(employment_details or {})
+        employment_details["employment_type"] = normalize_employment_type(
+            employment_details.get("employment_type", "")
+        )
+        requested_employment_type = employment_details.get("employment_type")
         health_facility = employment_details.get("fid")
 
         if not health_facility:
@@ -321,7 +353,7 @@ def _create_facility_affiliation_record_internal(
             "Facility Affiliation",
             filters={
                 "health_professional": health_professional_name,
-                "employment_type": "Full-time Employee",
+                "employment_type": ["in", list(FULL_TIME_EMPLOYMENT_TYPES)],
                 "affiliation_status": ["in", ["Pending", "Confirmed", "Active"]],
             },
             fields=["name", "affiliation_status"],
@@ -330,7 +362,7 @@ def _create_facility_affiliation_record_internal(
 
         if (
             existing_fulltime_affiliation
-            and employment_details.get("employment_type") == "Full-time Employee"
+            and requested_employment_type in FULL_TIME_EMPLOYMENT_TYPES
         ):
             return {
                 "error": True,
@@ -532,7 +564,9 @@ def append_professional_affiliation_record(
     affiliation_row.health_facility = employment_details.get("fid")
     affiliation_row.employee = None
     affiliation_row.role = employment_details.get("designation", "")
-    affiliation_row.employment_type = employment_details.get("employment_type", "")
+    affiliation_row.employment_type = normalize_employment_type(
+        employment_details.get("employment_type", "")
+    )
     affiliation_row.designation = designation_name  # This will now exist
     affiliation_row.start_date = employment_details.get("start_date")
     affiliation_row.end_date = employment_details.get("end_date")
@@ -709,6 +743,25 @@ def validate_onboarding_data(data):
             for field in employment_required:
                 if not employment_detail.get(field):
                     errors.append(f"employment_details.{index}.{field} is required")
+
+            start_date = employment_detail.get("start_date")
+            end_date = employment_detail.get("end_date")
+
+            # When provided, dates must be valid and end_date cannot precede start_date.
+            try:
+                start_date_value = getdate(start_date) if start_date else None
+            except Exception:
+                errors.append(f"employment_details.{index}.start_date must be a valid date (YYYY-MM-DD)")
+                start_date_value = None
+
+            try:
+                end_date_value = getdate(end_date) if end_date else None
+            except Exception:
+                errors.append(f"employment_details.{index}.end_date must be a valid date (YYYY-MM-DD)")
+                end_date_value = None
+
+            if start_date_value and end_date_value and end_date_value < start_date_value:
+                errors.append(f"employment_details.{index}.end_date cannot be before start_date")
 
     return {"valid": len(errors) == 0, "errors": errors}
 
