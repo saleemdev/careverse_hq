@@ -285,10 +285,10 @@ const SingleAffiliationPage: React.FC<SingleAffiliationPageProps> = ({ navigateT
                     <Input.Search
                         placeholder={
                             searchBy === 'national_id'
-                                ? 'e.g. 22334289'
+                                ? 'e.g. 23XXXX65'
                                 : searchBy === 'alien_id'
-                                    ? 'e.g. A1234567'
-                                    : 'e.g. A7000'
+                                    ? 'e.g. A18XXX63'
+                                    : 'e.g. A7XX1'
                         }
                         enterButton="Search"
                         size="large"
