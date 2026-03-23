@@ -325,6 +325,8 @@ def _try_hwr_by_registration(search_term):
     """
     errors = []
     lookup_strategies = [
+        # Match HP sync behavior: prefer regulator registration_number first.
+        ("registration_number", {"registration_number": search_term}),
         ("id", {"id": search_term}),
     ]
 

@@ -56,7 +56,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
                 image={config.icon}
                 description={
                     <div style={{ marginTop: 16 }}>
-                        <div style={{ fontSize: 18, fontWeight: 600, color: '#262626', marginBottom: 8 }}>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
                             {title || config.defaultTitle}
                         </div>
                         <Text type="secondary" style={{ maxWidth: 400, display: 'inline-block' }}>

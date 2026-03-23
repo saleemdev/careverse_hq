@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUB-01..PUB-04 - Admin Central V2 Jobs Board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --color-primary: #1890ff;
+      --color-primary-light: #40a9ff;
+      --color-primary-dark: #096dd9;
+      --color-success: #52c41a;
+      --color-warning: #faad14;
+      --color-error: #ff4d4f;
+      --color-info: #13c2c2;
+      --gradient-primary: linear-gradient(135deg, #1890ff 0%, #722ed1 100%);
+      --gradient-secondary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --gradient-success: linear-gradient(135deg, #36d1c4 0%, #5b86e5 100%);
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --font-size-xs: 10px;
+      --font-size-sm: 11px;
+      --font-size-base: 13px;
+      --font-size-lg: 15px;
+      --font-size-xl: 18px;
+      --font-size-xxl: 22px;
+      --font-size-xxxl: 28px;
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      --spacing-xxl: 48px;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+      --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.12);
+      --shadow-primary: 0 4px 14px rgba(24, 144, 255, 0.4);
+      --transition-base: 0.25s ease;
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f7fa;
+      --bg-tertiary: #fafafa;
+      --text-primary: #262626;
+      --text-secondary: #595959;
+      --text-tertiary: #8c8c8c;
+      --border-color: #e8e8e8;
+      --border-color-light: #f0f0f0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-family);
+      font-size: var(--font-size-base);
+      color: var(--text-primary);
+      background: radial-gradient(circle at 0% 0%, rgba(24, 144, 255, 0.09), transparent 45%), var(--bg-secondary);
+      padding: 24px;
+    }
+
+    .page {
+      width: 1600px;
+      margin: 0 auto;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-xl);
+      overflow: hidden;
+    }
+
+    .topbar {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border-color-light);
+      background: rgba(255, 255, 255, 0.84);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: var(--font-size-sm);
+    }
+
+    .logo {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      background: rgba(24, 144, 255, 0.18);
+      border: 1px solid rgba(24, 144, 255, 0.30);
+      display: grid;
+      place-items: center;
+      color: var(--color-primary-dark);
+      font-weight: 700;
+    }
+
+    .hero {
+      margin: 24px;
+      border-radius: var(--radius-lg);
+      padding: 22px 24px;
+      background: var(--gradient-primary);
+      color: #fff;
+      box-shadow: var(--shadow-primary);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: var(--font-size-xxxl);
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .hero p {
+      margin: 8px 0 0;
+      font-size: var(--font-size-base);
+      color: rgba(255, 255, 255, 0.9);
+      max-width: 840px;
+    }
+
+    .pill {
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.45px;
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .content {
+      padding: 0 24px 24px;
+      display: grid;
+      grid-template-columns: 300px 1fr 420px;
+      gap: 16px;
+    }
+
+    .glass-card {
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.76);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      box-shadow: var(--shadow-md);
+    }
+
+    .panel {
+      padding: 16px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color-light);
+      background: var(--bg-primary);
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+    }
+
+    .section-sub {
+      margin-top: 4px;
+      color: var(--text-tertiary);
+      font-size: var(--font-size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .filters {
+      padding: 16px;
+    }
+
+    .filter-group {
+      margin-top: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .filter-title {
+      font-size: var(--font-size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.45px;
+      color: var(--text-tertiary);
+      font-weight: 600;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      font-size: var(--font-size-sm);
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+    }
+
+    .chip.active {
+      border-color: rgba(24, 144, 255, 0.3);
+      background: rgba(24, 144, 255, 0.1);
+      color: var(--color-primary-dark);
+      font-weight: 500;
+    }
+
+    .jobs {
+      display: grid;
+      gap: 12px;
+    }
+
+    .job-card {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color-light);
+      background: var(--bg-primary);
+      padding: 14px;
+      transition: var(--transition-base);
+    }
+
+    .job-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(24, 144, 255, 0.35);
+    }
+
+    .job-title {
+      margin: 0;
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .job-meta {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+    }
+
+    .status-chip {
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: var(--font-size-xs);
+      border: 1px solid;
+      font-weight: 600;
+    }
+
+    .open { color: #1f7a1f; background: rgba(82, 196, 26, 0.12); border-color: rgba(82, 196, 26, 0.35); }
+
+    .cta-row {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-primary {
+      border: 0;
+      border-radius: var(--radius-md);
+      padding: 8px 12px;
+      color: #fff;
+      background: var(--gradient-primary);
+      box-shadow: var(--shadow-primary);
+      font-weight: 600;
+      font-size: var(--font-size-sm);
+    }
+
+    .btn-ghost {
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 8px 12px;
+      background: var(--bg-primary);
+      font-weight: 500;
+      font-size: var(--font-size-sm);
+    }
+
+    .detail {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .consent {
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(24, 144, 255, 0.22);
+      background: linear-gradient(135deg, rgba(24, 144, 255, 0.08) 0%, rgba(114, 46, 209, 0.08) 100%);
+      padding: 12px;
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+    }
+
+    .consent strong {
+      color: var(--text-primary);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .workflow {
+      margin: 16px 24px 24px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color-light);
+      background: var(--bg-primary);
+      padding: 16px;
+    }
+
+    .workflow h3 {
+      margin: 0;
+      font-size: var(--font-size-lg);
+    }
+
+    .steps {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+    }
+
+    .step {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color-light);
+      padding: 10px;
+      background: var(--bg-tertiary);
+      min-height: 96px;
+      position: relative;
+    }
+
+    .step::after {
+      content: "→";
+      position: absolute;
+      right: -8px;
+      top: 42%;
+      color: var(--text-tertiary);
+      font-size: 12px;
+    }
+
+    .step:last-child::after {
+      content: "";
+    }
+
+    .step .k {
+      font-size: var(--font-size-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--text-tertiary);
+      font-weight: 600;
+    }
+
+    .step .v {
+      margin-top: 6px;
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+      line-height: 1.45;
+    }
+
+    .privacy {
+      margin: 0 24px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .privacy-card {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color-light);
+      background: var(--bg-primary);
+      padding: 14px;
+    }
+
+    .privacy-card h4 {
+      margin: 0;
+      font-size: var(--font-size-base);
+      font-weight: 600;
+    }
+
+    .privacy-list {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+      line-height: 1.55;
+    }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .legend span {
+      font-size: var(--font-size-xs);
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">F360</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;">Admin Central</div>
+          <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;">Jobs Board</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn-ghost">Preview as Candidate</button>
+        <button class="btn-primary">Publish 3 Openings</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div>
+        <h1>PUB-01..PUB-04 Jobs Board: Browse Jobs, View Details, Apply</h1>
+        <p>Operationalized UI for UC-01 and UC-02 with consent capture, compliance pre-check visibility, and conversion-focused job discovery for locum hiring.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+        <span class="pill">Public Surface</span>
+        <span class="pill">HRMS-Compatible Fields</span>
+        <span class="pill">LinkedIn-Ready Syndication</span>
+      </div>
+    </section>
+
+    <section class="content">
+      <aside class="glass-card filters">
+        <h2>PUB-01 Jobs Board List</h2>
+        <div class="section-sub">Candidate filters on `/jobs`</div>
+
+        <div class="filter-group">
+          <div class="filter-title">Role</div>
+          <div class="chip-row">
+            <span class="chip active">Primary Nurse</span>
+            <span class="chip">Clinical Officer</span>
+            <span class="chip">Lab Technologist</span>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-title">Facility Type</div>
+          <div class="chip-row">
+            <span class="chip active">L2</span>
+            <span class="chip active">L3</span>
+            <span class="chip">L4+</span>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-title">Distance Radius</div>
+          <div class="chip-row">
+            <span class="chip">5 km</span>
+            <span class="chip active">25 km</span>
+            <span class="chip">50 km</span>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-title">Contract Type</div>
+          <div class="chip-row">
+            <span class="chip active">Locum / Temporary</span>
+            <span class="chip">Part-time</span>
+            <span class="chip">Full-time</span>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span>License Required</span>
+          <span>Consent Required</span>
+          <span>KYC at Offer Stage</span>
+        </div>
+      </aside>
+
+      <main class="jobs">
+        <article class="job-card">
+          <p class="job-title">Primary Nurse (Locum) - Ruai Community Clinic</p>
+          <div class="job-meta">
+            <span>Nairobi County</span>
+            <span>L2 Facility</span>
+            <span>Night Shift</span>
+            <span>KES 8,000/day</span>
+            <span class="status-chip open">Open</span>
+          </div>
+          <div class="job-meta">
+            <span>Applications: 14</span>
+            <span>Closes: 29 Mar 2026</span>
+            <span>Route: /job_application/new?job_title=JOB-00041</span>
+          </div>
+          <div class="cta-row">
+            <button class="btn-primary">Apply + Consent</button>
+            <button class="btn-ghost">Save Job</button>
+          </div>
+        </article>
+
+        <article class="job-card">
+          <p class="job-title">Primary Nurse (Locum) - Eastlands Medical Centre</p>
+          <div class="job-meta">
+            <span>Nairobi County</span>
+            <span>L3 Facility</span>
+            <span>Rotating Shift</span>
+            <span>KES 7,200/day</span>
+            <span class="status-chip open">Open</span>
+          </div>
+          <div class="job-meta">
+            <span>Applications: 28</span>
+            <span>Closes: 01 Apr 2026</span>
+            <span>LinkedIn Sync: Enabled</span>
+          </div>
+          <div class="cta-row">
+            <button class="btn-primary">Apply + Consent</button>
+            <button class="btn-ghost">Compare</button>
+          </div>
+        </article>
+
+        <article class="job-card">
+          <p class="job-title">Primary Nurse (Locum) - Kiambu Central Outpatient</p>
+          <div class="job-meta">
+            <span>Kiambu County</span>
+            <span>L2 Facility</span>
+            <span>Weekend Relief</span>
+            <span>KES 6,900/day</span>
+            <span class="status-chip open">Open</span>
+          </div>
+          <div class="job-meta">
+            <span>Applications: 9</span>
+            <span>Closes: 30 Mar 2026</span>
+            <span>Applications Route: HRMS Web Form</span>
+          </div>
+          <div class="cta-row">
+            <button class="btn-primary">Apply + Consent</button>
+            <button class="btn-ghost">Share</button>
+          </div>
+        </article>
+      </main>
+
+      <aside class="glass-card detail">
+        <div class="panel">
+          <h2>PUB-02 Job Post Detail</h2>
+          <div class="section-sub">Route: `/jobs/{job_slug}`</div>
+          <div style="margin-top:10px; font-size:13px; color:var(--text-secondary); line-height:1.55;">
+            Full job detail context with role summary, facility context, locum indicators, compensation, and conversion CTA (`Apply`).
+          </div>
+        </div>
+
+        <div class="panel consent">
+          <strong>Consent Ledger Snapshot</strong>
+          Scope: profile processing, practitioner verification, interview communication, data retention policy v1.4. <br />
+          Capture: 2026-03-22 14:55 EAT | Source: Public Job Form | Actor: Candidate
+        </div>
+
+        <div class="panel">
+          <h2>PUB-03 Job Application Submission + Validation</h2>
+          <div style="margin-top:8px; display:grid; gap:8px; font-size:12px; color:var(--text-secondary);">
+            <div>1. Required candidate fields complete</div>
+            <div>2. Consent explicitly checked</div>
+            <div>3. Job opening status is still Open</div>
+            <div>4. Route maps to Job Applicant doctype</div>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:8px;">
+            <span class="status-chip open" style="background:rgba(82,196,26,0.12);">Ready to Submit</span>
+            <span class="status-chip" style="background:rgba(250,173,20,0.12); border-color:rgba(250,173,20,0.35); color:#9c6a00;">KYC Later</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="workflow">
+      <h3>PUB-04 Application Flow (Operational, Not Conceptual)</h3>
+      <div class="steps">
+        <div class="step"><div class="k">Step 01</div><div class="v">Facility publishes Job Opening with public route and allowed fields.</div></div>
+        <div class="step"><div class="k">Step 02</div><div class="v">Candidate discovers openings by role, radius, facility tier, and contract type.</div></div>
+        <div class="step"><div class="k">Step 03</div><div class="v">Candidate opens detail and submits application via HRMS job form.</div></div>
+        <div class="step"><div class="k">Step 04</div><div class="v">Consent artifact captured with policy version and timestamp.</div></div>
+        <div class="step"><div class="k">Step 05</div><div class="v">System creates Job Applicant in private workflow queue.</div></div>
+        <div class="step"><div class="k">Step 06</div><div class="v">Recruiter receives candidate in New state for screening.</div></div>
+      </div>
+    </section>
+
+    <section class="privacy">
+      <article class="privacy-card">
+        <h4>PUB-04 Privacy-By-Design Controls</h4>
+        <ul class="privacy-list">
+          <li>PII minimization in public surface: no ID/license numbers before private workflow.</li>
+          <li>Consent scope displayed before submit with explicit acknowledgement.</li>
+          <li>Retention policy tag on each application for future anonymization.</li>
+          <li>No direct employee creation path from public workflow.</li>
+        </ul>
+      </article>
+
+      <article class="privacy-card">
+        <h4>PUB-04 LinkedIn Publish Readiness</h4>
+        <ul class="privacy-list">
+          <li>Posting fields map to HRMS Job Opening (title, location, employment type, compensation).</li>
+          <li>Partner-gated mode toggle controls external syndication.</li>
+          <li>Inbound applicants normalized to Job Applicant + consent capture.</li>
+          <li>Status sync delegated to integration worker (Phase B).</li>
+        </ul>
+      </article>
+    </section>
+  </div>
+
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+</body>
+</html>

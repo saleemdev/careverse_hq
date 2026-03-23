@@ -12,6 +12,7 @@ import {
     MedicineBoxOutlined,
     SafetyCertificateOutlined,
     SettingOutlined,
+    SolutionOutlined,
     TeamOutlined,
 } from '@ant-design/icons';
 import type { AccessMode } from '../stores/facilityStore';
@@ -55,6 +56,9 @@ const FULL_ACCESS_ROUTES = [
     'account-balances',
     'financial-reports',
     'hr-reports',
+    'recruitment',
+    'recruitment/job-posts',
+    'recruitment/candidates',
 ] as const;
 
 const NO_ACCESS_ALLOWED_ROUTES = [COMPANY_PERMISSION_ROUTE, 'profile'] as const;
@@ -161,6 +165,11 @@ export const getMenuItemsForMode = (menuMode: MenuMode): ItemType[] => {
                     key: 'e-contracting',
                     icon: <AuditOutlined />,
                     label: 'eContracting',
+                },
+                {
+                    key: 'recruitment',
+                    icon: <SolutionOutlined />,
+                    label: 'Recruitment Desk',
                 },
             ],
         },

@@ -78,8 +78,8 @@ def sanitize_redirect(redirect_url):
 		redirect_url = '/' + redirect_url
 
 	# Whitelist known safe paths
-	safe_paths = ['/admin-central', '/desk', '/api', '/app']
-	is_safe = any(redirect_url.startswith(path) for path in safe_paths)
+	safe_prefixes = ['/admin-central', '/desk', '/api', '/app', '/jobs']
+	is_safe = any(redirect_url.startswith(path) for path in safe_prefixes)
 
 	if not is_safe and redirect_url not in ['/', '/home']:
 		return '/admin-central'

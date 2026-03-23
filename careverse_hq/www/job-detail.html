@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or "Job Details - CareVerse HQ" }}</title>
+    <meta name="description" content="Review a published healthcare role and submit a job application.">
+    <link rel="icon" type="image/svg+xml" href="/assets/careverse_hq/images/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --color-primary: #1890ff;
+            --color-primary-light: #40a9ff;
+            --color-primary-dark: #096dd9;
+            --color-success: #52c41a;
+            --color-warning: #faad14;
+            --color-error: #ff4d4f;
+            --gradient-primary: linear-gradient(135deg, #1890ff 0%, #722ed1 100%);
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --font-size-xs: 10px;
+            --font-size-sm: 11px;
+            --font-size-base: 13px;
+            --font-size-lg: 15px;
+            --font-size-xl: 18px;
+            --font-size-xxl: 22px;
+            --font-size-xxxl: 28px;
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --shadow-primary: 0 4px 14px rgba(24, 144, 255, 0.4);
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f7fa;
+            --bg-tertiary: #fafafa;
+            --text-primary: #262626;
+            --text-secondary: #595959;
+            --text-tertiary: #8c8c8c;
+            --border-color: #e8e8e8;
+            --border-color-light: #f0f0f0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 13px;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--font-family);
+            font-size: var(--font-size-base);
+            line-height: 1.45;
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        #page-content {
+            max-width: none !important;
+            padding: 0 !important;
+        }
+
+        a {
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: var(--color-primary-light);
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--color-primary);
+            outline-offset: 2px;
+        }
+
+        .page-shell {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .app-header {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            height: 64px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color-light);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .app-header-inner {
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .brand-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-mark {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: rgba(24, 144, 255, 0.18);
+            border: 1px solid rgba(24, 144, 255, 0.30);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(24, 144, 255, 0.25);
+        }
+
+        .brand-mark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .brand-copy {
+            min-width: 0;
+        }
+
+        .brand-title {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+            color: var(--text-primary);
+        }
+
+        .brand-subtitle {
+            display: block;
+            font-size: 9px;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .header-action-btn,
+        .header-primary-btn,
+        .header-user-trigger {
+            border-radius: 10px;
+            font: inherit;
+        }
+
+        .header-action-btn {
+            height: 40px;
+            padding: 0 14px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.95);
+            color: var(--text-primary);
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+        }
+
+        .header-action-btn:hover {
+            color: var(--color-primary);
+            border-color: rgba(24, 144, 255, 0.35);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .header-primary-btn {
+            height: 40px;
+            padding: 0 16px;
+            border: none;
+            background: var(--gradient-primary);
+            color: #fff;
+            box-shadow: var(--shadow-primary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .header-primary-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(24, 144, 255, 0.5);
+        }
+
+        .header-user-trigger {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 8px;
+            background: transparent;
+            border: none;
+            cursor: default;
+        }
+
+        .header-user-trigger:hover {
+            background: rgba(24, 144, 255, 0.08);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .header-user-meta {
+            line-height: 1.2;
+        }
+
+        .header-user-name {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .header-user-role {
+            display: block;
+            font-size: 10px;
+            color: var(--text-tertiary);
+        }
+
+        .page-content {
+            padding: 24px 0 40px;
+        }
+
+        .page-header {
+            margin-bottom: 16px;
+        }
+
+        .page-breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .page-breadcrumb a {
+            color: var(--text-tertiary);
+        }
+
+        .page-breadcrumb a:hover {
+            color: var(--color-primary);
+        }
+
+        .page-breadcrumb-separator {
+            color: #bfbfbf;
+        }
+
+        .page-breadcrumb-current {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .card-shell {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: none;
+        }
+
+        .summary-card,
+        .content-card,
+        .apply-card,
+        .related-card,
+        .after-card,
+        .loading-card,
+        .error-card {
+            padding: 20px;
+        }
+
+        .summary-card {
+            margin-bottom: 16px;
+        }
+
+        .summary-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .status-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+
+        .status-tag.open {
+            background: rgba(82, 196, 26, 0.08);
+            color: #389e0d;
+            border: 1px solid rgba(82, 196, 26, 0.18);
+        }
+
+        .status-tag.closed {
+            background: rgba(255, 77, 79, 0.08);
+            color: var(--color-error);
+            border: 1px solid rgba(255, 77, 79, 0.18);
+        }
+
+        .summary-title {
+            margin: 0 0 8px;
+            font-size: 24px;
+            line-height: 1.2;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .summary-subtitle {
+            margin: 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .summary-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .summary-facts {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .fact-box {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .fact-label {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--text-tertiary);
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .fact-value {
+            display: block;
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .detail-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(320px, 360px);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .content-stack,
+        .sidebar-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .sidebar-stack {
+            position: sticky;
+            top: 88px;
+        }
+
+        .section-kicker {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-tertiary);
+            margin-bottom: 8px;
+        }
+
+        .section-title {
+            margin: 0 0 8px;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .section-copy {
+            margin: 0 0 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .job-description {
+            font-size: 13px;
+            color: var(--text-primary);
+            line-height: 1.7;
+        }
+
+        .job-description h1,
+        .job-description h2,
+        .job-description h3,
+        .job-description h4 {
+            margin: 24px 0 8px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .job-description p,
+        .job-description ul,
+        .job-description ol {
+            margin: 0 0 12px;
+        }
+
+        .job-description ul,
+        .job-description ol {
+            padding-left: 18px;
+        }
+
+        .job-description li + li {
+            margin-top: 6px;
+        }
+
+        .apply-copy {
+            margin: 0 0 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .quickfacts {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .quickfact {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+
+        .quickfact-label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .quickfact-value {
+            font-size: 12px;
+            color: var(--text-primary);
+            font-weight: 500;
+            text-align: right;
+        }
+
+        .primary-btn,
+        .secondary-btn {
+            height: 40px;
+            border-radius: 8px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            padding: 0 16px;
+        }
+
+        .primary-btn {
+            border: none;
+            background: var(--gradient-primary);
+            color: #fff;
+            box-shadow: var(--shadow-primary);
+        }
+
+        .primary-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(24, 144, 255, 0.5);
+        }
+
+        .secondary-btn {
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .secondary-btn:hover {
+            color: var(--color-primary);
+            border-color: rgba(24, 144, 255, 0.35);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .apply-form {
+            display: none;
+            margin-top: 16px;
+        }
+
+        .apply-form.visible {
+            display: block;
+        }
+
+        .apply-steps {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .apply-step {
+            border-radius: 10px;
+            padding: 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+        }
+
+        .apply-step.current {
+            background: rgba(24, 144, 255, 0.08);
+            border-color: rgba(24, 144, 255, 0.22);
+        }
+
+        .apply-step.done {
+            background: rgba(82, 196, 26, 0.08);
+            border-color: rgba(82, 196, 26, 0.22);
+        }
+
+        .apply-step-index {
+            display: block;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .apply-step-title {
+            display: block;
+            font-size: 12px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .step-panel {
+            display: none;
+        }
+
+        .step-panel.active {
+            display: block;
+        }
+
+        .step-title {
+            margin: 0 0 6px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .step-copy {
+            margin: 0 0 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .form-input,
+        .form-textarea {
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font: inherit;
+            padding: 10px 12px;
+        }
+
+        .form-textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus {
+            border-color: var(--color-primary);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.12);
+        }
+
+        .form-hint {
+            margin-top: 6px;
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        .step-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .consent-box {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            margin-bottom: 14px;
+        }
+
+        .consent-box input {
+            margin-top: 2px;
+        }
+
+        .consent-text {
+            font-size: 12px;
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .form-error {
+            display: none;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 14px;
+            background: rgba(255, 77, 79, 0.08);
+            border: 1px solid rgba(255, 77, 79, 0.18);
+            color: var(--color-error);
+            font-size: 12px;
+        }
+
+        .form-error.visible {
+            display: block;
+        }
+
+        .form-success {
+            display: none;
+            border-radius: 10px;
+            padding: 14px;
+            margin-top: 16px;
+            background: rgba(82, 196, 26, 0.08);
+            border: 1px solid rgba(82, 196, 26, 0.18);
+        }
+
+        .form-success.visible {
+            display: block;
+        }
+
+        .form-success-title {
+            margin: 0 0 6px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #389e0d;
+        }
+
+        .form-success-copy {
+            margin: 0 0 14px;
+            font-size: 12px;
+            color: var(--text-primary);
+        }
+
+        .after-list {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--text-primary);
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .after-list li + li {
+            margin-top: 6px;
+        }
+
+        .related-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .related-item {
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            padding: 14px;
+            transition: background 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .related-item:hover {
+            background: #fff;
+            box-shadow: var(--shadow-md);
+        }
+
+        .related-title {
+            margin: 0 0 4px;
+            font-size: 14px;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .related-meta {
+            margin: 0;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .loading-card,
+        .error-card {
+            text-align: center;
+        }
+
+        .state-title {
+            margin: 0 0 8px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .state-copy {
+            margin: 0 auto;
+            max-width: 460px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .skeleton-block {
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(240, 240, 240, 0.8) 25%, rgba(232, 232, 232, 1) 50%, rgba(240, 240, 240, 0.8) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite linear;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .page-footer {
+            padding: 16px 0 32px;
+        }
+
+        .page-footer p {
+            margin: 0;
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        @media (max-width: 1024px) {
+            .detail-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar-stack {
+                position: static;
+            }
+
+            .summary-facts {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .page-shell {
+                padding: 0 12px;
+            }
+
+            .header-user-meta,
+            .brand-subtitle {
+                display: none;
+            }
+
+            .page-content {
+                padding: 16px 0 24px;
+            }
+
+            .summary-card,
+            .content-card,
+            .apply-card,
+            .related-card,
+            .after-card,
+            .loading-card,
+            .error-card {
+                padding: 12px;
+            }
+
+            .summary-top {
+                flex-direction: column;
+            }
+
+            .summary-title {
+                font-size: 22px;
+            }
+
+            .summary-actions,
+            .step-actions {
+                width: 100%;
+            }
+
+            .summary-actions > *,
+            .step-actions > * {
+                flex: 1 1 auto;
+            }
+
+            .summary-facts,
+            .apply-steps {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header class="app-header">
+            <div class="page-shell app-header-inner">
+                <a href="/jobs" class="brand-link" aria-label="{{ app_name or 'CareVerse HQ' }} jobs board">
+                    <span class="brand-mark">
+                        {% if logo %}<img src="{{ logo }}" alt="{{ app_name or 'CareVerse HQ' }}">{% endif %}
+                    </span>
+                    <span class="brand-copy">
+                        <span class="brand-title">{{ app_name or "CareVerse HQ" }}</span>
+                        <span class="brand-subtitle">Jobs Board</span>
+                    </span>
+                </a>
+
+                <div class="header-actions">
+                    {% if is_authenticated %}
+                    <div class="header-user-trigger" aria-label="Signed in user">
+                        <span class="header-user-avatar">{{ user_initials or "CV" }}</span>
+                        <span class="header-user-meta">
+                            <span class="header-user-name">{{ user_full_name or user_email or "Signed in" }}</span>
+                            <span class="header-user-role">Signed in</span>
+                        </span>
+                    </div>
+                    {% if header_primary_link and header_primary_label %}
+                    <a href="{{ header_primary_link }}" class="header-action-btn">{{ header_primary_label }}</a>
+                    {% endif %}
+                    <button type="button" class="header-action-btn" id="logoutBtn">Sign Out</button>
+                    {% else %}
+                    <a href="{{ header_sign_in_link or '/login?redirect-to=/jobs' }}" class="header-primary-btn">Sign In</a>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <main class="page-content">
+            <div class="page-shell">
+                <section class="page-header">
+                    <nav class="page-breadcrumb" aria-label="Breadcrumb">
+                        <a href="/">Home</a>
+                        <span class="page-breadcrumb-separator">/</span>
+                        <a href="/jobs">Careers</a>
+                        <span class="page-breadcrumb-separator">/</span>
+                        <span class="page-breadcrumb-current">Job details</span>
+                    </nav>
+                </section>
+
+                <div id="loadingState" class="card-shell loading-card">
+                    <div class="skeleton-block" style="width:120px;height:24px;margin:0 auto 12px;"></div>
+                    <div class="skeleton-block" style="width:54%;height:28px;margin:0 auto 10px;"></div>
+                    <div class="skeleton-block" style="width:34%;height:12px;margin:0 auto 18px;"></div>
+                    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;">
+                        <div class="skeleton-block" style="height:66px;border-radius:10px;"></div>
+                        <div class="skeleton-block" style="height:66px;border-radius:10px;"></div>
+                        <div class="skeleton-block" style="height:66px;border-radius:10px;"></div>
+                        <div class="skeleton-block" style="height:66px;border-radius:10px;"></div>
+                    </div>
+                </div>
+
+                <div id="errorState" class="card-shell error-card" style="display:none;">
+                    <h2 class="state-title" id="errorStateTitle" style="color:var(--color-error);">Job not found</h2>
+                    <p class="state-copy" id="errorStateCopy">This role may have closed or is no longer available on the public jobs board.</p>
+                    <a href="/jobs" class="secondary-btn" style="margin-top:16px;">Browse open roles</a>
+                </div>
+
+                <div id="jobDetail" style="display:none;">
+                    <section class="card-shell summary-card">
+                        <div class="summary-top">
+                            <div>
+                                <span id="jobBadge" class="status-tag open">Open</span>
+                                <h1 id="jobTitle" class="summary-title"></h1>
+                                <p id="jobSubtitle" class="summary-subtitle"></p>
+                            </div>
+
+                            <div class="summary-actions">
+                                <button type="button" class="secondary-btn" id="copyJobLinkBtn">Copy link</button>
+                                <button type="button" class="primary-btn" id="heroApplyBtn">Start application</button>
+                            </div>
+                        </div>
+
+                        <div id="heroFacts" class="summary-facts"></div>
+                    </section>
+
+                    <div class="detail-layout">
+                        <section class="content-stack">
+                            <article class="card-shell content-card">
+                                <span class="section-kicker">Role overview</span>
+                                <h2 class="section-title">Job description</h2>
+                                <p class="section-copy">Review the responsibilities, requirements, and any additional notes from the hiring team.</p>
+                                <div id="jobDescContent" class="job-description"></div>
+                            </article>
+
+                            <article id="relatedSection" class="card-shell related-card" style="display:none;">
+                                <span class="section-kicker">Similar openings</span>
+                                <h2 class="section-title">Other roles you may want to review</h2>
+                                <p class="section-copy">Another role in a similar department, specialty, or location may also match your experience.</p>
+                                <div id="relatedGrid" class="related-list"></div>
+                            </article>
+                        </section>
+
+                        <aside class="sidebar-stack">
+                            <section class="card-shell apply-card">
+                                <span class="section-kicker">Apply</span>
+                                <h2 class="section-title">Submit your application</h2>
+                                <p class="apply-copy" id="applicationIntro">Start with your contact details, then add any supporting information before submitting.</p>
+
+                                <div id="applyQuickfacts" class="quickfacts"></div>
+
+                                <button type="button" class="primary-btn btn-block" id="applyBtn">Start application</button>
+
+                                <div id="applyForm" class="apply-form">
+                                    <div class="apply-steps" aria-label="Application progress">
+                                        <div class="apply-step current" data-step-indicator="1">
+                                            <span class="apply-step-index">Step 1</span>
+                                            <span class="apply-step-title">Basic details</span>
+                                        </div>
+                                        <div class="apply-step" data-step-indicator="2">
+                                            <span class="apply-step-index">Step 2</span>
+                                            <span class="apply-step-title">Supporting details</span>
+                                        </div>
+                                        <div class="apply-step" data-step-indicator="3">
+                                            <span class="apply-step-index">Step 3</span>
+                                            <span class="apply-step-title">Submit</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-error" id="formError"></div>
+
+                                    <form id="applicationForm">
+                                        <section class="step-panel active" data-step-panel="1">
+                                            <h3 class="step-title">Tell us who you are</h3>
+                                            <p class="step-copy">Provide the best contact information for recruiter follow-up.</p>
+
+                                            <div class="form-group">
+                                                <label class="form-label" for="appName">Full name *</label>
+                                                <input type="text" class="form-input" id="appName" value="{{ user_full_name or '' }}" required placeholder="Your full name">
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label class="form-label" for="appEmail">Email address *</label>
+                                                <input type="email" class="form-input" id="appEmail" value="{{ user_email or '' }}" required placeholder="you@example.com">
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label class="form-label" for="appPhone">Phone number</label>
+                                                <input type="tel" class="form-input" id="appPhone" placeholder="+254 7XX XXX XXX">
+                                                <div class="form-hint">Use the number you want recruiters to call or message.</div>
+                                            </div>
+
+                                            <div class="form-group" style="display:none;" aria-hidden="true">
+                                                <label class="form-label" for="appWebsite">Website</label>
+                                                <input type="text" class="form-input" id="appWebsite" tabindex="-1" autocomplete="off">
+                                            </div>
+
+                                            <div class="step-actions">
+                                                <button type="button" class="primary-btn btn-block" onclick="nextApplicationStep(2)">Continue</button>
+                                            </div>
+                                        </section>
+
+                                        <section class="step-panel" data-step-panel="2">
+                                            <h3 class="step-title">Add supporting information</h3>
+                                            <p class="step-copy">These details help the hiring team assess fit more quickly.</p>
+
+                                            <div class="form-group">
+                                                <label class="form-label" for="appResume">Resume or CV link</label>
+                                                <input type="url" class="form-input" id="appResume" placeholder="https://example.com/resume.pdf">
+                                                <div class="form-hint">Paste a direct link to your hosted resume, CV, or portfolio.</div>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label class="form-label" for="appCover">Brief note</label>
+                                                <textarea class="form-textarea" id="appCover" placeholder="Summarize your experience, availability, or any important context."></textarea>
+                                            </div>
+
+                                            <div class="step-actions">
+                                                <button type="button" class="secondary-btn" onclick="nextApplicationStep(1)">Back</button>
+                                                <button type="button" class="primary-btn" onclick="nextApplicationStep(3)">Continue</button>
+                                            </div>
+                                        </section>
+
+                                        <section class="step-panel" data-step-panel="3">
+                                            <h3 class="step-title">Review and submit</h3>
+                                            <p class="step-copy">Confirm consent so your application can be processed for this role.</p>
+
+                                            <div class="consent-box">
+                                                <input type="checkbox" id="appConsent" required>
+                                                <label for="appConsent" class="consent-text">I consent to the use of my information for recruitment, screening, and communication related to this application.</label>
+                                            </div>
+
+                                            <div class="step-actions">
+                                                <button type="button" class="secondary-btn" onclick="nextApplicationStep(2)">Back</button>
+                                                <button type="submit" class="primary-btn" id="submitBtn">Submit application</button>
+                                            </div>
+                                        </section>
+                                    </form>
+                                </div>
+
+                                <div id="formSuccess" class="form-success">
+                                    <h3 class="form-success-title">Application submitted</h3>
+                                    <p class="form-success-copy">Your application has been received. Watch your email and phone for updates from the recruitment team.</p>
+                                    <a href="/jobs" class="secondary-btn">Browse more roles</a>
+                                </div>
+                            </section>
+
+                            <section class="card-shell after-card">
+                                <span class="section-kicker">Next steps</span>
+                                <h2 class="section-title">What happens after you apply</h2>
+                                <p class="section-copy">You do not need to contact the facility separately after submitting this form.</p>
+                                <ol class="after-list">
+                                    <li>Your application is reviewed against the role requirements and submitted details.</li>
+                                    <li>If shortlisted, the recruitment team will contact you by email or phone.</li>
+                                    <li>Further stages may include screening, interviews, or document checks depending on the role.</li>
+                                </ol>
+                            </section>
+                        </aside>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="page-footer">
+            <div class="page-shell">
+                <p>&copy; {{ current_year or 2026 }} {{ app_name or "CareVerse HQ" }}. All rights reserved.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        window.csrf_token = {{ (csrf_token or frappe.session.csrf_token) | tojson }};
+    </script>
+
+    <script>
+        const API_BASE = "/api/method/careverse_hq.api.public_jobs";
+        const TEMPLATE_JOB_SLUG = "{{ job_slug | e }}";
+        const JOB_SLUG = resolveJobSlug(TEMPLATE_JOB_SLUG);
+
+        let jobData = null;
+        let currentApplicationStep = 1;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const logoutBtn = document.getElementById("logoutBtn");
+            if (logoutBtn) {
+                logoutBtn.addEventListener("click", logoutUser);
+            }
+
+            document.getElementById("copyJobLinkBtn").addEventListener("click", copyCurrentJobLink);
+            document.getElementById("heroApplyBtn").addEventListener("click", openApplicationForm);
+            document.getElementById("applyBtn").addEventListener("click", openApplicationForm);
+            document.getElementById("applicationForm").addEventListener("submit", submitApplication);
+
+            loadJobDetail();
+        });
+
+        async function loadJobDetail() {
+            if (!JOB_SLUG) {
+                showDetailState("error", {
+                    title: "Job not found",
+                    message: "This role link is invalid. Please return to the jobs board and open the role again.",
+                });
+                return;
+            }
+
+            try {
+                const response = await fetch(API_BASE + ".get_public_job_detail?slug=" + encodeURIComponent(JOB_SLUG), {
+                    method: "GET",
+                    headers: { Accept: "application/json" },
+                    credentials: "same-origin",
+                });
+                const payload = await response.json();
+
+                if (!response.ok || payload.status !== "success" || !payload.data) {
+                    showDetailState("error", buildDetailError(response, payload));
+                    return;
+                }
+
+                jobData = payload.data;
+                renderJobDetail(jobData);
+                showDetailState("detail");
+            } catch (error) {
+                showDetailState("error", {
+                    title: "Unable to load job",
+                    message: "We could not load this job right now. Please try again.",
+                });
+            }
+        }
+
+        function showDetailState(state, errorInfo) {
+            document.getElementById("loadingState").style.display = state === "loading" ? "" : "none";
+            document.getElementById("errorState").style.display = state === "error" ? "" : "none";
+            document.getElementById("jobDetail").style.display = state === "detail" ? "" : "none";
+            if (state === "error" && errorInfo) {
+                document.getElementById("errorStateTitle").textContent = errorInfo.title || "Unable to load job";
+                document.getElementById("errorStateCopy").textContent = errorInfo.message || "This role may have closed or is no longer available on the public jobs board.";
+            }
+        }
+
+        function buildDetailError(response, payload) {
+            const status = response?.status || 0;
+            const serverMessage = payload?.message;
+
+            if (status === 404) {
+                return {
+                    title: "Job not found",
+                    message: serverMessage || "This role may have closed or is no longer available on the public jobs board.",
+                };
+            }
+
+            if (status === 429) {
+                return {
+                    title: "Too many requests",
+                    message: serverMessage || "Please wait a moment and try loading this page again.",
+                };
+            }
+
+            return {
+                title: "Unable to load job",
+                message: serverMessage || "We could not load this job right now. Please try again.",
+            };
+        }
+
+        function resolveJobSlug(templateSlug) {
+            const slug = (templateSlug || "").trim();
+            if (slug && slug.indexOf("job_slug") === -1) {
+                return slug;
+            }
+
+            const path = (window.location.pathname || "").replace(/\/+$/, "");
+            const prefix = "/jobs/";
+            if (path.startsWith(prefix) && path.length > prefix.length) {
+                try {
+                    return decodeURIComponent(path.slice(prefix.length));
+                } catch (error) {
+                    return path.slice(prefix.length);
+                }
+            }
+
+            return "";
+        }
+
+        function renderJobDetail(job) {
+            document.title = (job.job_title || "Job Details") + " - CareVerse HQ";
+
+            const title = job.job_title || job.designation || "Open role";
+            const subtitle = [job.company, job.department, job.location].filter(Boolean).join(" · ") || "Published healthcare opportunity";
+            const status = job.status || "Open";
+
+            const badge = document.getElementById("jobBadge");
+            badge.textContent = status;
+            badge.className = "status-tag " + (status === "Open" ? "open" : "closed");
+
+            document.getElementById("jobTitle").textContent = title;
+            document.getElementById("jobSubtitle").textContent = subtitle;
+            document.getElementById("applicationIntro").textContent = job.closes_on
+                ? "Start with your contact details, then add any supporting information before applications close on " + formatDate(job.closes_on) + "."
+                : "Start with your contact details, then add any supporting information before submitting.";
+
+            renderHeroFacts(job);
+            renderApplyQuickfacts(job);
+            renderDescription(job);
+            renderRelatedJobs(job.related_jobs || []);
+            syncApplicationActions(job);
+        }
+
+        function renderHeroFacts(job) {
+            const facts = [
+                { label: "Facility", value: job.company || "Not specified" },
+                { label: "Location", value: job.location || "Not specified" },
+                { label: "Employment type", value: job.employment_type || "Not specified" },
+                { label: "Compensation", value: formatSalary(job) || "Shared during hiring process" },
+                { label: "Department", value: job.department || "Not specified" },
+                { label: "Posted", value: formatDate(job.posted_on || job.creation) || "Recently published" },
+                { label: "Closing date", value: job.closes_on ? formatDate(job.closes_on) : "Rolling review" },
+                { label: "Role", value: job.designation || job.job_title || "Not specified" },
+            ];
+
+            document.getElementById("heroFacts").innerHTML = facts.map((fact) => {
+                return (
+                    '<div class="fact-box">' +
+                        '<span class="fact-label">' + escapeHtml(fact.label) + "</span>" +
+                        '<span class="fact-value">' + escapeHtml(fact.value) + "</span>" +
+                    "</div>"
+                );
+            }).join("");
+        }
+
+        function renderApplyQuickfacts(job) {
+            const items = [
+                { label: "Location", value: job.location || "Not specified" },
+                { label: "Type", value: job.employment_type || "Not specified" },
+                { label: "Closes", value: job.closes_on ? formatDate(job.closes_on) : "Rolling review" },
+            ];
+
+            document.getElementById("applyQuickfacts").innerHTML = items.map((item) => {
+                return (
+                    '<div class="quickfact">' +
+                        '<span class="quickfact-label">' + escapeHtml(item.label) + "</span>" +
+                        '<span class="quickfact-value">' + escapeHtml(item.value) + "</span>" +
+                    "</div>"
+                );
+            }).join("");
+        }
+
+        function renderDescription(job) {
+            const description = document.getElementById("jobDescContent");
+            if (job.description_html) {
+                description.innerHTML = job.description_html;
+                return;
+            }
+
+            description.textContent = job.description || "The employer has not added additional role details for this position yet.";
+        }
+
+        function renderRelatedJobs(relatedJobs) {
+            if (!relatedJobs.length) {
+                document.getElementById("relatedSection").style.display = "none";
+                return;
+            }
+
+            document.getElementById("relatedGrid").innerHTML = relatedJobs.map((job) => {
+                const slug = makeSlug(job);
+                const meta = [job.company, job.department, job.location].filter(Boolean).join(" · ");
+                return (
+                    '<a href="/jobs/' + encodeURIComponent(slug) + '" class="related-item">' +
+                        '<h3 class="related-title">' + escapeHtml(job.job_title || job.designation || "Open role") + "</h3>" +
+                        '<p class="related-meta">' + escapeHtml(meta || "Published opportunity") + "</p>" +
+                    "</a>"
+                );
+            }).join("");
+
+            document.getElementById("relatedSection").style.display = "";
+        }
+
+        function syncApplicationActions(job) {
+            const canApply = (job.status || "Open") === "Open";
+            const applyBtn = document.getElementById("applyBtn");
+            const heroApplyBtn = document.getElementById("heroApplyBtn");
+
+            applyBtn.style.display = canApply ? "" : "none";
+            heroApplyBtn.style.display = canApply ? "" : "none";
+
+            if (!canApply) {
+                document.getElementById("applicationIntro").textContent = "Applications for this role are no longer being accepted.";
+            }
+        }
+
+        function openApplicationForm() {
+            if (!jobData) {
+                return;
+            }
+
+            const form = document.getElementById("applyForm");
+            form.classList.add("visible");
+            document.getElementById("applyBtn").style.display = "none";
+            setApplicationStep(currentApplicationStep || 1);
+            form.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+
+        function nextApplicationStep(step) {
+            hideFormError();
+
+            if (step === 2 && !validateBasicDetails()) {
+                return;
+            }
+
+            currentApplicationStep = step;
+            setApplicationStep(step);
+        }
+
+        function setApplicationStep(step) {
+            currentApplicationStep = step;
+
+            Array.from(document.querySelectorAll("[data-step-panel]")).forEach((panel) => {
+                panel.classList.toggle("active", Number(panel.getAttribute("data-step-panel")) === step);
+            });
+
+            Array.from(document.querySelectorAll("[data-step-indicator]")).forEach((indicator) => {
+                const current = Number(indicator.getAttribute("data-step-indicator"));
+                indicator.classList.toggle("current", current === step);
+                indicator.classList.toggle("done", current < step);
+            });
+        }
+
+        function validateBasicDetails() {
+            const name = document.getElementById("appName").value.trim();
+            const email = document.getElementById("appEmail").value.trim();
+
+            if (!name || !email) {
+                showFormError("Please provide your full name and email address before continuing.");
+                return false;
+            }
+
+            return true;
+        }
+
+        async function submitApplication(event) {
+            event.preventDefault();
+
+            if (!jobData || !jobData.name) {
+                showFormError("This role could not be submitted right now. Reload the page and try again.");
+                return;
+            }
+
+            if (!validateBasicDetails()) {
+                setApplicationStep(1);
+                return;
+            }
+
+            const consent = document.getElementById("appConsent").checked;
+            if (!consent) {
+                showFormError("Please confirm consent before submitting your application.");
+                return;
+            }
+
+            hideFormError();
+
+            const submitBtn = document.getElementById("submitBtn");
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Submitting...";
+
+            try {
+                const headers = {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                };
+
+                if (window.csrf_token) {
+                    headers["X-Frappe-CSRF-Token"] = window.csrf_token;
+                }
+
+                const response = await fetch(API_BASE + ".submit_application", {
+                    method: "POST",
+                    headers,
+                    credentials: "same-origin",
+                    body: JSON.stringify({
+                        job_opening: jobData.name,
+                        applicant_name: document.getElementById("appName").value.trim(),
+                        email_id: document.getElementById("appEmail").value.trim(),
+                        phone: document.getElementById("appPhone").value.trim() || undefined,
+                        resume_link: document.getElementById("appResume").value.trim() || undefined,
+                        cover_letter: document.getElementById("appCover").value.trim() || undefined,
+                        consent_given: 1,
+                        website: document.getElementById("appWebsite").value.trim() || undefined,
+                    }),
+                });
+                const payload = await response.json();
+
+                if (!response.ok || payload.status !== "success") {
+                    showFormError(payload.message || "We could not submit your application. Please try again.");
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "Submit application";
+                    return;
+                }
+
+                document.getElementById("applyForm").style.display = "none";
+                document.getElementById("applyForm").classList.remove("visible");
+                document.getElementById("heroApplyBtn").style.display = "none";
+                document.getElementById("formSuccess").classList.add("visible");
+            } catch (error) {
+                showFormError("Network error. Please try again.");
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Submit application";
+            }
+        }
+
+        function showFormError(message) {
+            const error = document.getElementById("formError");
+            error.textContent = message;
+            error.classList.add("visible");
+        }
+
+        function hideFormError() {
+            document.getElementById("formError").classList.remove("visible");
+        }
+
+        async function copyCurrentJobLink() {
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                const button = document.getElementById("copyJobLinkBtn");
+                const original = button.textContent;
+                button.textContent = "Link copied";
+                setTimeout(() => {
+                    button.textContent = original;
+                }, 1600);
+            } catch (error) {
+                window.prompt("Copy this job link:", window.location.href);
+            }
+        }
+
+        async function logoutUser() {
+            const headers = { Accept: "application/json" };
+            if (window.csrf_token) {
+                headers["X-Frappe-CSRF-Token"] = window.csrf_token;
+            }
+
+            try {
+                await fetch("/api/method/logout", {
+                    method: "POST",
+                    headers,
+                    credentials: "same-origin",
+                });
+            } catch (error) {
+                // Ignore and continue with redirect.
+            }
+
+            window.location.href = "/jobs";
+        }
+
+        function makeSlug(job) {
+            const title = (job.job_title || job.designation || job.name || "")
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-|-$/g, "");
+            return title + "-" + job.name;
+        }
+
+        function formatDate(value) {
+            try {
+                if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                    const parts = value.split("-").map(Number);
+                    const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                    return localDate.toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                    });
+                }
+
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) {
+                    return value || "";
+                }
+
+                return date.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                });
+            } catch (error) {
+                return value || "";
+            }
+        }
+
+        function formatSalary(job) {
+            const low = job.lower_range;
+            const high = job.upper_range;
+            const currency = job.currency || "";
+
+            if (!low && !high) {
+                return "";
+            }
+
+            if (low && high) {
+                return currency + " " + Number(low).toLocaleString() + " - " + Number(high).toLocaleString();
+            }
+
+            if (low) {
+                return "From " + currency + " " + Number(low).toLocaleString();
+            }
+
+            return "Up to " + currency + " " + Number(high).toLocaleString();
+        }
+
+        function escapeHtml(value) {
+            if (!value) {
+                return "";
+            }
+
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+    </script>
+</body>
+</html>

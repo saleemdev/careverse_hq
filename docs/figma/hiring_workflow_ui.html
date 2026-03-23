@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Careverse Hiring Workflow UI Concepts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #132a27;
+      --muted: #5a6f6c;
+      --paper: #f4f8f7;
+      --card: #ffffff;
+      --line: #d8e3e1;
+      --mint: #dff7ec;
+      --mint-strong: #1f8f6a;
+      --amber: #ffd68a;
+      --amber-strong: #9b5e00;
+      --rose: #ffd7cf;
+      --rose-strong: #9c3e25;
+      --sky: #c8e8ff;
+      --sky-strong: #1d5f8a;
+      --slate: #1f3038;
+      --shadow: 0 10px 30px rgba(21, 38, 35, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 10%, #e8fff4 0%, transparent 30%),
+        radial-gradient(circle at 85% 25%, #fff3dc 0%, transparent 28%),
+        linear-gradient(170deg, #f7faf9 0%, #eef5f3 100%);
+      padding: 42px 30px 80px;
+    }
+
+    .cover {
+      max-width: 1420px;
+      margin: 0 auto 26px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255,255,255,0.8);
+      backdrop-filter: blur(5px);
+      box-shadow: var(--shadow);
+    }
+
+    .cover h1 {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 34px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .cover p {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .board {
+      display: grid;
+      gap: 26px;
+      max-width: 1420px;
+      margin: 0 auto;
+    }
+
+    .frame {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      min-height: 760px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .frame::after {
+      content: "";
+      position: absolute;
+      inset: auto -160px -160px auto;
+      width: 380px;
+      height: 380px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(95,186,156,0.25) 0%, rgba(95,186,156,0) 72%);
+      pointer-events: none;
+    }
+
+    .frame-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 18px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .frame-head h2 {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 27px;
+      letter-spacing: -0.02em;
+    }
+
+    .chip {
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 6px 11px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .chip.public { background: var(--sky); color: var(--sky-strong); border-color: #9bcff4; }
+    .chip.private { background: var(--mint); color: var(--mint-strong); border-color: #b9ead5; }
+    .chip.candidate { background: var(--amber); color: var(--amber-strong); border-color: #f0ba5f; }
+
+    .public-grid {
+      display: grid;
+      grid-template-columns: 260px 1fr 420px;
+      gap: 18px;
+      height: calc(100% - 80px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .panel {
+      background: #fbfdfc;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .panel h3 {
+      margin: 0 0 10px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 16px;
+    }
+
+    .k-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .job-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+
+    .job-card strong { font-size: 15px; }
+
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #edf5f3;
+      border: 1px solid var(--line);
+      color: #3e5b55;
+    }
+
+    .cta {
+      margin-top: 16px;
+      display: inline-block;
+      background: linear-gradient(120deg, #236f59, #1e8f6a);
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(180px, 1fr));
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .stage {
+      background: #f8fcfb;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      min-height: 280px;
+    }
+
+    .stage h4 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #37524d;
+    }
+
+    .person {
+      border-radius: 12px;
+      border: 1px solid #c7ddd8;
+      background: #fff;
+      padding: 10px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .person strong { display: block; margin-bottom: 5px; }
+
+    .drawer {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fcfefc;
+      padding: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    pre {
+      margin: 8px 0 0;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #1f3038;
+      background: #f1f6f5;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      padding: 10px;
+      overflow: auto;
+      max-height: 140px;
+    }
+
+    .mobile-wrap {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+      height: calc(100% - 84px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .phone {
+      width: 320px;
+      min-height: 650px;
+      border: 10px solid #1f3038;
+      border-radius: 34px;
+      background: linear-gradient(160deg, #f6faf9, #edf6f4);
+      padding: 18px 16px;
+    }
+
+    .phone h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      font-family: "Space Grotesk", sans-serif;
+    }
+
+    .timeline {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    .timeline li {
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 10px;
+      font-size: 12px;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 18px;
+      height: calc(100% - 84px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .map {
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(0deg, rgba(255,255,255,0.7), rgba(255,255,255,0.7)),
+        linear-gradient(120deg, #d5efe4 0%, #cbe6f9 100%);
+      position: relative;
+      overflow: hidden;
+      padding: 16px;
+    }
+
+    .map .dot {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 6px rgba(18, 137, 103, 0.25);
+      background: #128967;
+    }
+
+    .map .facility {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: #1d5f8a;
+      box-shadow: 0 0 0 8px rgba(29,95,138,0.2);
+      border: 2px solid #fff;
+    }
+
+    .candidate-list {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .candidate-card {
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 12px;
+      font-size: 12px;
+    }
+
+    .candidate-card .big {
+      font-size: 22px;
+      font-family: "Newsreader", serif;
+      margin: 4px 0 8px;
+    }
+
+    .weight {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #e7efed;
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #2f8c70, #45ae89);
+    }
+
+    @media (max-width: 1200px) {
+      .public-grid,
+      .mobile-wrap,
+      .score-grid { grid-template-columns: 1fr; }
+
+      .pipeline { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <h1>Careverse Hiring System: Public + Private UI Concepts</h1>
+    <p>Draft screens aligned to BRD workflow: public discovery, private hiring orchestration, candidate-side affiliation confirmation, and nearby locum nurse decision support.</p>
+  </section>
+
+  <main class="board">
+    <section class="frame">
+      <div class="frame-head">
+        <h2>Screen 1: Public Jobs Marketplace</h2>
+        <span class="chip public">Public Module</span>
+      </div>
+      <div class="public-grid">
+        <aside class="panel">
+          <h3>Filters</h3>
+          <ul class="k-list">
+            <li><strong>Role:</strong> Primary Nurse (Locum)</li>
+            <li><strong>Facility Level:</strong> L2 / L3</li>
+            <li><strong>Radius:</strong> 25 km</li>
+            <li><strong>Employment Type:</strong> Locum/Temporary</li>
+            <li><strong>License Required:</strong> Active</li>
+            <li><strong>Shift:</strong> Night + Weekend</li>
+          </ul>
+        </aside>
+
+        <section class="panel">
+          <h3>Open Job Listings</h3>
+          <article class="job-card">
+            <strong>Primary Nurse (Locum) - Ruai Community Clinic</strong>
+            <div class="meta">
+              <span>Nairobi County</span><span>Posted 1 day ago</span><span>KES 8,000/day</span>
+            </div>
+            <div class="meta">
+              <span class="badge">L2 Facility</span>
+              <span class="badge">Night Shift</span>
+              <span class="badge">Applications: 12</span>
+            </div>
+          </article>
+          <article class="job-card">
+            <strong>Primary Nurse (Locum) - Eastlands Medical Centre</strong>
+            <div class="meta">
+              <span>Nairobi County</span><span>Posted 3 days ago</span><span>KES 7,200/day</span>
+            </div>
+            <div class="meta">
+              <span class="badge">L3 Facility</span>
+              <span class="badge">Rotating Shift</span>
+              <span class="badge">Applications: 28</span>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel">
+          <h3>Job Detail + Consent</h3>
+          <p><strong>Primary Nurse (Locum)</strong><br/>Ruai Community Clinic | L2 Facility</p>
+          <p style="font-size: 13px; color: var(--muted);">
+            Core requirement: active professional license, emergency triage competency, and immediate locum availability.
+          </p>
+          <p style="font-size: 12px; color: var(--muted);">
+            Consent required: profile processing, KYC/licensing checks, and interview communication.
+          </p>
+          <a class="cta" href="#">Apply + Consent</a>
+        </section>
+      </div>
+    </section>
+
+    <section class="frame">
+      <div class="frame-head">
+        <h2>Screen 2: Private Hiring Ops in Admin Central</h2>
+        <span class="chip private">Private Module</span>
+      </div>
+      <div class="pipeline">
+        <section class="stage"><h4>New</h4><div class="person"><strong>N. Wanjiku</strong>CV complete<br/><span class="badge">Consent Captured</span></div></section>
+        <section class="stage"><h4>Screened</h4><div class="person"><strong>P. Achieng</strong>Locum history: 4 facilities</div></section>
+        <section class="stage"><h4>Interview</h4><div class="person"><strong>M. Jepkoech</strong>Panel score: 4.6/5</div></section>
+        <section class="stage"><h4>Compliance</h4><div class="person"><strong>N. Wanjiku</strong><span class="badge">KYC Passed</span> <span class="badge">License Active</span></div></section>
+        <section class="stage"><h4>Offer</h4><div class="person"><strong>N. Wanjiku</strong>Offer issued<br/>Awaiting response</div></section>
+        <section class="stage"><h4>Affiliation Requested</h4><div class="person"><strong>N. Wanjiku</strong>FA-0004832<br/><span class="badge">Pending Candidate</span></div></section>
+        <section class="stage"><h4>Hired</h4><div class="person"><strong>K. Atieno</strong>EMP-000917</div></section>
+      </div>
+
+      <section class="drawer">
+        <h3 style="margin:0;font-size:15px;font-family:'Space Grotesk',sans-serif;">Complete Hire Action (Simulation via Add Single Affiliation)</h3>
+        <pre>{
+"method": "careverse_hq.api.single_affiliation.create_single_affiliation",
+"payload": {
+  "hp_name": "HP-000191",
+  "employment_details": {
+    "fid": "HF-00321",
+    "employment_type": "Locum/Temporary",
+    "designation": "Primary Nurse",
+    "start_date": "2026-03-23"
+  }
+},
+"result": {
+  "facility_affiliation": "FA-0004832",
+  "affiliation_status": "Pending"
+}
+}</pre>
+      </section>
+    </section>
+
+    <section class="frame">
+      <div class="frame-head">
+        <h2>Screen 3: Candidate App Confirmation</h2>
+        <span class="chip candidate">Candidate Authority</span>
+      </div>
+      <div class="mobile-wrap">
+        <section class="phone">
+          <h3>Affiliation Request</h3>
+          <p style="font-size:12px;color:var(--muted);margin-top:0;">You have a new employment affiliation invitation.</p>
+          <div class="panel" style="padding:10px; background:#fff;">
+            <strong style="font-size:14px;">Ruai Community Clinic</strong>
+            <p style="margin:8px 0;font-size:12px;color:var(--muted);">Role: Primary Nurse (Locum)<br/>Start: 23 Mar 2026<br/>Expires: 29 Mar 2026</p>
+            <span class="badge" style="background:#fff2d8;border-color:#ffcf7f;color:#8a5300;">Current: Pending</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+            <a class="cta" style="text-align:center;background:linear-gradient(120deg,#1f8f6a,#2eae83);" href="#">Confirm</a>
+            <a class="cta" style="text-align:center;background:linear-gradient(120deg,#9d4b2d,#bd6c4c);" href="#">Reject</a>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Event Timeline (Admin Central Reconciliation)</h3>
+          <ul class="timeline">
+            <li><strong>Offer Accepted</strong><br/>2026-03-22 09:31 EAT</li>
+            <li><strong>Affiliation Requested</strong><br/>FA-0004832 created by orchestration API</li>
+            <li><strong>Candidate Confirmation</strong><br/>Pending -> Active (candidate app)</li>
+            <li><strong>Employee Created</strong><br/>EMP-001024 emitted by existing confirmation workflow</li>
+            <li><strong>Hire Complete</strong><br/>Onboarding packet triggered</li>
+          </ul>
+        </section>
+      </div>
+    </section>
+
+    <section class="frame">
+      <div class="frame-head">
+        <h2>Screen 4: Nearby Primary Nurse for Locum (L2/L3)</h2>
+        <span class="chip private">Decision Support</span>
+      </div>
+      <div class="score-grid">
+        <section class="map">
+          <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;">Facility + Nearby Eligible Nurses</h3>
+          <div class="facility" style="left:48%;top:45%;"></div>
+          <div class="dot" style="left:42%;top:40%;"></div>
+          <div class="dot" style="left:55%;top:52%;"></div>
+          <div class="dot" style="left:38%;top:56%;"></div>
+          <div class="dot" style="left:60%;top:36%;"></div>
+          <p style="position:absolute;bottom:12px;left:16px;font-size:12px;color:#35514b;">Eligibility gates: Consent + Active License + Role Fit + Availability</p>
+        </section>
+
+        <section class="candidate-list">
+          <article class="candidate-card">
+            <strong>Njeri Wanjiku</strong>
+            <div class="big">89.4</div>
+            <div class="meta"><span>Locum at 3 facilities</span><span>9 km away</span></div>
+            <div class="weight">
+              <small>Proximity 35%</small><div class="bar"><span style="width:84%"></span></div>
+              <small>License Confidence 25%</small><div class="bar"><span style="width:96%"></span></div>
+              <small>Affiliation Fit 15%</small><div class="bar"><span style="width:78%"></span></div>
+            </div>
+          </article>
+          <article class="candidate-card">
+            <strong>Patricia Achieng</strong>
+            <div class="big">82.7</div>
+            <div class="meta"><span>Locum at 2 facilities</span><span>14 km away</span></div>
+            <div class="weight">
+              <small>Proximity 35%</small><div class="bar"><span style="width:73%"></span></div>
+              <small>License Confidence 25%</small><div class="bar"><span style="width:92%"></span></div>
+              <small>Affiliation Fit 15%</small><div class="bar"><span style="width:81%"></span></div>
+            </div>
+          </article>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+</body>
+</html>

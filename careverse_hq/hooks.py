@@ -146,7 +146,10 @@ home_page = "index"
 doc_events = {
 	"Health Facility": {
 		"on_update": "careverse_hq.api.location_sync.sync_facility_to_location"
-	}
+	},
+	"Facility Affiliation": {
+		"on_update": "careverse_hq.api.hiring_reconciliation.reconcile_hiring_on_affiliation_update"
+	},
 }
 
 # Scheduled Tasks
@@ -157,7 +160,15 @@ scheduler_events = {
 	"cron": {
 		"0 */1 * * *": [
 			"careverse_hq.tasks.sync_expired_licenses_from_hwr"
-		]
+		],
+		# Check for expired hiring affiliations daily at midnight
+		"0 0 * * *": [
+			"careverse_hq.api.hiring_orchestration.check_expired_hiring_affiliations"
+		],
+		# Send hiring confirmation reminders every 6 hours
+		"0 */6 * * *": [
+			"careverse_hq.api.hiring_orchestration.send_hiring_confirmation_reminders"
+		],
 	}
 }
 
@@ -208,6 +219,11 @@ ignore_csrf = [
 	"careverse_hq.api.affiliations.terminate_affiliation",
 	"careverse_hq.api.affiliations.upload_termination_attachment",
 	"careverse_hq.api.affiliations.upload_termination_attachment_base64",
+	# Public jobs board (guest-accessible, no session)
+	"careverse_hq.api.public_jobs.get_public_jobs",
+	"careverse_hq.api.public_jobs.get_public_job_detail",
+	"careverse_hq.api.public_jobs.get_job_filter_options",
+	"careverse_hq.api.public_jobs.submit_application",
 ]
 
 # Job Events
@@ -275,4 +291,6 @@ after_migrate = [
 website_route_rules = [
 	{"from_route": "/login", "to_route": "login"},
 	{"from_route": "/admin-central/<path:app_path>", "to_route": "admin-central"},
+	# Public jobs board: detail page routed via slug
+	{"from_route": "/jobs/<path:job_slug>", "to_route": "job-detail"},
 ]

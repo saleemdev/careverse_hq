@@ -3,7 +3,7 @@ import { Skeleton, Card, Row, Col, Space } from 'antd';
 
 export const TableSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => {
     return (
-        <div style={{ background: '#fff', padding: 24, borderRadius: 12 }}>
+        <div style={{ background: 'var(--bg-primary)', padding: 24, borderRadius: 12 }}>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Skeleton.Input active size="default" style={{ width: 200 }} />

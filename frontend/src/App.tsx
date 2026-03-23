@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, ConfigProvider, Layout, theme, Spin, message } from 'antd';
 import enUS from 'antd/locale/en_US';
 import 'dayjs/locale/en';
@@ -29,6 +29,8 @@ import EditUserPage from './pages/user-management/EditUserPage';
 import ProfilePage from './pages/profile/ProfilePage';
 import LeaveApplicationsListView from './components/modules/hr/LeaveApplicationsListView';
 import ClaimsListView from './components/modules/claims/ClaimsListView';
+import RecruitmentDeskPage from './components/modules/recruitment/RecruitmentDeskPage';
+import CandidateProfileView from './components/modules/recruitment/CandidateProfileView';
 import { getCsrfToken, setCsrfToken } from './utils/csrf';
 import { COMPANY_PERMISSION_ROUTE, getAccessPolicy, isRouteAllowed } from './access/accessPolicy';
 import './App.css';
@@ -40,6 +42,21 @@ const ROUTE_FAVICONS: Record<string, string> = {
   affiliations: DEFAULT_FAVICON,
 };
 const ENABLE_USER_MGMT_REFACTOR = import.meta.env.VITE_ENABLE_USER_MGMT_REFACTOR !== 'false';
+
+const decodeHashSegment = (segment: string): string => {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+};
+
+const encodeHashId = (value: string): string => (
+  value
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+);
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -200,7 +217,7 @@ function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1) || 'dashboard';
-      const parts = hash.split('/');
+      const parts = hash.split('/').map(decodeHashSegment);
 
       // Handle multi-segment routes like 'bulk-upload/status' or 'bulk-upload/new'
       // Format: #route/subpath/id or #route/id or #route
@@ -210,6 +227,14 @@ function App() {
       if (parts[0] === 'user-management' && parts.length === 3 && parts[2] === 'security') {
         route = 'user-management/security';
         id = parts[1];
+      } else if (
+        parts[0] === 'recruitment'
+        && parts[1] === 'job-posts'
+        && parts[2] === 'edit'
+        && parts.length >= 4
+      ) {
+        route = 'recruitment/job-posts';
+        id = `edit:${parts.slice(3).join('/')}`;
       } else if (parts.length === 3) {
         // e.g., #bulk-upload/status/JOB-001
         route = `${parts[0]}/${parts[1]}`;
@@ -218,6 +243,8 @@ function App() {
         // Could be #bulk-upload/new or #licenses/LIC-001
         // Check if second part looks like an ID or is a subpath
         if (parts[0] === 'bulk-upload' && (parts[1] === 'new' || parts[1] === 'status')) {
+          route = `${parts[0]}/${parts[1]}`;
+        } else if (parts[0] === 'recruitment' && (parts[1] === 'job-posts' || parts[1] === 'candidates')) {
           route = `${parts[0]}/${parts[1]}`;
         } else if (parts[0] === 'user-management' && parts[1] === 'new') {
           route = 'user-management/new';
@@ -243,11 +270,18 @@ function App() {
     setIsDarkMode(!isDarkMode);
   };
 
-  const navigateToRoute = (route: string, id?: string) => {
-    const hash = id ? `#${route}/${id}` : `#${route}`;
+  const navigateToRoute = useCallback((route: string, id?: string) => {
+    const normalizedId = !id
+      ? null
+      : (route === 'recruitment/job-posts' && id.startsWith('edit:'))
+        ? `edit/${encodeHashId(id.slice(5))}`
+        : encodeHashId(id);
+
+    const hash = normalizedId ? `#${route}/${normalizedId}` : `#${route}`;
     window.location.hash = hash;
     setCurrentRoute(route);
-  };
+    setCurrentDetailId(id || null);
+  }, []);
 
   // Route-level permission redirects:
   // - Missing permissions => force Company Permissions page (except standalone profile)
@@ -489,6 +523,27 @@ function App() {
       // Facility Claims (Claim Record – summary + paginated list)
       case 'claims':
         return <ClaimsListView />;
+
+      // Recruitment Desk
+      case 'recruitment':
+        return <RecruitmentDeskPage key="recruitment-root" navigateToRoute={navigateToRoute} />;
+
+      case 'recruitment/job-posts':
+        return (
+          <RecruitmentDeskPage
+            key="recruitment-job-posts"
+            navigateToRoute={navigateToRoute}
+            initialTab="job-posts"
+            selectedJobPostId={currentDetailId || undefined}
+          />
+        );
+
+      case 'recruitment/candidates':
+        if (currentDetailId) {
+          // PRV-04: Candidate Profile detail
+          return <CandidateProfileView candidateId={currentDetailId} navigateToRoute={navigateToRoute} />;
+        }
+        return <RecruitmentDeskPage key="recruitment-candidates" navigateToRoute={navigateToRoute} initialTab="pipeline" />;
 
       // Placeholder routes for modules under development
       case 'budget-overview':

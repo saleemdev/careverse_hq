@@ -138,6 +138,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             'bulk-upload': 'Bulk Upload',
             'bulk-upload/new': 'New Upload',
             'bulk-upload/status': 'Upload Status',
+            recruitment: 'Recruitment Desk',
+            'recruitment/job-posts': 'Recruitment Desk',
+            'recruitment/candidates': 'Recruitment Desk',
             licenses: 'Licenses',
             'leave-summary': 'Leave Applications',
             attendance: 'Attendance',
@@ -154,7 +157,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
     const selectedMenuKey = currentRoute.startsWith('user-management')
         ? 'user-management'
-        : currentRoute;
+        : currentRoute.startsWith('bulk-upload')
+            ? 'bulk-upload'
+            : currentRoute.startsWith('recruitment')
+                ? 'recruitment'
+                : currentRoute;
 
     // Sidebar logo
     const renderLogo = () => (
@@ -310,6 +317,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                             type="text"
                             icon={(isMobile || isTablet) ? <MenuUnfoldOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
                             onClick={() => ((isMobile || isTablet) ? setMobileMenuVisible(true) : setCollapsed(!collapsed))}
+                            aria-label={(isMobile || isTablet) ? 'Open navigation menu' : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')}
                             className="header-action-btn header-action-btn--menu"
                             style={{ ...headerActionButtonStyle, fontSize: '16px' }}
                         />
@@ -416,6 +424,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                     <Button
                                         type="text"
                                         icon={<SearchOutlined />}
+                                        aria-label="Open search"
                                         className="header-action-btn"
                                         style={headerActionButtonStyle}
                                     />
@@ -426,6 +435,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                         <Button
                                             type="text"
                                             icon={<BellOutlined />}
+                                            aria-label="Open notifications"
                                             className="header-action-btn"
                                             style={headerActionButtonStyle}
                                         />
@@ -440,6 +450,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                                 type="text"
                                 icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />}
                                 onClick={onToggleTheme}
+                                aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                                 className="header-action-btn"
                                 style={headerActionButtonStyle}
                             />

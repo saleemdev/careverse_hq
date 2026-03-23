@@ -1,0 +1,141 @@
+{
+ "actions": [],
+ "autoname": "field:idempotency_key",
+ "creation": "2026-03-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "idempotency_key",
+  "job_offer",
+  "hp_name",
+  "facility",
+  "column_break_ids",
+  "facility_affiliation",
+  "request_hash",
+  "idempotent_replay",
+  "status_section",
+  "status",
+  "error_message",
+  "audit_section",
+  "actor",
+  "column_break_audit",
+  "request_timestamp",
+  "response_reference"
+ ],
+ "fields": [
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Idempotency Key",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "job_offer",
+   "fieldtype": "Data",
+   "label": "Job Offer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "hp_name",
+   "fieldtype": "Data",
+   "label": "Health Professional",
+   "reqd": 1
+  },
+  {
+   "fieldname": "facility",
+   "fieldtype": "Data",
+   "label": "Facility",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_ids",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "facility_affiliation",
+   "fieldtype": "Data",
+   "label": "Facility Affiliation"
+  },
+  {
+   "fieldname": "request_hash",
+   "fieldtype": "Data",
+   "label": "Request Hash"
+  },
+  {
+   "default": "0",
+   "fieldname": "idempotent_replay",
+   "fieldtype": "Check",
+   "label": "Idempotent Replay"
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "Created",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Created\nFailed\nExpired\nHired\nRejected\nClosed"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error Message"
+  },
+  {
+   "fieldname": "audit_section",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "actor",
+   "fieldtype": "Data",
+   "label": "Actor"
+  },
+  {
+   "fieldname": "column_break_audit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "request_timestamp",
+   "fieldtype": "Datetime",
+   "label": "Request Timestamp"
+  },
+  {
+   "fieldname": "response_reference",
+   "fieldtype": "Small Text",
+   "label": "Response Reference"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Careverse Hq",
+ "name": "Hiring Idempotency Log",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "HR Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

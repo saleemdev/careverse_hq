@@ -1,0 +1,196 @@
+{
+ "actions": [],
+ "creation": "2026-03-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled_section",
+  "is_enabled",
+  "partner_access_mode",
+  "partner_approved",
+  "credentials_section",
+  "client_id",
+  "client_secret",
+  "redirect_uri",
+  "scopes",
+  "organization_urn",
+  "features_section",
+  "apply_connect_enabled",
+  "sync_job_postings_enabled",
+  "compliance_api_enabled",
+  "webhook_section",
+  "webhook_signing_secret",
+  "webhook_verification_token",
+  "sync_section",
+  "sync_interval_minutes",
+  "rate_limit_per_minute",
+  "column_break_sync",
+  "last_sync_at",
+  "last_sync_status",
+  "last_sync_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "enabled_section",
+   "fieldtype": "Section Break",
+   "label": "Integration Status"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_enabled",
+   "fieldtype": "Check",
+   "label": "Enable LinkedIn Integration"
+  },
+  {
+   "default": "None",
+   "fieldname": "partner_access_mode",
+   "fieldtype": "Select",
+   "label": "Partner Access Mode",
+   "options": "None\nSandbox\nProduction"
+  },
+  {
+   "default": "0",
+   "fieldname": "partner_approved",
+   "fieldtype": "Check",
+   "label": "Partner Approved"
+  },
+  {
+   "depends_on": "eval:doc.is_enabled",
+   "fieldname": "credentials_section",
+   "fieldtype": "Section Break",
+   "label": "Credentials"
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID"
+  },
+  {
+   "fieldname": "client_secret",
+   "fieldtype": "Password",
+   "label": "Client Secret"
+  },
+  {
+   "fieldname": "redirect_uri",
+   "fieldtype": "Data",
+   "label": "Redirect URI"
+  },
+  {
+   "fieldname": "scopes",
+   "fieldtype": "Code",
+   "label": "Scopes",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "organization_urn",
+   "fieldtype": "Data",
+   "label": "Organization URN"
+  },
+  {
+   "depends_on": "eval:doc.is_enabled",
+   "fieldname": "features_section",
+   "fieldtype": "Section Break",
+   "label": "Feature Flags"
+  },
+  {
+   "default": "0",
+   "fieldname": "apply_connect_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Apply Connect"
+  },
+  {
+   "default": "0",
+   "fieldname": "sync_job_postings_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Job Posting Sync"
+  },
+  {
+   "default": "0",
+   "fieldname": "compliance_api_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Compliance API"
+  },
+  {
+   "depends_on": "eval:doc.is_enabled",
+   "fieldname": "webhook_section",
+   "fieldtype": "Section Break",
+   "label": "Webhook"
+  },
+  {
+   "fieldname": "webhook_signing_secret",
+   "fieldtype": "Password",
+   "label": "Webhook Signing Secret"
+  },
+  {
+   "fieldname": "webhook_verification_token",
+   "fieldtype": "Data",
+   "label": "Webhook Verification Token"
+  },
+  {
+   "depends_on": "eval:doc.is_enabled",
+   "fieldname": "sync_section",
+   "fieldtype": "Section Break",
+   "label": "Sync Configuration"
+  },
+  {
+   "default": "60",
+   "fieldname": "sync_interval_minutes",
+   "fieldtype": "Int",
+   "label": "Sync Interval (minutes)"
+  },
+  {
+   "default": "100",
+   "fieldname": "rate_limit_per_minute",
+   "fieldtype": "Int",
+   "label": "Rate Limit Per Minute"
+  },
+  {
+   "fieldname": "column_break_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_sync_at",
+   "fieldtype": "Datetime",
+   "label": "Last Sync At",
+   "read_only": 1
+  },
+  {
+   "default": "Never",
+   "fieldname": "last_sync_status",
+   "fieldtype": "Select",
+   "label": "Last Sync Status",
+   "options": "Never\nSuccess\nFailed\nPartial",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_sync_error",
+   "fieldtype": "Small Text",
+   "label": "Last Sync Error",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Careverse Hq",
+ "name": "LinkedIn Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}
