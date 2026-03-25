@@ -35,6 +35,8 @@ type JobLinksState = {
     job_detail_url?: string;
 };
 
+type PublicLinkKind = 'list' | 'detail';
+
 interface Props {
     navigateToRoute: (route: string, id?: string) => void;
     selectedJobId?: string;
@@ -87,35 +89,95 @@ const parseOptionalNumber = (value: unknown): number | undefined => {
     return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-const normalizePublicUrl = (rawUrl?: string): string | undefined => {
-    const input = (rawUrl || '').trim();
-    if (!input) return undefined;
-
-    try {
-        const parsed = typeof window !== 'undefined'
-            ? new URL(input, window.location.origin)
-            : new URL(input);
-
-        if (typeof window !== 'undefined') {
-            const currentOrigin = window.location.origin;
-            const sameHostDifferentOrigin = parsed.hostname === window.location.hostname && parsed.origin !== currentOrigin;
-            const localHostSource = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-
-            if (sameHostDifferentOrigin || localHostSource) {
-                return `${currentOrigin}${parsed.pathname}${parsed.search}${parsed.hash}`;
-            }
-        }
-
-        return parsed.toString();
-    } catch {
-        return input;
+const getNormalizedOrigin = (parsed?: URL): string | undefined => {
+    if (typeof window === 'undefined') {
+        return parsed?.origin;
     }
+    if (!parsed) {
+        return window.location.origin;
+    }
+
+    const currentOrigin = window.location.origin;
+    const sameHostDifferentOrigin = parsed.hostname === window.location.hostname && parsed.origin !== currentOrigin;
+    const localHostSource = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    if (sameHostDifferentOrigin || localHostSource) {
+        return currentOrigin;
+    }
+    return parsed.origin;
 };
 
-const normalizePublicLinks = (links?: Partial<PublicJobLinks> | null): JobLinksState => ({
-    jobs_list_url: normalizePublicUrl(links?.jobs_list_url),
-    job_detail_url: normalizePublicUrl(links?.job_detail_url),
-});
+const extractSlugFromPath = (pathname: string): string | undefined => {
+    const normalizedPath = pathname.replace(/\/+$/, '');
+    if (normalizedPath.startsWith('/jobs/')) {
+        return decodeURIComponent(normalizedPath.slice('/jobs/'.length)).trim() || undefined;
+    }
+    if (normalizedPath.startsWith('/job-detail/')) {
+        return decodeURIComponent(normalizedPath.slice('/job-detail/'.length)).trim() || undefined;
+    }
+    return undefined;
+};
+
+const extractSlugFromLegacyDetailUrl = (parsed: URL): string | undefined => {
+    const fromPath = extractSlugFromPath(parsed.pathname);
+    if (fromPath) return fromPath;
+
+    const querySlug = parsed.searchParams.get('job_slug') || parsed.searchParams.get('slug');
+    const normalized = (querySlug || '').trim();
+    return normalized || undefined;
+};
+
+const normalizePublicUrl = (
+    rawUrl?: string,
+    options?: { kind?: PublicLinkKind; fallbackSlug?: string },
+): string | undefined => {
+    const input = (rawUrl || '').trim();
+    const fallbackSlug = (options?.fallbackSlug || '').trim() || undefined;
+
+    let parsed: URL | undefined;
+    if (input) {
+        try {
+            parsed = typeof window !== 'undefined'
+                ? new URL(input, window.location.origin)
+                : new URL(input);
+        } catch {
+            // Continue with fallback handling below.
+        }
+    }
+
+    const origin = getNormalizedOrigin(parsed);
+    const kind = options?.kind;
+
+    if (kind === 'list') {
+        if (!origin) return '/jobs';
+        return `${origin}/jobs`;
+    }
+
+    if (kind === 'detail') {
+        const slug = fallbackSlug || (parsed ? extractSlugFromLegacyDetailUrl(parsed) : undefined);
+        if (!origin) {
+            return slug ? `/jobs/${encodeURIComponent(slug)}` : '/jobs';
+        }
+        return slug ? `${origin}/jobs/${encodeURIComponent(slug)}` : `${origin}/jobs`;
+    }
+
+    if (!parsed) return input || undefined;
+
+    return `${origin || parsed.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+};
+
+const normalizePublicLinks = (links?: Partial<PublicJobLinks> | null): JobLinksState => {
+    const fallbackSlug = typeof links?.slug === 'string' ? links.slug : undefined;
+    const jobsListUrl = normalizePublicUrl(links?.jobs_list_url, { kind: 'list' });
+    const detailUrlFromPayload = normalizePublicUrl(links?.job_detail_url, { kind: 'detail', fallbackSlug });
+    const detailUrlFromList = fallbackSlug
+        ? normalizePublicUrl(jobsListUrl, { kind: 'detail', fallbackSlug })
+        : undefined;
+
+    return {
+        jobs_list_url: jobsListUrl,
+        job_detail_url: detailUrlFromPayload || detailUrlFromList,
+    };
+};
 
 export default function JobPostsListView({ navigateToRoute, selectedJobId }: Props) {
     const { isMobile, width } = useResponsive();

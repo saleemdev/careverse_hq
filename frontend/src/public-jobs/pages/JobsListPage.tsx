@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { publicJobsApi } from '../api';
+import { PublicStatePanel } from '../components/PublicStatePanel';
 import type { PublicJobFilters, PublicJobsListItem, Pagination } from '../types';
 import { formatDate, formatSalary, getDeadlineMeta, toJobSlug } from '../utils';
 
@@ -63,6 +64,8 @@ export function JobsListPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [filterLoading, setFilterLoading] = useState<boolean>(true);
+  const [filterError, setFilterError] = useState<string>('');
+  const [retryToken, setRetryToken] = useState<number>(0);
 
   useEffect(() => {
     setSearchInput(routeState.search);
@@ -73,6 +76,7 @@ export function JobsListPage() {
 
     const loadFilters = async () => {
       setFilterLoading(true);
+      setFilterError('');
       try {
         const response = await publicJobsApi.getFilterOptions();
         if (cancelled) return;
@@ -80,6 +84,7 @@ export function JobsListPage() {
       } catch {
         if (cancelled) return;
         setFilters(EMPTY_FILTERS);
+        setFilterError('Filter options could not be loaded right now. You can still browse jobs.');
       } finally {
         if (cancelled === false) {
           setFilterLoading(false);
@@ -91,7 +96,7 @@ export function JobsListPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,7 +136,7 @@ export function JobsListPage() {
     return () => {
       cancelled = true;
     };
-  }, [routeState.company, routeState.designation, routeState.employmentType, routeState.location, routeState.page, routeState.search]);
+  }, [routeState.company, routeState.designation, routeState.employmentType, routeState.location, routeState.page, routeState.search, retryToken]);
 
   const totalPages = Math.max(1, Math.ceil((pagination.total_count || 0) / (pagination.per_page || DEFAULT_PAGE_SIZE)));
   const pageWindow = buildPaginationWindow(routeState.page, totalPages);
@@ -169,6 +174,10 @@ export function JobsListPage() {
   const clearAllFilters = () => {
     setSearchInput('');
     setSearchParams({}, { replace: true });
+  };
+
+  const retryLoad = () => {
+    setRetryToken((current) => current + 1);
   };
 
   const activeFilterCount = [
@@ -262,6 +271,18 @@ export function JobsListPage() {
           </label>
         </div>
 
+        {filterError.length > 0 ? (
+          <div className="pj-state-wrap">
+            <PublicStatePanel
+              tone="neutral"
+              title="Filters unavailable"
+              description={filterError}
+              actionLabel="Retry loading filters"
+              onAction={retryLoad}
+            />
+          </div>
+        ) : null}
+
         <div className="pj-results-meta">
           <div>
             <h2>{pagination.total_count} Open Position{pagination.total_count === 1 ? '' : 's'}</h2>
@@ -270,11 +291,39 @@ export function JobsListPage() {
           <button type="button" className="pj-btn pj-btn-ghost" onClick={clearAllFilters}>Reset Filters</button>
         </div>
 
-        {loading ? <div className="pj-state">Loading open roles...</div> : null}
-        {error.length > 0 ? <div className="pj-state pj-state-error">{error}</div> : null}
+        {loading ? (
+          <div className="pj-state-wrap">
+            <div className="pj-state-panel pj-state-panel-neutral pj-skeleton-panel" aria-busy="true">
+              <div className="pj-state-panel-copy">
+                <strong>Loading open roles</strong>
+                <p>Fetching current vacancies and publishing metadata.</p>
+              </div>
+              <div className="pj-skeleton-line" />
+            </div>
+          </div>
+        ) : null}
+        {error.length > 0 ? (
+          <div className="pj-state-wrap">
+            <PublicStatePanel
+              tone="error"
+              title="Could not load jobs"
+              description={error}
+              actionLabel="Retry jobs"
+              onAction={retryLoad}
+            />
+          </div>
+        ) : null}
 
         {loading === false && error.length === 0 && jobs.length === 0 ? (
-          <div className="pj-state">No jobs match your current filters. Try broadening your search.</div>
+          <div className="pj-state-wrap">
+            <PublicStatePanel
+              tone="neutral"
+              title="No matching jobs"
+              description="No jobs match your current filters. Try broadening your search or reset the filters to view all openings."
+              actionLabel="Reset filters"
+              onAction={clearAllFilters}
+            />
+          </div>
         ) : null}
 
         {loading === false && error.length === 0 && jobs.length > 0 ? (
@@ -283,7 +332,7 @@ export function JobsListPage() {
               {jobs.map((job) => {
                 const salary = formatSalary(job);
                 const deadline = getDeadlineMeta(job.closes_on);
-                const detailPath = '/jobs/' + encodeURIComponent(toJobSlug(job));
+                const detailPath = encodeURIComponent(toJobSlug(job));
 
                 return (
                   <Link key={job.name} className="pj-job-card" to={detailPath}>

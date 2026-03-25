@@ -290,6 +290,9 @@ after_migrate = [
 website_route_rules = [
 	{"from_route": "/login", "to_route": "login"},
 	{"from_route": "/admin-central/<path:app_path>", "to_route": "admin-central"},
+	# Public jobs board list page
+	{"from_route": "/jobs", "to_route": "jobs"},
+	{"from_route": "/jobs/", "to_route": "jobs"},
 	# Public jobs board: detail page routed via slug
 	{"from_route": "/jobs/<path:job_slug>", "to_route": "job-detail"},
 ]

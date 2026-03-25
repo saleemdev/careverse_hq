@@ -15,9 +15,9 @@ def get_context(context):
         if path.startswith("/jobs/"):
             slug = path[len("/jobs/"):].strip("/")
 
+    slug = slug.strip("/")
     context.job_slug = slug
-    request = getattr(frappe.local, "request", None)
-    current_path = getattr(request, "path", None) or f"/jobs/{slug}"
+    current_path = f"/jobs/{slug}" if slug else "/jobs"
     apply_public_page_context(
         context,
         title="Job Details - CareVerse HQ",

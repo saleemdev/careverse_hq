@@ -9,13 +9,13 @@ export function PublicJobsApp() {
   const boot = getPublicJobsBoot();
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/jobs">
       <div className="pj-app">
         <PublicHeader boot={boot} />
         <Routes>
-          <Route path="/jobs" element={<JobsListPage />} />
-          <Route path="/jobs/:jobSlug" element={<JobDetailPage />} />
-          <Route path="*" element={<Navigate to="/jobs" replace />} />
+          <Route path="/" element={<JobsListPage />} />
+          <Route path=":jobSlug" element={<JobDetailPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <PublicFooter boot={boot} />
       </div>

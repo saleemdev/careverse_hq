@@ -17,7 +17,7 @@ import pyotp
 from frappe import _
 from frappe.core.doctype.sms_settings.sms_settings import send_sms
 from frappe.utils.file_manager import save_file
-from frappe.utils import cint, today
+from frappe.utils import cint, getdate, today
 from frappe.twofactor import get_otpsecret_for_, get_rendered_otp_message
 
 from .response import api_response
@@ -401,13 +401,15 @@ def terminate_affiliation(
                 status_code=403,
             )
 
+        today_value = getdate(today())
+
         # Core status transition
         affiliation_doc.affiliation_status = "Inactive"
         _set_if_field(affiliation_doc, "termination_reason", termination_reason)
-        _set_if_field(affiliation_doc, "termination_date", today())
+        _set_if_field(affiliation_doc, "termination_date", today_value)
         _set_if_field(affiliation_doc, "terminated_by", frappe.session.user)
         _set_termination_documents_safe(affiliation_doc, documents)
-        _set_if_field(affiliation_doc, "end_date", today())
+        _set_if_field(affiliation_doc, "end_date", today_value)
 
         affiliation_doc.save()
         try:
@@ -425,13 +427,16 @@ def terminate_affiliation(
         # Keep employee out of active directory after unaffiliation.
         if employee_name and frappe.db.exists("Employee", employee_name):
             employee_doc = frappe.get_doc("Employee", employee_name)
-            employee_doc.status = "Left"
+            employee_updates = {"status": "Left"}
             if employee_doc.meta.has_field("relieving_date"):
-                employee_doc.relieving_date = today()
+                employee_updates["relieving_date"] = today_value
             if employee_doc.meta.has_field("date_of_leaving"):
-                employee_doc.date_of_leaving = today()
-            employee_doc.save()
-            employee_status = employee_doc.status
+                employee_updates["date_of_leaving"] = today_value
+
+            # Avoid full Employee save validation/hook side-effects from blocking
+            # affiliation termination. We only need an immediate status flip.
+            frappe.db.set_value("Employee", employee_name, employee_updates, update_modified=True)
+            employee_status = employee_updates["status"]
 
         # Update Health Professional child affiliation row where possible.
         hp_name = affiliation_doc.get("health_professional")

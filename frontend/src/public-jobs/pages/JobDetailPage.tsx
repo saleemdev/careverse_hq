@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { publicJobsApi } from '../api';
+import { PublicStatePanel } from '../components/PublicStatePanel';
 import { getPublicJobsBoot } from '../boot';
 import type { PublicApplicationPayload, PublicJobDetail } from '../types';
 import { PHONE_PATTERN, formatDate, formatSalary, getDeadlineMeta, isHttpUrl, isValidEmail, toJobSlug } from '../utils';
@@ -46,6 +47,7 @@ export function JobDetailPage() {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [step, setStep] = useState<1 | 2>(1);
+  const [reloadToken, setReloadToken] = useState<number>(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +82,7 @@ export function JobDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobSlug]);
+  }, [jobSlug, reloadToken]);
 
   useEffect(() => {
     if (job && (job.job_title || job.designation)) {
@@ -149,6 +151,10 @@ export function JobDetailPage() {
     setFormError('');
   };
 
+  const retryDetail = () => {
+    setReloadToken((current) => current + 1);
+  };
+
   const submitApplication = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -194,16 +200,79 @@ export function JobDetailPage() {
   };
 
   if (loading) {
-    return <main className="pj-main pj-shell"><div className="pj-state">Loading role details...</div></main>;
+    return (
+      <main className="pj-main pj-shell">
+        <div className="pj-detail-loading-shell" aria-busy="true">
+          <div className="pj-breadcrumbs">
+            <Link to="/">Jobs Board</Link>
+            <span> / </span>
+            <span>Loading role</span>
+          </div>
+          <section className="pj-detail-hero">
+            <div className="pj-loading-block">
+              <div className="pj-skeleton-chip" />
+              <div className="pj-skeleton-title" />
+              <div className="pj-skeleton-line" />
+            </div>
+            <div className="pj-skeleton-chip" />
+          </section>
+          <section className="pj-detail-grid">
+            <article className="pj-detail-card">
+              <div className="pj-state-panel pj-state-panel-neutral pj-skeleton-panel">
+                <div className="pj-state-panel-copy">
+                  <strong>Loading role details</strong>
+                  <p>Fetching the posting, description, and related openings.</p>
+                </div>
+                <div className="pj-skeleton-line" />
+              </div>
+            </article>
+            <aside className="pj-detail-card">
+              <div className="pj-skeleton-card">
+                <div className="pj-skeleton-title" />
+                <div className="pj-skeleton-line" />
+                <div className="pj-skeleton-line short" />
+              </div>
+            </aside>
+          </section>
+        </div>
+      </main>
+    );
   }
 
   if (error.length > 0 || job === null) {
     return (
       <main className="pj-main pj-shell">
-        <div className="pj-state pj-state-error">{error || 'Job not found.'}</div>
-        <div className="pj-inline-actions">
-          <button type="button" className="pj-btn pj-btn-primary" onClick={() => navigate('/jobs')}>Back to Jobs Board</button>
+        <div className="pj-breadcrumbs">
+          <Link to="/">Jobs Board</Link>
+          <span> / </span>
+          <span>Unavailable role</span>
         </div>
+        <section className="pj-detail-hero">
+          <div>
+            <p className="pj-eyebrow">Public Healthcare Hiring</p>
+            <h1>Role unavailable</h1>
+            <p className="pj-detail-subtitle">The requested opening could not be loaded from the public jobs board.</p>
+          </div>
+        </section>
+
+        <section className="pj-detail-grid">
+          <article className="pj-detail-card">
+            <PublicStatePanel
+              tone="error"
+              title="Could not load job detail"
+              description={error || 'Job not found.'}
+              actionLabel="Retry detail"
+              onAction={retryDetail}
+            />
+          </article>
+          <aside className="pj-detail-card">
+            <h2>What you can do</h2>
+            <p className="pj-copy">Return to the jobs board and continue browsing other openings.</p>
+            <div className="pj-inline-actions">
+              <button type="button" className="pj-btn pj-btn-primary" onClick={() => navigate('/')}>Back to Jobs Board</button>
+            </div>
+          </aside>
+        </section>
       </main>
     );
   }
@@ -213,7 +282,7 @@ export function JobDetailPage() {
   return (
     <main className="pj-main pj-shell">
       <div className="pj-breadcrumbs">
-        <Link to="/jobs">Jobs Board</Link>
+        <Link to="/">Jobs Board</Link>
         <span> / </span>
         <span>{job.job_title || job.designation || 'Role Details'}</span>
       </div>
@@ -383,7 +452,7 @@ export function JobDetailPage() {
         {Array.isArray(job.related_jobs) && job.related_jobs.length > 0 ? (
           <div className="pj-related-grid">
             {job.related_jobs.map((related) => (
-              <Link key={related.name} className="pj-related-item" to={'/jobs/' + encodeURIComponent(toJobSlug(related))}>
+              <Link key={related.name} className="pj-related-item" to={encodeURIComponent(toJobSlug(related))}>
                 <h3>{related.job_title || related.designation || 'Open role'}</h3>
                 <p>{[related.company, related.location, related.employment_type].filter(Boolean).join(' • ') || 'Published opportunity'}</p>
               </Link>
