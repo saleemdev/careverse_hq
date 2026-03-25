@@ -5,6 +5,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   base: '/assets/careverse_hq/jobs-board/',
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+    process: JSON.stringify({ env: {} }),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

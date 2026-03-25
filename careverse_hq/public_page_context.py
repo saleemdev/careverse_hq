@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from urllib.parse import quote
 
 import frappe
@@ -17,6 +19,7 @@ def apply_public_page_context(context, *, title, current_path, page_label="Jobs 
     context.site_url = frappe.utils.get_url()
     context.current_year = frappe.utils.now_datetime().year
     context.csrf_token = frappe.sessions.get_csrf_token()
+    context.public_jobs_asset_version = _get_public_jobs_asset_version()
     context.header_context_label = page_label
 
     user = frappe.session.user
@@ -64,3 +67,23 @@ def _build_initials(name):
     if len(parts) == 1:
         return parts[0][:2].upper()
     return (parts[0][0] + parts[-1][0]).upper()
+
+
+def _get_public_jobs_asset_version():
+    """Return a cache-busting version tied to public jobs asset mtimes."""
+    try:
+        package_path = Path(frappe.get_app_path("careverse_hq"))
+        app_root = package_path.parent
+        assets_root = app_root / "careverse_hq" / "public" / "jobs-board"
+        asset_candidates = (
+            assets_root / "public-jobs.js",
+            assets_root / "style.css",
+        )
+        mtimes = [int(os.path.getmtime(path)) for path in asset_candidates if path.exists()]
+        if mtimes:
+            return str(max(mtimes))
+    except Exception:
+        pass
+
+    # Deterministic fallback when assets are unavailable in local/dev scenarios.
+    return "1"

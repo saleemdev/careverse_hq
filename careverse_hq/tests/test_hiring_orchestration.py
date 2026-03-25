@@ -355,9 +355,9 @@ class TestHooksConfiguration(unittest.TestCase):
             self.source = f.read()
 
     def test_job_detail_route_rule(self):
-        """Public /jobs/<slug> must route to job-detail."""
+        """Public /jobs/<slug> must route to the shared jobs React shell."""
         self.assertIn("/jobs/<path:job_slug>", self.source)
-        self.assertIn("job-detail", self.source)
+        self.assertIn('"to_route": "jobs"', self.source)
 
     def test_public_jobs_csrf_exempt(self):
         """Public job APIs must be CSRF-exempt for guest access."""

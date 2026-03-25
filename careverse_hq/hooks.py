@@ -293,6 +293,6 @@ website_route_rules = [
 	# Public jobs board list page
 	{"from_route": "/jobs", "to_route": "jobs"},
 	{"from_route": "/jobs/", "to_route": "jobs"},
-	# Public jobs board: detail page routed via slug
-	{"from_route": "/jobs/<path:job_slug>", "to_route": "job-detail"},
+	# Public jobs board detail route uses the same React shell as list.
+	{"from_route": "/jobs/<path:job_slug>", "to_route": "jobs"},
 ]

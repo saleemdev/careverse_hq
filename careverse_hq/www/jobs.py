@@ -8,7 +8,16 @@ no_cache = True
 
 
 def get_context(context):
-    current_path = "/jobs"
+    request = getattr(frappe.local, "request", None)
+    current_path = (getattr(request, "path", None) or "/jobs").strip() or "/jobs"
+    if current_path.startswith("/jobs") is False:
+        current_path = "/jobs"
+
+    job_slug = ""
+    if current_path.startswith("/jobs/"):
+        job_slug = current_path[len("/jobs/"):].strip("/")
+
+    context.job_slug = job_slug
     apply_public_page_context(
         context,
         title="Healthcare Jobs - CareVerse HQ",
