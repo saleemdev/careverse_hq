@@ -14,5 +14,6 @@ def get_context(context):
         context,
         title="Healthcare Jobs - CareVerse HQ",
         current_path=current_path,
+        page_label="Public Jobs Board",
     )
     return context

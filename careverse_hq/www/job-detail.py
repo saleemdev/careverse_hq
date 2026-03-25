@@ -22,5 +22,6 @@ def get_context(context):
         context,
         title="Job Details - CareVerse HQ",
         current_path=current_path,
+        page_label="Role Detail",
     )
     return context

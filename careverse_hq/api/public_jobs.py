@@ -10,7 +10,7 @@ import re
 from urllib.parse import urlparse
 
 import frappe
-from frappe.utils import validate_email_address
+from frappe.utils import getdate, validate_email_address
 
 from .utils import api_response
 
@@ -57,12 +57,20 @@ _PUBLIC_JOB_LIST_FIELDS = [
     "creation",
 ]
 
+_MAX_SEARCH_LENGTH = 120
+_MAX_NAME_LENGTH = 140
+_MAX_EMAIL_LENGTH = 254
+_MAX_PHONE_LENGTH = 32
+_MAX_COVER_LETTER_LENGTH = 5000
+_MAX_URL_LENGTH = 2048
+_PHONE_PATTERN = re.compile(r"^\+?[0-9][0-9\s().-]{5,31}$")
+
 
 # ---------------------------------------------------------------------------
 # List endpoint
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_public_jobs(
     search=None,
     location=None,
@@ -81,6 +89,11 @@ def get_public_jobs(
     """
     page = max(1, int(page or 1))
     page_size = min(50, max(1, int(page_size or 20)))
+    search = _clean_text(search, _MAX_SEARCH_LENGTH)
+    location = _clean_text(location, 140)
+    employment_type = _clean_text(employment_type, 80)
+    designation = _clean_text(designation, 140)
+    company = _clean_text(company, 140)
 
     filters = {"status": "Open"}
 
@@ -148,7 +161,7 @@ def get_public_jobs(
 # Detail endpoint
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_public_job_detail(job_id=None, slug=None):
     """
     Public job detail for /jobs/<slug> page.
@@ -226,7 +239,7 @@ def get_public_job_detail(job_id=None, slug=None):
 # Filter options (for search/filter UI)
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True, methods=["GET"])
 def get_job_filter_options():
     """
     Return available filter values for the public jobs search UI.
@@ -283,7 +296,7 @@ def get_job_filter_options():
 # Application submission
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 def submit_application(
     job_opening,
     applicant_name,
@@ -299,13 +312,13 @@ def submit_application(
 
     Creates a Job Applicant record. Requires explicit consent capture (FR-3).
     """
-    job_opening = (job_opening or "").strip()
-    applicant_name = (applicant_name or "").strip()
-    email_id = (email_id or "").strip().lower()
-    phone = (phone or "").strip() or None
-    cover_letter = (cover_letter or "").strip() or None
-    resume_link = (resume_link or "").strip() or None
-    website = (website or "").strip()
+    job_opening = _clean_text(job_opening, 140)
+    applicant_name = _clean_text(applicant_name)
+    email_id = _clean_text(email_id).lower()
+    phone = _normalize_phone(phone)
+    cover_letter = _clean_text(cover_letter) or None
+    resume_link = _clean_text(resume_link) or None
+    website = _clean_text(website, 256)
 
     # Honeypot for basic bot/spam filtering without affecting real users.
     if website:
@@ -329,17 +342,38 @@ def submit_application(
             status_code=400,
         )
 
-    if len(applicant_name) > 140:
+    if len(email_id) > _MAX_EMAIL_LENGTH:
+        return api_response(
+            success=False,
+            message="Email address is too long.",
+            status_code=400,
+        )
+
+    if len(applicant_name) > _MAX_NAME_LENGTH:
         return api_response(
             success=False,
             message="Full name is too long.",
             status_code=400,
         )
 
-    if cover_letter and len(cover_letter) > 5000:
+    if cover_letter and len(cover_letter) > _MAX_COVER_LETTER_LENGTH:
         return api_response(
             success=False,
             message="Your note is too long. Please keep it under 5000 characters.",
+            status_code=400,
+        )
+
+    if resume_link and len(resume_link) > _MAX_URL_LENGTH:
+        return api_response(
+            success=False,
+            message="Resume link is too long.",
+            status_code=400,
+        )
+
+    if phone and not _is_valid_phone(phone):
+        return api_response(
+            success=False,
+            message="Please provide a valid phone number.",
             status_code=400,
         )
 
@@ -379,6 +413,12 @@ def submit_application(
         return api_response(
             success=False,
             message="This job is no longer accepting applications",
+            status_code=400,
+        )
+    if job.closes_on and getdate(job.closes_on) < getdate():
+        return api_response(
+            success=False,
+            message="Applications for this role are closed.",
             status_code=400,
         )
     if frappe.get_meta("Job Opening").has_field("publish") and not job.publish:
@@ -597,3 +637,21 @@ def _is_http_url(value):
     """Allow only absolute http/https URLs."""
     parsed = urlparse(value)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _clean_text(value, limit=None):
+    if value is None:
+        return ""
+    cleaned = str(value).strip()
+    if limit:
+        return cleaned[:limit]
+    return cleaned
+
+
+def _normalize_phone(value):
+    phone = _clean_text(value, _MAX_PHONE_LENGTH)
+    return phone or None
+
+
+def _is_valid_phone(value):
+    return bool(_PHONE_PATTERN.match(value))

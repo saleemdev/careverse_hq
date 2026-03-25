@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --base=/assets/careverse_hq/admin-central/ && npm run copy-html-entry",
+    "build:admin": "vite build --base=/assets/careverse_hq/admin-central/ && npm run copy-admin-entry",
+    "build:public-jobs": "vite build --config vite.public-jobs.config.ts",
+    "build": "npm run build:admin && npm run build:public-jobs",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "preview": "vite preview",
-    "copy-html-entry": "cp ../careverse_hq/public/admin-central/index.html ../careverse_hq/www/admin-central.html"
+    "copy-admin-entry": "cp ../careverse_hq/public/admin-central/index.html ../careverse_hq/www/admin-central.html"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",
@@ -26,6 +28,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-leaflet": "^5.0.0",
+    "react-router-dom": "^7.13.2",
     "react-to-print": "^3.2.0",
     "recharts": "^2.15.4",
     "socket.io-client": "^4.8.3",

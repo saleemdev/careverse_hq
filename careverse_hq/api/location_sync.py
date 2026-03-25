@@ -83,18 +83,24 @@ def get_location_for_facility(facility_ref: str) -> Optional[str]:
     if loc:
         return loc
 
-    # Try resolving hie_id → docname first
-    facility_docname = frappe.db.get_value(
-        "Health Facility", {"hie_id": facility_ref}, "name"
-    )
-    if facility_docname:
-        loc = frappe.db.get_value(
-            "Location", {"custom_health_facility": facility_docname}, "name"
+    # Resolve facility ref to a Health Facility docname
+    facility_docname = frappe.db.get_value("Health Facility", facility_ref, "name")
+    if not facility_docname:
+        facility_docname = frappe.db.get_value(
+            "Health Facility", {"hie_id": facility_ref}, "name"
         )
-        if loc:
-            return loc
+    if not facility_docname:
+        return None
 
-    return None
+    # Lazily ensure Location exists (replaces prior hook-based sync path)
+    try:
+        return sync_facility_to_location(facility_docname)
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"Location lazy sync failed for facility '{facility_docname}'",
+        )
+        return None
 
 
 def get_facility_for_location(location_name: str) -> Optional[str]:

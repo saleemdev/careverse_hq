@@ -143,14 +143,9 @@ home_page = "index"
 # 	}
 # }
 
-doc_events = {
-	"Health Facility": {
-		"on_update": "careverse_hq.api.location_sync.sync_facility_to_location"
-	},
-	"Facility Affiliation": {
-		"on_update": "careverse_hq.api.hiring_reconciliation.reconcile_hiring_on_affiliation_update"
-	},
-}
+# Intentionally keep DocType hooks empty to avoid cross-app write side-effects
+# on external (healthpro_erp) DocTypes.
+doc_events = {}
 
 # Scheduled Tasks
 # ---------------
@@ -158,6 +153,10 @@ doc_events = {
 scheduler_events = {
 	# Run every 2 hours at minute 0
 	"cron": {
+		# Reconcile hiring logs without relying on Facility Affiliation doc_events hooks
+		"*/15 * * * *": [
+			"careverse_hq.api.hiring_reconciliation.reconcile_pending_hiring_logs"
+		],
 		"0 */1 * * *": [
 			"careverse_hq.tasks.sync_expired_licenses_from_hwr"
 		],

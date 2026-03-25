@@ -21,6 +21,7 @@ import json
 import frappe
 from frappe.utils import now_datetime, add_days
 
+from .facility_affiliation_status import get_facility_affiliation_status
 from .single_affiliation import create_single_affiliation
 from .utils import api_response
 
@@ -288,7 +289,7 @@ def check_hire_status(job_offer_id):
             message="You do not have permission to view this Facility Affiliation",
             status_code=403,
         )
-    aff_status = affiliation.status
+    aff_status = get_facility_affiliation_status(affiliation)
 
     # Check if Employee was created through the confirmation workflow
     employee_exists = frappe.db.exists(
@@ -395,9 +396,7 @@ def check_expired_hiring_affiliations(sla_days=7):
         if not frappe.db.exists("Facility Affiliation", log.facility_affiliation):
             continue
 
-        aff_status = frappe.db.get_value(
-            "Facility Affiliation", log.facility_affiliation, "status"
-        )
+        aff_status = get_facility_affiliation_status(log.facility_affiliation)
 
         # Only expire if still Pending
         if aff_status in ("Pending",):

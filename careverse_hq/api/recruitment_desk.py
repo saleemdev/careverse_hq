@@ -7,6 +7,7 @@ Serves Job Openings, Candidate Pipeline, and Candidate Profile views.
 
 import frappe
 
+from .facility_affiliation_status import get_facility_affiliation_status
 from .utils import api_response
 
 
@@ -432,7 +433,7 @@ def get_candidate_detail(name):
                 try:
                     affiliation = frappe.get_doc("Facility Affiliation", log.facility_affiliation)
                     affiliation.check_permission("read")
-                    data["hiring_log"]["affiliation_status"] = affiliation.status
+                    data["hiring_log"]["affiliation_status"] = get_facility_affiliation_status(affiliation)
                 except frappe.PermissionError:
                     pass
 

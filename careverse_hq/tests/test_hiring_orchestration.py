@@ -211,6 +211,12 @@ class TestHiringOrchestrationRules(unittest.TestCase):
         self.assertIn('frappe.get_doc("Job Offer", job_offer_id)', section)
         self.assertIn('offer.check_permission("read")', section)
 
+    def test_check_hire_status_uses_affiliation_status_helper(self):
+        """Facility Affiliation status lookups must use shared schema-safe helper."""
+        section = self.source.split("def check_hire_status")[1].split("def ")[0]
+        self.assertIn("get_facility_affiliation_status", section)
+        self.assertNotIn("affiliation.status", section)
+
 
 class TestPublicFieldWhitelist(unittest.TestCase):
     """BRD FR-24: Public pages must not expose restricted data."""
@@ -367,6 +373,10 @@ class TestHooksConfiguration(unittest.TestCase):
         """Scheduler must include hiring confirmation reminders."""
         self.assertIn("send_hiring_confirmation_reminders", self.source)
 
+    def test_scheduler_has_reconciliation_job(self):
+        """Scheduler must reconcile hiring logs without external doctype hooks."""
+        self.assertIn("reconcile_pending_hiring_logs", self.source)
+
 
 class TestPermissionSafeQueryPatterns(unittest.TestCase):
     """Guard against permission-bypassing query patterns in private hiring APIs."""
@@ -448,9 +458,15 @@ class TestRecruitmentDeskHPResolution(unittest.TestCase):
         """Create/update should expose actionable validation messages."""
         self.assertIn("_extract_exception_message", self.source)
 
+    def test_candidate_detail_uses_affiliation_status_helper(self):
+        """Candidate detail should not assume a direct status field on affiliation."""
+        section = self.source.split("def get_candidate_detail")[1].split("def ")[0]
+        self.assertIn("get_facility_affiliation_status", section)
+        self.assertNotIn("affiliation.status", section)
+
 
 class TestReconciliationHook(unittest.TestCase):
-    """Tests for hiring reconciliation via doc_events."""
+    """Tests for hiring reconciliation without cross-app doc_events hooks."""
 
     def setUp(self):
         self.source = _read_source("hiring_reconciliation.py")
@@ -486,13 +502,18 @@ class TestReconciliationHook(unittest.TestCase):
         self.assertIn('"Rejected"', self.source)
         self.assertIn('"Expired"', self.source)
 
-    def test_doc_events_in_hooks(self):
-        """Facility Affiliation doc_events must be registered in hooks.py."""
+    def test_reconciliation_uses_affiliation_status_helper(self):
+        """Hook should read affiliation status through schema-safe helper."""
+        self.assertIn("get_facility_affiliation_status", self.source)
+        self.assertNotIn("new_status = doc.status", self.source)
+
+    def test_no_cross_app_doc_events_in_hooks(self):
+        """Hooks should not bind external healthpro_erp doctypes via doc_events."""
         hooks_path = os.path.join(_APP_ROOT, "hooks.py")
         with open(hooks_path) as f:
             hooks_source = f.read()
-        self.assertIn("Facility Affiliation", hooks_source)
-        self.assertIn("reconcile_hiring_on_affiliation_update", hooks_source)
+        self.assertNotIn('"Facility Affiliation":', hooks_source)
+        self.assertNotIn('"Health Facility":', hooks_source)
 
 
 class TestCustomFieldsPatch(unittest.TestCase):
