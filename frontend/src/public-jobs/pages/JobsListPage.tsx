@@ -196,195 +196,205 @@ export function JobsListPage() {
         <p>Browse open postings, compare timelines, and apply securely from one public jobs board.</p>
       </section>
 
-      <section className="pj-shell pj-list-card">
-        <form className="pj-search-row" onSubmit={onSearchSubmit}>
-          <input
-            className="pj-input"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search by role title or designation"
-            maxLength={120}
-            aria-label="Search jobs"
-          />
-          <button type="submit" className="pj-btn pj-btn-primary">Search</button>
-        </form>
+      <section className="pj-shell pj-list-layout">
+        <aside className="pj-list-filters pj-detail-card pj-glass-standard">
+          <div className="pj-panel-head">
+            <h2>Discover Jobs</h2>
+            <p className="pj-section-sub">Candidate filters</p>
+          </div>
 
-        <div className="pj-filters-grid">
-          <label>
-            <span>Facility</span>
-            <select
-              className="pj-select"
-              value={routeState.company}
-              onChange={(event) => setRouteValue({ company: event.target.value }, true)}
-              disabled={filterLoading}
-            >
-              <option value="">All facilities</option>
-              {filters.companies.map((entry) => (
-                <option key={entry} value={entry}>{entry}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Location</span>
-            <select
-              className="pj-select"
-              value={routeState.location}
-              onChange={(event) => setRouteValue({ location: event.target.value }, true)}
-              disabled={filterLoading}
-            >
-              <option value="">All locations</option>
-              {filters.locations.map((entry) => (
-                <option key={entry} value={entry}>{entry}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Employment type</span>
-            <select
-              className="pj-select"
-              value={routeState.employmentType}
-              onChange={(event) => setRouteValue({ employmentType: event.target.value }, true)}
-              disabled={filterLoading}
-            >
-              <option value="">All types</option>
-              {filters.employment_types.map((entry) => (
-                <option key={entry} value={entry}>{entry}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Role</span>
-            <select
-              className="pj-select"
-              value={routeState.designation}
-              onChange={(event) => setRouteValue({ designation: event.target.value }, true)}
-              disabled={filterLoading}
-            >
-              <option value="">All roles</option>
-              {filters.designations.map((entry) => (
-                <option key={entry} value={entry}>{entry}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {filterError.length > 0 ? (
-          <div className="pj-state-wrap">
-            <PublicStatePanel
-              tone="neutral"
-              title="Filters unavailable"
-              description={filterError}
-              actionLabel="Retry loading filters"
-              onAction={retryLoad}
+          <form className="pj-search-row" onSubmit={onSearchSubmit}>
+            <input
+              className="pj-input"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search by role title or designation"
+              maxLength={120}
+              aria-label="Search jobs"
             />
-          </div>
-        ) : null}
+            <button type="submit" className="pj-btn pj-btn-primary">Search</button>
+          </form>
 
-        <div className="pj-results-meta">
-          <div>
-            <h2>{pagination.total_count} Open Position{pagination.total_count === 1 ? '' : 's'}</h2>
-            <p>{activeFilterCount > 0 ? 'Filtered results shown.' : 'Showing all currently published openings.'}</p>
-          </div>
-          <button type="button" className="pj-btn pj-btn-ghost" onClick={clearAllFilters}>Reset Filters</button>
-        </div>
+          <div className="pj-filters-grid">
+            <label>
+              <span>Facility</span>
+              <select
+                className="pj-select"
+                value={routeState.company}
+                onChange={(event) => setRouteValue({ company: event.target.value }, true)}
+                disabled={filterLoading}
+              >
+                <option value="">All facilities</option>
+                {filters.companies.map((entry) => (
+                  <option key={entry} value={entry}>{entry}</option>
+                ))}
+              </select>
+            </label>
 
-        {loading ? (
-          <div className="pj-state-wrap">
-            <div className="pj-state-panel pj-state-panel-neutral pj-skeleton-panel" aria-busy="true">
-              <div className="pj-state-panel-copy">
-                <strong>Loading open roles</strong>
-                <p>Fetching current vacancies and publishing metadata.</p>
+            <label>
+              <span>Location</span>
+              <select
+                className="pj-select"
+                value={routeState.location}
+                onChange={(event) => setRouteValue({ location: event.target.value }, true)}
+                disabled={filterLoading}
+              >
+                <option value="">All locations</option>
+                {filters.locations.map((entry) => (
+                  <option key={entry} value={entry}>{entry}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Employment type</span>
+              <select
+                className="pj-select"
+                value={routeState.employmentType}
+                onChange={(event) => setRouteValue({ employmentType: event.target.value }, true)}
+                disabled={filterLoading}
+              >
+                <option value="">All types</option>
+                {filters.employment_types.map((entry) => (
+                  <option key={entry} value={entry}>{entry}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Role</span>
+              <select
+                className="pj-select"
+                value={routeState.designation}
+                onChange={(event) => setRouteValue({ designation: event.target.value }, true)}
+                disabled={filterLoading}
+              >
+                <option value="">All roles</option>
+                {filters.designations.map((entry) => (
+                  <option key={entry} value={entry}>{entry}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {filterError.length > 0 ? (
+            <div className="pj-state-wrap">
+              <PublicStatePanel
+                tone="neutral"
+                title="Filters unavailable"
+                description={filterError}
+                actionLabel="Retry loading filters"
+                onAction={retryLoad}
+              />
+            </div>
+          ) : null}
+
+          <button type="button" className="pj-btn pj-btn-ghost pj-reset-btn" onClick={clearAllFilters}>Reset Filters</button>
+        </aside>
+
+        <section className="pj-list-results pj-detail-card pj-glass-standard">
+          <div className="pj-results-meta">
+            <div>
+              <h2>{pagination.total_count} Open Position{pagination.total_count === 1 ? '' : 's'}</h2>
+              <p>{activeFilterCount > 0 ? 'Filtered results shown.' : 'Showing all currently published openings.'}</p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="pj-state-wrap">
+              <div className="pj-state-panel pj-state-panel-neutral pj-skeleton-panel" aria-busy="true">
+                <div className="pj-state-panel-copy">
+                  <strong>Loading open roles</strong>
+                  <p>Fetching current vacancies and publishing metadata.</p>
+                </div>
+                <div className="pj-skeleton-line" />
               </div>
-              <div className="pj-skeleton-line" />
             </div>
-          </div>
-        ) : null}
-        {error.length > 0 ? (
-          <div className="pj-state-wrap">
-            <PublicStatePanel
-              tone="error"
-              title="Could not load jobs"
-              description={error}
-              actionLabel="Retry jobs"
-              onAction={retryLoad}
-            />
-          </div>
-        ) : null}
-
-        {loading === false && error.length === 0 && jobs.length === 0 ? (
-          <div className="pj-state-wrap">
-            <PublicStatePanel
-              tone="neutral"
-              title="No matching jobs"
-              description="No jobs match your current filters. Try broadening your search or reset the filters to view all openings."
-              actionLabel="Reset filters"
-              onAction={clearAllFilters}
-            />
-          </div>
-        ) : null}
-
-        {loading === false && error.length === 0 && jobs.length > 0 ? (
-          <>
-            <div className="pj-jobs-grid">
-              {jobs.map((job) => {
-                const salary = formatSalary(job);
-                const deadline = getDeadlineMeta(job.closes_on);
-                const detailPath = encodeURIComponent(toJobSlug(job));
-
-                return (
-                  <Link key={job.name} className="pj-job-card" to={detailPath}>
-                    <div className="pj-job-card-head">
-                      <p className="pj-job-company">{job.company || 'Healthcare facility'}</p>
-                      <span className={'pj-deadline ' + deadline.tone}>{deadline.label}</span>
-                    </div>
-                    <h3>{job.job_title || job.designation || 'Open role'}</h3>
-                    <p className="pj-job-meta">
-                      {[job.location, job.employment_type, job.designation].filter(Boolean).join(' • ') || 'Details available on role page'}
-                    </p>
-                    <div className="pj-job-highlight-row">
-                      <span>{salary || 'Compensation shared during hiring process'}</span>
-                      <span>{job.closes_on ? 'Deadline: ' + formatDate(job.closes_on) : 'Rolling review'}</span>
-                    </div>
-                  </Link>
-                );
-              })}
+          ) : null}
+          {error.length > 0 ? (
+            <div className="pj-state-wrap">
+              <PublicStatePanel
+                tone="error"
+                title="Could not load jobs"
+                description={error}
+                actionLabel="Retry jobs"
+                onAction={retryLoad}
+              />
             </div>
+          ) : null}
 
-            <div className="pj-pagination">
-              <button
-                type="button"
-                className="pj-page-btn"
-                disabled={routeState.page <= 1}
-                onClick={() => setRouteValue({ page: routeState.page - 1 })}
-              >
-                Previous
-              </button>
+          {loading === false && error.length === 0 && jobs.length === 0 ? (
+            <div className="pj-state-wrap">
+              <PublicStatePanel
+                tone="neutral"
+                title="No matching jobs"
+                description="No jobs match your current filters. Try broadening your search or reset the filters to view all openings."
+                actionLabel="Reset filters"
+                onAction={clearAllFilters}
+              />
+            </div>
+          ) : null}
 
-              {pageWindow.map((page) => (
+          {loading === false && error.length === 0 && jobs.length > 0 ? (
+            <>
+              <div className="pj-jobs-grid">
+                {jobs.map((job) => {
+                  const salary = formatSalary(job);
+                  const deadline = getDeadlineMeta(job.closes_on);
+                  const detailPath = encodeURIComponent(toJobSlug(job));
+
+                  return (
+                    <Link key={job.name} className="pj-job-card" to={detailPath}>
+                      <div className="pj-job-card-head">
+                        <p className="pj-job-company">{job.company || 'Healthcare facility'}</p>
+                        <span className={'pj-deadline ' + deadline.tone}>{deadline.label}</span>
+                      </div>
+                      <h3>{job.job_title || job.designation || 'Open role'}</h3>
+                      <p className="pj-job-meta">
+                        {[job.location, job.employment_type, job.designation].filter(Boolean).join(' • ') || 'Details available on role page'}
+                      </p>
+                      <div className="pj-job-highlight-row">
+                        <span>{salary || 'Compensation shared during hiring process'}</span>
+                        <span>{job.closes_on ? 'Deadline: ' + formatDate(job.closes_on) : 'Rolling review'}</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="pj-pagination">
                 <button
-                  key={page}
                   type="button"
-                  className={'pj-page-btn' + (page === routeState.page ? ' active' : '')}
-                  onClick={() => setRouteValue({ page })}
+                  className="pj-page-btn"
+                  disabled={routeState.page <= 1}
+                  onClick={() => setRouteValue({ page: routeState.page - 1 })}
                 >
-                  {page}
+                  Previous
                 </button>
-              ))}
 
-              <button
-                type="button"
-                className="pj-page-btn"
-                disabled={routeState.page >= totalPages}
-                onClick={() => setRouteValue({ page: routeState.page + 1 })}
-              >
-                Next
-              </button>
-            </div>
-          </>
-        ) : null}
+                {pageWindow.map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    className={'pj-page-btn' + (page === routeState.page ? ' active' : '')}
+                    onClick={() => setRouteValue({ page })}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  className="pj-page-btn"
+                  disabled={routeState.page >= totalPages}
+                  onClick={() => setRouteValue({ page: routeState.page + 1 })}
+                >
+                  Next
+                </button>
+              </div>
+            </>
+          ) : null}
+        </section>
       </section>
     </main>
   );

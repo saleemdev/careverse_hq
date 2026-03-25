@@ -217,7 +217,7 @@ export function JobDetailPage() {
             <div className="pj-skeleton-chip" />
           </section>
           <section className="pj-detail-grid">
-            <article className="pj-detail-card">
+            <article className="pj-detail-card pj-glass-standard">
               <div className="pj-state-panel pj-state-panel-neutral pj-skeleton-panel">
                 <div className="pj-state-panel-copy">
                   <strong>Loading role details</strong>
@@ -226,7 +226,7 @@ export function JobDetailPage() {
                 <div className="pj-skeleton-line" />
               </div>
             </article>
-            <aside className="pj-detail-card">
+            <aside className="pj-detail-card pj-glass-standard">
               <div className="pj-skeleton-card">
                 <div className="pj-skeleton-title" />
                 <div className="pj-skeleton-line" />
@@ -256,7 +256,7 @@ export function JobDetailPage() {
         </section>
 
         <section className="pj-detail-grid">
-          <article className="pj-detail-card">
+          <article className="pj-detail-card pj-glass-standard">
             <PublicStatePanel
               tone="error"
               title="Could not load job detail"
@@ -265,7 +265,7 @@ export function JobDetailPage() {
               onAction={retryDetail}
             />
           </article>
-          <aside className="pj-detail-card">
+          <aside className="pj-detail-card pj-glass-standard">
             <h2>What you can do</h2>
             <p className="pj-copy">Return to the jobs board and continue browsing other openings.</p>
             <div className="pj-inline-actions">
@@ -297,7 +297,7 @@ export function JobDetailPage() {
       </section>
 
       <section className="pj-detail-grid">
-        <article className="pj-detail-card">
+        <article className="pj-detail-card pj-glass-standard">
           <h2>Role Overview</h2>
           <div className="pj-fact-grid">
             <div>
@@ -334,7 +334,7 @@ export function JobDetailPage() {
           )}
         </article>
 
-        <aside className="pj-detail-card">
+        <aside className="pj-detail-card pj-glass-standard">
           <h2>Apply</h2>
           {canApply ? (
             <>
@@ -447,7 +447,7 @@ export function JobDetailPage() {
         </aside>
       </section>
 
-      <section className="pj-detail-card">
+      <section className="pj-detail-card pj-glass-standard">
         <h2>Related Roles</h2>
         {Array.isArray(job.related_jobs) && job.related_jobs.length > 0 ? (
           <div className="pj-related-grid">
