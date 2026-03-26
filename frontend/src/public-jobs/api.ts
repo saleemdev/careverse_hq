@@ -62,7 +62,7 @@ export const publicJobsApi = {
 
     const envelope = normalizeEnvelope<PublicJobFilters>(await parseJsonSafe(response));
     const valid = ensureSuccess(response, envelope, 'Failed to load filter options');
-    return valid.data || { locations: [], employment_types: [], designations: [], companies: [] };
+    return valid.data || { locations: [], health_facilities: [], employment_types: [], designations: [], companies: [] };
   },
 
   async getJobs(params: {
@@ -70,6 +70,7 @@ export const publicJobsApi = {
     page_size?: number;
     search?: string;
     location?: string;
+    health_facility?: string;
     employment_type?: string;
     designation?: string;
     company?: string;

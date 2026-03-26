@@ -291,7 +291,7 @@ export function JobDetailPage() {
         <div>
           <p className="pj-eyebrow">{job.company || 'Healthcare Facility'}</p>
           <h1>{job.job_title || job.designation || 'Open role'}</h1>
-          <p className="pj-detail-subtitle">{[job.location, job.employment_type, job.designation].filter(Boolean).join(' • ') || 'Published healthcare opportunity'}</p>
+          <p className="pj-detail-subtitle">{[job.health_facility_name || job.health_facility, job.location, job.employment_type, job.designation].filter(Boolean).join(' • ') || 'Published healthcare opportunity'}</p>
         </div>
         <span className={'pj-deadline ' + deadlineMeta.tone}>{deadlineMeta.label}</span>
       </section>
@@ -303,6 +303,10 @@ export function JobDetailPage() {
             <div>
               <span>Facility</span>
               <strong>{job.company || 'Not specified'}</strong>
+            </div>
+            <div>
+              <span>Health Facility</span>
+              <strong>{job.health_facility_name || job.health_facility || 'Not specified'}</strong>
             </div>
             <div>
               <span>Location</span>
@@ -454,7 +458,7 @@ export function JobDetailPage() {
             {job.related_jobs.map((related) => (
               <Link key={related.name} className="pj-related-item" to={encodeURIComponent(toJobSlug(related))}>
                 <h3>{related.job_title || related.designation || 'Open role'}</h3>
-                <p>{[related.company, related.location, related.employment_type].filter(Boolean).join(' • ') || 'Published opportunity'}</p>
+                <p>{[related.company, related.health_facility_name || related.health_facility, related.location, related.employment_type].filter(Boolean).join(' • ') || 'Published opportunity'}</p>
               </Link>
             ))}
           </div>

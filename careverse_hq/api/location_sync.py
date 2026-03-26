@@ -11,7 +11,7 @@ Custom field required on Location doctype:
 import frappe
 from frappe import _
 from typing import Optional, List
-from .dashboard_utils import validate_user_facilities
+from .dashboard_utils import validate_user_facilities, resolve_health_facility_reference
 
 
 def sync_facility_to_location(doc, method=None):
@@ -99,6 +99,73 @@ def get_location_for_facility(facility_ref: str) -> Optional[str]:
         frappe.log_error(
             frappe.get_traceback(),
             f"Location lazy sync failed for facility '{facility_docname}'",
+        )
+        return None
+
+
+def ensure_branch_for_facility(facility_ref: str) -> Optional[str]:
+    """Resolve/create a Branch record for a Health Facility reference.
+
+    Supports facility docname, hie_id, or facility display name.
+    Returns the Branch docname on success, else None.
+    """
+    resolved = resolve_health_facility_reference(facility_ref)
+    facility_docname = resolved.get("facility_docname") or ""
+    facility_id = resolved.get("facility_id") or ""
+    facility_name = resolved.get("facility_name") or ""
+
+    if not any((facility_docname, facility_id, facility_name)):
+        return None
+
+    branch_meta = frappe.get_meta("Branch")
+    branch_field = "branch" if branch_meta.has_field("branch") else None
+    facility_link_field = "custom_health_facility" if branch_meta.has_field("custom_health_facility") else None
+
+    if facility_link_field and facility_docname:
+        linked = frappe.db.get_value(
+            "Branch",
+            {facility_link_field: facility_docname},
+            "name",
+        )
+        if linked:
+            return linked
+
+    candidates = [facility_name, facility_docname, facility_id]
+    for candidate in candidates:
+        if not candidate:
+            continue
+
+        if frappe.db.exists("Branch", candidate):
+            return candidate
+
+        if branch_field:
+            matched = frappe.db.get_value("Branch", {branch_field: candidate}, "name")
+            if matched:
+                return matched
+
+    branch_label = (facility_name or facility_id or facility_docname).strip()
+    if not branch_label:
+        return None
+
+    payload = {"doctype": "Branch"}
+    if branch_field:
+        payload[branch_field] = branch_label
+    if facility_link_field and facility_docname:
+        payload[facility_link_field] = facility_docname
+
+    try:
+        branch = frappe.get_doc(payload)
+        branch.insert(ignore_permissions=True)
+        return branch.name
+    except frappe.DuplicateEntryError:
+        existing = frappe.db.get_value("Branch", {branch_field: branch_label}, "name") if branch_field else None
+        if existing:
+            return existing
+        return branch_label if frappe.db.exists("Branch", branch_label) else None
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"Branch ensure failed for facility '{facility_ref}'",
         )
         return None
 

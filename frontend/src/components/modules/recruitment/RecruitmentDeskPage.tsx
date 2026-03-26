@@ -32,6 +32,7 @@ export default function RecruitmentDeskPage({ navigateToRoute, initialTab, selec
             <Tabs
                 activeKey={activeTab}
                 onChange={setActiveTab}
+                destroyInactiveTabPane
                 size={isMobile ? 'small' : 'middle'}
                 items={[
                     {

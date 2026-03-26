@@ -59,6 +59,12 @@ def _coerce_json(value: Any, default: Any) -> Any:
     return value
 
 
+def _normalize_text(value: Any) -> str:
+    if isinstance(value, (dict, list, tuple, set)) or value is None:
+        return ""
+    return str(value).strip()
+
+
 def _require_admin_access() -> Optional[Dict[str, Any]]:
     user = frappe.session.user
     if not user or user == "Guest":
@@ -164,7 +170,7 @@ def _parse_sort(sort: str) -> str:
         "last_name": "u.last_name",
         "last_login": "u.last_login",
     }
-    raw = (sort or "creation desc").strip().lower()
+    raw = (_normalize_text(sort) or "creation desc").lower()
     parts = raw.split()
     field = parts[0] if parts else "creation"
     direction = parts[1] if len(parts) > 1 else "desc"
@@ -345,7 +351,7 @@ def list_users(filters=None, page=1, page_size=20, sort="creation desc") -> Dict
     ]
     params: List[Any] = []
 
-    status = (parsed_filters.get("status") or "").strip().lower()
+    status = _normalize_text(parsed_filters.get("status")).lower()
     if status in {"enabled", "disabled"}:
         where_parts.append("u.enabled = %s")
         params.append(1 if status == "enabled" else 0)

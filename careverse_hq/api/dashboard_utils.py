@@ -158,7 +158,7 @@ def resolve_health_facility_reference(facility_ref: Optional[str]) -> Dict[str, 
 
     if not facility:
         meta = frappe.get_meta("Health Facility")
-        lookup_fields = ["hie_id"]
+        lookup_fields = ["hie_id", "facility_name"]
         for optional_field in (
             "facility_mfl",
             "registration_number",

@@ -58,6 +58,8 @@ const FULL_ACCESS_ROUTES = [
     'hr-reports',
     'recruitment',
     'recruitment/job-posts',
+    'recruitment/job-posts/new',
+    'recruitment/job-posts/edit',
     'recruitment/candidates',
 ] as const;
 

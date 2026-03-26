@@ -2,33 +2,47 @@
  * Job Posts List View (PRV-02)
  *
  * Recruitment Desk > Job Posts tab.
- * Lists Job Openings with status pills, publish state, share controls,
- * and conversion summary.
  */
 
-import dayjs, { type Dayjs } from 'dayjs';
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-    Card, Table, Tag, Input, Button, Space, Tooltip, message, Select, Typography,
-    Drawer, Descriptions, Spin, Form, Row, Col, DatePicker, InputNumber, Switch, Divider, AutoComplete,
+    Button,
+    Card,
+    Descriptions,
+    Drawer,
+    Input,
+    Select,
+    Space,
+    Spin,
+    Table,
+    Tag,
+    Tooltip,
+    Typography,
+    message,
 } from 'antd';
 import {
-    PlusOutlined, SearchOutlined, ShareAltOutlined, CopyOutlined,
-    GlobalOutlined, LockOutlined, ReloadOutlined, EditOutlined, ExportOutlined,
+    CopyOutlined,
+    EditOutlined,
+    ExportOutlined,
+    GlobalOutlined,
+    LockOutlined,
+    PlusOutlined,
+    ReloadOutlined,
+    SearchOutlined,
+    ShareAltOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { useShallow } from 'zustand/react/shallow';
+
+import { useResponsive } from '../../../hooks/useResponsive';
 import {
     recruitmentApi,
     type JobOpening,
     type PublicJobLinks,
-    type JobOpeningUpsertPayload,
 } from '../../../services/api/recruitment';
-import { useShallow } from 'zustand/react/shallow';
-import useFacilityStore from '../../../stores/facilityStore';
 import useRecruitmentJobPostsStore from '../../../stores/modules/recruitmentJobPostsStore';
-import { useResponsive } from '../../../hooks/useResponsive';
 
-const { Text, Link } = Typography;
+const { Text } = Typography;
 
 type JobLinksState = {
     jobs_list_url?: string;
@@ -46,47 +60,10 @@ interface JobOpeningDetail extends JobOpening {
     applicant_count?: number;
 }
 
-interface JobOpeningFormValues {
-    job_title: string;
-    designation: string;
-    company: string;
-    location?: string;
-    employment_type?: string;
-    status: string;
-    description?: string;
-    publish?: boolean;
-    posted_on?: Dayjs;
-    closes_on?: Dayjs;
-    lower_range?: number;
-    upper_range?: number;
-    currency?: string;
-    salary_per?: string;
-}
-
 const STATUS_COLORS: Record<string, string> = {
     Open: 'green',
     Closed: 'red',
-    'On Hold': 'orange',
-};
-
-const SALARY_PERIOD_OPTIONS = [
-    { value: 'Month', label: 'Month' },
-    { value: 'Year', label: 'Year' },
-    { value: 'Hour', label: 'Hour' },
-];
-
-const parseOptionalDate = (value?: string): Dayjs | undefined => {
-    if (!value) return undefined;
-    const parsed = dayjs(value);
-    return parsed.isValid() ? parsed : undefined;
-};
-
-const parseOptionalNumber = (value: unknown): number | undefined => {
-    if (value === null || value === undefined || value === '') {
-        return undefined;
-    }
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
+    Hold: 'orange',
 };
 
 const getNormalizedOrigin = (parsed?: URL): string | undefined => {
@@ -180,18 +157,14 @@ const normalizePublicLinks = (links?: Partial<PublicJobLinks> | null): JobLinksS
 };
 
 export default function JobPostsListView({ navigateToRoute, selectedJobId }: Props) {
-    const { isMobile, width } = useResponsive();
-    const isVerySmallScreen = isMobile && width <= 375;
-    const company = useFacilityStore((state) => state.company);
+    const { isMobile } = useResponsive();
+
     const {
         jobs,
         loading,
         total,
         filters,
-        designationOptions,
-        designationLoading,
-        employmentTypeOptions,
-        locationOptions,
+        statusOptions,
         initializeJobPosts,
         refreshJobs,
         setJobPage,
@@ -204,10 +177,7 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
             loading: state.loading,
             total: state.total,
             filters: state.filters,
-            designationOptions: state.designationOptions,
-            designationLoading: state.designationLoading,
-            employmentTypeOptions: state.employmentTypeOptions,
-            locationOptions: state.locationOptions,
+            statusOptions: state.statusOptions,
             initializeJobPosts: state.initialize,
             refreshJobs: state.refreshJobs,
             setJobPage: state.setPage,
@@ -222,39 +192,15 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
     const [selectedJob, setSelectedJob] = useState<JobOpeningDetail | null>(null);
     const [selectedJobLinks, setSelectedJobLinks] = useState<JobLinksState>({});
 
-    const [editorOpen, setEditorOpen] = useState(false);
-    const [editorLoading, setEditorLoading] = useState(false);
-    const [editorSaving, setEditorSaving] = useState(false);
-    const [editorMode, setEditorMode] = useState<'create' | 'edit'>('create');
-    const [editingJobId, setEditingJobId] = useState<string | null>(null);
-    const [mobileKeyboardInset, setMobileKeyboardInset] = useState(0);
-    const [jobForm] = Form.useForm<JobOpeningFormValues>();
-    const organizationValue = Form.useWatch('company', jobForm);
-    const organizationLabel = company?.company_name || company?.name || 'Organization';
-    const organizationDisplayValue = organizationValue
-        ? (company && organizationValue === company.name ? (company.company_name || company.name) : organizationValue)
-        : organizationLabel;
-    const formGutter = isVerySmallScreen ? 6 : (isMobile ? 8 : 12);
-    const pagePadding = isVerySmallScreen ? 8 : (isMobile ? 12 : 24);
-    const cardBodyPadding = isVerySmallScreen ? 10 : (isMobile ? 12 : 24);
-    const mobileFooterPaddingX = isVerySmallScreen ? 10 : 12;
-    const mobileFooterPaddingY = isVerySmallScreen ? 10 : 12;
-    const mobileFooterGap = isVerySmallScreen ? 6 : 8;
-    const editorBodyBottomInset = isVerySmallScreen ? 152 : 144;
-    const mobileEditorBodyPadding = `${isVerySmallScreen ? 10 : 12}px ${isVerySmallScreen ? 10 : 12}px calc(${editorBodyBottomInset}px + env(safe-area-inset-bottom))`;
-    const mobileDetailBodyPadding = `${isVerySmallScreen ? 10 : 12}px ${isVerySmallScreen ? 10 : 12}px calc(20px + env(safe-area-inset-bottom))`;
-    const mobileFooterPadding = `${mobileFooterPaddingY}px max(${mobileFooterPaddingX}px, env(safe-area-inset-right)) calc(${mobileFooterPaddingY}px + env(safe-area-inset-bottom) + ${mobileKeyboardInset}px) max(${mobileFooterPaddingX}px, env(safe-area-inset-left))`;
-    const controlSize = isMobile ? 'large' : 'middle';
-
     const {
         page: currentPage,
         pageSize,
         statusFilter,
         searchInput,
     } = filters;
-    const employmentTypeSelectOptions = employmentTypeOptions
+
+    const resolvedStatusOptions = (statusOptions.length ? statusOptions : ['Open', 'Closed'])
         .map((value) => ({ value, label: value }));
-    const locationSelectOptions = locationOptions.map((value) => ({ value, label: value }));
 
     useEffect(() => {
         const bootstrap = async () => {
@@ -266,112 +212,6 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
         };
         void bootstrap();
     }, [initializeJobPosts]);
-
-    useEffect(() => {
-        if (!editorOpen || editorMode !== 'create' || !company?.name) {
-            return;
-        }
-        const currentCompany = jobForm.getFieldValue('company');
-        if (!currentCompany) {
-            jobForm.setFieldsValue({ company: company.name });
-        }
-    }, [company?.name, editorMode, editorOpen, jobForm]);
-
-    useEffect(() => {
-        if (!isMobile || typeof window === 'undefined' || !window.visualViewport) {
-            setMobileKeyboardInset(0);
-            return;
-        }
-
-        const viewport = window.visualViewport;
-        const updateInset = () => {
-            const keyboardInset = Math.max(0, window.innerHeight - (viewport.height + viewport.offsetTop));
-            setMobileKeyboardInset((prevInset) => (Math.abs(prevInset - keyboardInset) < 2 ? prevInset : keyboardInset));
-        };
-
-        updateInset();
-        viewport.addEventListener('resize', updateInset);
-        viewport.addEventListener('scroll', updateInset);
-        return () => {
-            viewport.removeEventListener('resize', updateInset);
-            viewport.removeEventListener('scroll', updateInset);
-        };
-    }, [isMobile]);
-
-    const scrollFocusedElementIntoView = useCallback((target: HTMLElement | null) => {
-        if (!isMobile || !target?.scrollIntoView) return;
-        const delay = mobileKeyboardInset > 0 ? 90 : 140;
-        window.setTimeout(() => {
-            target.scrollIntoView({
-                block: isVerySmallScreen ? 'nearest' : 'center',
-                inline: 'nearest',
-                behavior: isVerySmallScreen ? 'auto' : 'smooth',
-            });
-        }, delay);
-    }, [isMobile, isVerySmallScreen, mobileKeyboardInset]);
-
-    const openCreateForm = useCallback(() => {
-        setDetailOpen(false);
-        setSelectedJob(null);
-        setSelectedJobLinks({});
-
-        setEditorMode('create');
-        setEditingJobId(null);
-        setEditorLoading(false);
-        setEditorOpen(true);
-        jobForm.resetFields();
-        jobForm.setFieldsValue({
-            status: 'Open',
-            publish: false,
-            currency: 'KES',
-            salary_per: 'Month',
-            company: company?.name || '',
-        });
-    }, [company?.name, jobForm]);
-
-    const openEditForm = useCallback(async (jobId: string) => {
-        setDetailOpen(false);
-        setSelectedJob(null);
-        setSelectedJobLinks({});
-
-        setEditorMode('edit');
-        setEditingJobId(jobId);
-        setEditorOpen(true);
-        setEditorLoading(true);
-        jobForm.resetFields();
-
-        try {
-            const detailResp = await recruitmentApi.getJobOpeningDetail(jobId);
-            const job = (detailResp?.data as JobOpeningDetail) || null;
-            if (!job) {
-                throw new Error('Missing job payload');
-            }
-
-            jobForm.setFieldsValue({
-                job_title: job.job_title || '',
-                designation: job.designation || '',
-                company: job.company || '',
-                location: job.location || undefined,
-                employment_type: job.employment_type || undefined,
-                status: job.status || 'Open',
-                description: job.description || undefined,
-                publish: !!job.publish,
-                posted_on: parseOptionalDate(job.posted_on),
-                closes_on: parseOptionalDate(job.closes_on),
-                lower_range: parseOptionalNumber(job.lower_range),
-                upper_range: parseOptionalNumber(job.upper_range),
-                currency: job.currency || 'KES',
-                salary_per: job.salary_per || 'Month',
-            });
-        } catch {
-            message.error('Failed to load job post for editing');
-            setEditorOpen(false);
-            setEditingJobId(null);
-            navigateToRoute('recruitment/job-posts');
-        } finally {
-            setEditorLoading(false);
-        }
-    }, [jobForm, navigateToRoute]);
 
     const resolveJobLinks = useCallback(async (jobId: string, notifyOnError = true): Promise<JobLinksState | null> => {
         try {
@@ -388,9 +228,6 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
     }, []);
 
     const fetchJobDetail = useCallback(async (jobId: string) => {
-        setEditorOpen(false);
-        setEditingJobId(null);
-
         setDetailLoading(true);
         try {
             const detailResp = await recruitmentApi.getJobOpeningDetail(jobId);
@@ -413,67 +250,28 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
             setDetailOpen(false);
             setSelectedJob(null);
             setSelectedJobLinks({});
-            setEditorOpen(false);
-            setEditingJobId(null);
             return;
         }
-
-        if (selectedJobId === 'new') {
-            if (!(editorOpen && editorMode === 'create')) {
-                openCreateForm();
-            }
-            return;
-        }
-
-        if (selectedJobId.startsWith('edit:') || selectedJobId.startsWith('edit/')) {
-            const editId = selectedJobId.slice(5);
-            if (!editId) {
-                message.error('Invalid job identifier for editing');
-                navigateToRoute('recruitment/job-posts');
-                return;
-            }
-            if (editorOpen && editorMode === 'edit' && editingJobId === editId && !editorLoading) {
-                return;
-            }
-            void openEditForm(editId);
-            return;
-        }
-
         void fetchJobDetail(selectedJobId);
-    }, [
-        selectedJobId,
-        editorLoading,
-        editorMode,
-        editorOpen,
-        editingJobId,
-        fetchJobDetail,
-        navigateToRoute,
-        openCreateForm,
-        openEditForm,
-    ]);
+    }, [fetchJobDetail, selectedJobId]);
 
     const openJobDetail = (jobId: string) => {
         navigateToRoute('recruitment/job-posts', jobId);
     };
 
+    const closeJobDetail = () => {
+        setDetailOpen(false);
+        setSelectedJob(null);
+        setSelectedJobLinks({});
+        navigateToRoute('recruitment/job-posts');
+    };
+
     const openJobCreate = () => {
-        navigateToRoute('recruitment/job-posts', 'new');
+        navigateToRoute('recruitment/job-posts/new');
     };
 
     const openJobEdit = (jobId: string) => {
-        navigateToRoute('recruitment/job-posts', `edit:${jobId}`);
-    };
-
-    const closeJobDetail = () => {
-        setDetailOpen(false);
-        navigateToRoute('recruitment/job-posts');
-    };
-
-    const closeJobEditor = () => {
-        setEditorOpen(false);
-        setEditingJobId(null);
-        jobForm.resetFields();
-        navigateToRoute('recruitment/job-posts');
+        navigateToRoute('recruitment/job-posts/edit', jobId);
     };
 
     const copyToClipboard = async (value: string, successText: string) => {
@@ -490,7 +288,7 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                 return;
             }
         } catch {
-            // Continue to legacy fallback.
+            // Continue to fallback below.
         }
 
         try {
@@ -540,75 +338,6 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
         }
     };
 
-    const toPayload = (values: JobOpeningFormValues): JobOpeningUpsertPayload => {
-        const resolvedCompany = (values.company || company?.name || '').trim();
-        const requiredTrimmed = {
-            job_title: (values.job_title || '').trim(),
-            designation: (values.designation || '').trim(),
-            company: resolvedCompany,
-        };
-
-        return {
-            ...requiredTrimmed,
-            status: values.status,
-            location: values.location?.trim() || '',
-            employment_type: values.employment_type || '',
-            description: values.description?.trim() || '',
-            publish: values.publish ? 1 : 0,
-            posted_on: values.posted_on ? values.posted_on.format('YYYY-MM-DD') : '',
-            closes_on: values.closes_on ? values.closes_on.format('YYYY-MM-DD') : '',
-            lower_range: values.lower_range ?? null,
-            upper_range: values.upper_range ?? null,
-            currency: values.currency?.trim() || '',
-            salary_per: values.salary_per || '',
-        };
-    };
-
-    const handleSaveJob = async (values: JobOpeningFormValues) => {
-        setEditorSaving(true);
-        try {
-            const payload = toPayload(values);
-            if (!payload.job_title || !payload.designation) {
-                message.error('Job title and designation are required.');
-                return;
-            }
-            if (!payload.company) {
-                message.error('Organization context is missing. Reload the page and try again.');
-                return;
-            }
-            let targetJobId: string | undefined;
-
-            if (editorMode === 'create') {
-                const created = await recruitmentApi.createJobOpening(payload);
-                targetJobId = created?.name;
-                message.success('Job post created successfully');
-            } else {
-                if (!editingJobId) {
-                    message.error('Missing job identifier for update');
-                    return;
-                }
-                const updated = await recruitmentApi.updateJobOpening(editingJobId, payload);
-                targetJobId = updated?.name || editingJobId;
-                message.success('Job post updated successfully');
-            }
-
-            await refreshJobs();
-            setEditorOpen(false);
-            setEditingJobId(null);
-
-            if (targetJobId) {
-                navigateToRoute('recruitment/job-posts', targetJobId);
-            } else {
-                navigateToRoute('recruitment/job-posts');
-            }
-        } catch (err) {
-            const error = err as Error;
-            message.error(error?.message || 'Failed to save job post');
-        } finally {
-            setEditorSaving(false);
-        }
-    };
-
     const handleShareLink = async (record: JobOpening) => {
         try {
             const links = await resolveJobLinks(record.name, true);
@@ -649,24 +378,31 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
             render: (text: string) => <Text style={{ fontSize: 12 }}>{text}</Text>,
         },
         {
-            title: 'Location',
-            dataIndex: 'location',
-            key: 'location',
-            width: 140,
-            render: (text: string) => <Text type="secondary" style={{ fontSize: 12 }}>{text || '—'}</Text>,
+            title: 'Facility / Location',
+            key: 'facility_location',
+            width: 220,
+            render: (_: unknown, record: JobOpening) => {
+                const facilityText = record.health_facility_name || record.health_facility;
+                return (
+                    <Space direction="vertical" size={0}>
+                        <Text style={{ fontSize: 12 }}>{facilityText || '—'}</Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>{record.location || '—'}</Text>
+                    </Space>
+                );
+            },
         },
         {
             title: 'Type',
             dataIndex: 'employment_type',
             key: 'employment_type',
-            width: 110,
+            width: 120,
             render: (text: string) => (text ? <Tag style={{ fontSize: 11 }}>{text}</Tag> : '—'),
         },
         {
             title: 'Status',
             dataIndex: 'status',
             key: 'status',
-            width: 90,
+            width: 95,
             render: (status: string) => (
                 <Tag color={STATUS_COLORS[status] || 'default'} style={{ fontSize: 11 }}>
                     {status}
@@ -688,12 +424,12 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                             ? <GlobalOutlined style={{ color: '#52c41a', fontSize: 14 }} />
                             : <LockOutlined style={{ color: '#bfbfbf', fontSize: 14 }} />
                         }
-                        onClick={async (e) => {
-                            e.stopPropagation();
+                        onClick={async (event) => {
+                            event.stopPropagation();
                             try {
                                 await recruitmentApi.toggleJobPublish(record.name);
                                 message.success(val ? 'Job unpublished' : 'Job published');
-                                void refreshJobs();
+                                await refreshJobs();
                             } catch {
                                 message.error('Failed to update publish state');
                             }
@@ -713,8 +449,8 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                             type="text"
                             size="small"
                             icon={<EditOutlined />}
-                            onClick={(e) => {
-                                e.stopPropagation();
+                            onClick={(event) => {
+                                event.stopPropagation();
                                 openJobEdit(record.name);
                             }}
                         />
@@ -724,7 +460,10 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                             type="text"
                             size="small"
                             icon={<ShareAltOutlined />}
-                            onClick={(e) => { e.stopPropagation(); void handleShareLink(record); }}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                void handleShareLink(record);
+                            }}
                         />
                     </Tooltip>
                     <Tooltip title="Copy Job ID">
@@ -732,8 +471,8 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                             type="text"
                             size="small"
                             icon={<CopyOutlined />}
-                            onClick={async (e) => {
-                                e.stopPropagation();
+                            onClick={async (event) => {
+                                event.stopPropagation();
                                 await copyToClipboard(record.name, 'Job ID copied');
                             }}
                         />
@@ -744,22 +483,21 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
     ];
 
     return (
-        <div style={{ padding: pagePadding }}>
+        <div style={{ padding: isMobile ? 12 : 24 }}>
             <Card
                 style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
-                styles={{ body: { padding: cardBodyPadding } }}
+                styles={{ body: { padding: isMobile ? 12 : 24 } }}
                 title={
                     isMobile ? (
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                            <Text strong style={{ fontSize: isVerySmallScreen ? 15 : 16 }}>Job Posts</Text>
+                            <Text strong style={{ fontSize: 16 }}>Job Posts</Text>
                             <Input
-                                placeholder="Search jobs..."
+                                placeholder="Search jobs, location, facility..."
                                 prefix={<SearchOutlined />}
-                                size={controlSize}
                                 style={{ width: '100%', borderRadius: 8 }}
                                 value={searchInput}
-                                onChange={(e) => {
-                                    const next = e.target.value;
+                                onChange={(event) => {
+                                    const next = event.target.value;
                                     setStoreSearchInput(next);
                                     if (!next.trim()) {
                                         void setStoreSearchQuery('');
@@ -773,34 +511,27 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                             <div style={{ display: 'flex', gap: 8, width: '100%' }}>
                                 <Select
                                     placeholder="Status"
-                                    size={controlSize}
                                     style={{ minWidth: 0, flex: 1 }}
                                     allowClear
                                     value={statusFilter}
-                                    onChange={(v) => {
-                                        void setStoreStatusFilter(v);
+                                    onChange={(value) => {
+                                        void setStoreStatusFilter(value);
                                     }}
-                                    options={[
-                                        { value: 'Open', label: 'Open' },
-                                        { value: 'Closed', label: 'Closed' },
-                                    ]}
+                                    options={resolvedStatusOptions}
                                 />
                                 <Button
-                                    size={controlSize}
                                     icon={<ReloadOutlined />}
                                     onClick={() => {
                                         void setStoreSearchQuery(searchInput);
                                     }}
-                                    style={{ minWidth: 44 }}
                                 />
                             </div>
                             <Button
                                 type="primary"
-                                size={controlSize}
                                 icon={<PlusOutlined />}
                                 onClick={openJobCreate}
                                 block
-                                style={{ minHeight: 44 }}
+                                style={{ minHeight: 42 }}
                             >
                                 New Job Post
                             </Button>
@@ -810,13 +541,13 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                             <Text strong style={{ fontSize: 16 }}>Job Posts</Text>
                             <Space>
                                 <Input
-                                    placeholder="Search jobs..."
+                                    placeholder="Search jobs, location, facility..."
                                     prefix={<SearchOutlined />}
                                     size="small"
-                                    style={{ width: 200, borderRadius: 8 }}
+                                    style={{ width: 250, borderRadius: 8 }}
                                     value={searchInput}
-                                    onChange={(e) => {
-                                        const next = e.target.value;
+                                    onChange={(event) => {
+                                        const next = event.target.value;
                                         setStoreSearchInput(next);
                                         if (!next.trim()) {
                                             void setStoreSearchQuery('');
@@ -830,16 +561,13 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                                 <Select
                                     placeholder="Status"
                                     size="small"
-                                    style={{ width: 120 }}
+                                    style={{ width: 140 }}
                                     allowClear
                                     value={statusFilter}
-                                    onChange={(v) => {
-                                        void setStoreStatusFilter(v);
+                                    onChange={(value) => {
+                                        void setStoreStatusFilter(value);
                                     }}
-                                    options={[
-                                        { value: 'Open', label: 'Open' },
-                                        { value: 'Closed', label: 'Closed' },
-                                    ]}
+                                    options={resolvedStatusOptions}
                                 />
                                 <Button
                                     size="small"
@@ -867,15 +595,15 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                     rowKey="name"
                     loading={loading}
                     size={isMobile ? 'middle' : 'small'}
-                    scroll={isMobile ? { x: 860 } : undefined}
+                    scroll={isMobile ? { x: 980 } : undefined}
                     pagination={{
                         current: currentPage,
                         pageSize,
                         total,
                         showSizeChanger: true,
-                        showTotal: (total) => `${total} jobs`,
-                        onChange: (page, pageSizeValue) => {
-                            void setJobPage(page, pageSizeValue);
+                        showTotal: (count) => `${count} jobs`,
+                        onChange: (page, size) => {
+                            void setJobPage(page, size);
                         },
                     }}
                     onRow={(record) => ({
@@ -893,22 +621,8 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                 width={isMobile ? undefined : 520}
                 height={isMobile ? '100%' : undefined}
                 destroyOnClose
-                styles={{
-                    header: {
-                        padding: isVerySmallScreen ? '10px 12px' : undefined,
-                    },
-                    body: {
-                        padding: isMobile ? mobileDetailBodyPadding : undefined,
-                        overscrollBehavior: isMobile ? 'contain' : undefined,
-                        WebkitOverflowScrolling: isMobile ? 'touch' : undefined,
-                    },
-                }}
                 extra={selectedJob ? (
-                    <Button
-                        icon={<EditOutlined />}
-                        size={controlSize}
-                        onClick={() => openJobEdit(selectedJob.name)}
-                    >
+                    <Button icon={<EditOutlined />} onClick={() => openJobEdit(selectedJob.name)}>
                         Edit
                     </Button>
                 ) : null}
@@ -923,6 +637,7 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                             <Descriptions.Item label="Job ID">{selectedJob.name || '—'}</Descriptions.Item>
                             <Descriptions.Item label="Designation">{selectedJob.designation || '—'}</Descriptions.Item>
                             <Descriptions.Item label="Company">{selectedJob.company || '—'}</Descriptions.Item>
+                            <Descriptions.Item label="Health Facility">{selectedJob.health_facility_name || selectedJob.health_facility || '—'}</Descriptions.Item>
                             <Descriptions.Item label="Location">{selectedJob.location || '—'}</Descriptions.Item>
                             <Descriptions.Item label="Status">{selectedJob.status || '—'}</Descriptions.Item>
                             <Descriptions.Item label="Published">{selectedJob.publish ? 'Yes' : 'No'}</Descriptions.Item>
@@ -995,296 +710,9 @@ export default function JobPostsListView({ navigateToRoute, selectedJobId }: Pro
                                 Copy Jobs Board Link
                             </Button>
                         </Space>
-                        {selectedJobLinks.jobs_list_url && (
-                            <Text type="secondary" style={{ fontSize: 12, wordBreak: 'break-all' }}>
-                                Job Board URL:{' '}
-                                <Link href={selectedJobLinks.jobs_list_url} target="_blank" rel="noopener noreferrer">
-                                    {selectedJobLinks.jobs_list_url}
-                                </Link>
-                            </Text>
-                        )}
-                        {selectedJobLinks.job_detail_url && (
-                            <Text type="secondary" style={{ fontSize: 12, wordBreak: 'break-all' }}>
-                                Public Job URL:{' '}
-                                <Link href={selectedJobLinks.job_detail_url} target="_blank" rel="noopener noreferrer">
-                                    {selectedJobLinks.job_detail_url}
-                                </Link>
-                            </Text>
-                        )}
                     </Space>
                 ) : (
                     <Text type="secondary">Unable to load job detail.</Text>
-                )}
-            </Drawer>
-
-            <Drawer
-                title={editorMode === 'create' ? 'New Job Post' : 'Edit Job Post'}
-                open={editorOpen}
-                onClose={closeJobEditor}
-                placement={isMobile ? 'bottom' : 'right'}
-                width={isMobile ? undefined : 680}
-                height={isMobile ? '100%' : undefined}
-                footer={(
-                    isMobile ? (
-                        <Space direction="vertical" size={mobileFooterGap} style={{ display: 'flex', width: '100%' }}>
-                            <Button
-                                type="primary"
-                                onClick={() => jobForm.submit()}
-                                loading={editorSaving}
-                                block
-                                size={controlSize}
-                                style={{ minHeight: 44, fontWeight: 600 }}
-                            >
-                                {editorMode === 'create' ? 'Create Job Post' : 'Save Changes'}
-                            </Button>
-                            <Button
-                                onClick={closeJobEditor}
-                                disabled={editorSaving}
-                                block
-                                size={controlSize}
-                                style={{ minHeight: 42 }}
-                            >
-                                Cancel
-                            </Button>
-                        </Space>
-                    ) : (
-                        <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <Button onClick={closeJobEditor} disabled={editorSaving}>Cancel</Button>
-                            <Button type="primary" onClick={() => jobForm.submit()} loading={editorSaving}>
-                                {editorMode === 'create' ? 'Create Job Post' : 'Save Changes'}
-                            </Button>
-                        </Space>
-                    )
-                )}
-                styles={{
-                    header: {
-                        padding: isVerySmallScreen ? '12px 12px 10px' : undefined,
-                    },
-                    body: {
-                        padding: isMobile ? mobileEditorBodyPadding : undefined,
-                        overscrollBehavior: isMobile ? 'contain' : undefined,
-                        WebkitOverflowScrolling: isMobile ? 'touch' : undefined,
-                    },
-                    footer: {
-                        padding: isMobile ? mobileFooterPadding : undefined,
-                        borderTop: isMobile ? '1px solid #f0f0f0' : undefined,
-                        background: isMobile ? '#fff' : undefined,
-                        position: isMobile ? 'sticky' : undefined,
-                        bottom: isMobile ? 0 : undefined,
-                        zIndex: isMobile ? 2 : undefined,
-                        boxShadow: isMobile ? '0 -8px 18px rgba(15, 23, 42, 0.08)' : undefined,
-                    },
-                }}
-            >
-                {editorLoading ? (
-                    <div style={{ textAlign: 'center', paddingTop: 48 }}>
-                        <Spin />
-                    </div>
-                ) : (
-                    <Form<JobOpeningFormValues>
-                        form={jobForm}
-                        layout="vertical"
-                        onFinish={handleSaveJob}
-                        onFocusCapture={(event) => {
-                            const target = event.target as HTMLElement | null;
-                            scrollFocusedElementIntoView(target);
-                        }}
-                    >
-                        <Row gutter={formGutter}>
-                            <Col xs={24} md={12}>
-                                <Form.Item
-                                    label="Job Title"
-                                    name="job_title"
-                                    rules={[{ required: true, whitespace: true, message: 'Job title is required' }]}
-                                >
-                                    <Input placeholder="e.g. Registered Nurse" maxLength={140} size={controlSize} />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} md={12}>
-                                <Form.Item
-                                    label="Designation"
-                                    name="designation"
-                                    rules={[{ required: true, whitespace: true, message: 'Designation is required' }]}
-                                >
-                                    <AutoComplete
-                                        options={designationOptions}
-                                        notFoundContent={designationLoading ? <Spin size="small" /> : null}
-                                        popupMatchSelectWidth
-                                        filterOption={(inputValue, option) => {
-                                            const optionText = String(option?.label || option?.value || '').toLowerCase();
-                                            return optionText.includes(inputValue.toLowerCase());
-                                        }}
-                                    >
-                                        <Input placeholder="Search designation or type a new one" maxLength={140} size={controlSize} />
-                                    </AutoComplete>
-                                </Form.Item>
-                            </Col>
-                        </Row>
-
-                        <Form.Item name="company" hidden>
-                            <Input />
-                        </Form.Item>
-
-                        <div
-                            style={{
-                                marginBottom: 8,
-                                padding: isMobile ? '8px 10px' : '9px 12px',
-                                borderRadius: 8,
-                                border: '1px solid #f0f0f0',
-                                background: '#fafafa',
-                            }}
-                        >
-                            <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13 }}>
-                                Posting under organization: <Text>{organizationDisplayValue}</Text>
-                            </Text>
-                        </div>
-
-                        <Row gutter={formGutter}>
-                            <Col xs={24} md={24}>
-                                <Form.Item label="Location" name="location">
-                                    <Select
-                                        allowClear
-                                        showSearch
-                                        optionFilterProp="label"
-                                        options={locationSelectOptions}
-                                        size={controlSize}
-                                        placeholder={locationSelectOptions.length ? 'Select location' : 'No locations configured'}
-                                    />
-                                </Form.Item>
-                            </Col>
-                        </Row>
-
-                        <Row gutter={formGutter}>
-                            <Col xs={24} md={8}>
-                                <Form.Item
-                                    label="Status"
-                                    name="status"
-                                    rules={[{ required: true, message: 'Status is required' }]}
-                                >
-                                    <Select
-                                        size={controlSize}
-                                        options={[
-                                            { value: 'Open', label: 'Open' },
-                                            { value: 'Closed', label: 'Closed' },
-                                            { value: 'On Hold', label: 'On Hold' },
-                                        ]}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} md={8}>
-                                <Form.Item label="Employment Type" name="employment_type">
-                                    <Select
-                                        allowClear
-                                        showSearch
-                                        optionFilterProp="label"
-                                        options={employmentTypeSelectOptions}
-                                        size={controlSize}
-                                        placeholder={employmentTypeSelectOptions.length ? 'Select employment type' : 'No employment types configured'}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} md={8}>
-                                <Form.Item label="Published" name="publish" valuePropName="checked">
-                                    <div style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>
-                                        <Switch checkedChildren="Yes" unCheckedChildren="No" />
-                                    </div>
-                                </Form.Item>
-                            </Col>
-                        </Row>
-
-                        <Row gutter={formGutter}>
-                            <Col xs={24} md={12}>
-                                <Form.Item label="Posting Date" name="posted_on">
-                                    <DatePicker style={{ width: '100%' }} size={controlSize} inputReadOnly={isMobile} />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} md={12}>
-                                <Form.Item
-                                    label="Closing Date"
-                                    name="closes_on"
-                                    dependencies={['posted_on']}
-                                    rules={[
-                                        ({ getFieldValue }) => ({
-                                            validator(_, value: Dayjs | undefined) {
-                                                const postedOn = getFieldValue('posted_on') as Dayjs | undefined;
-                                                if (!postedOn || !value || !value.isBefore(postedOn, 'day')) {
-                                                    return Promise.resolve();
-                                                }
-                                                return Promise.reject(new Error('Closing date must be on or after posting date'));
-                                            },
-                                        }),
-                                    ]}
-                                >
-                                    <DatePicker style={{ width: '100%' }} size={controlSize} inputReadOnly={isMobile} />
-                                </Form.Item>
-                            </Col>
-                        </Row>
-
-                        <Divider style={{ margin: '8px 0 16px' }} />
-
-                        <Row gutter={formGutter}>
-                            <Col xs={24} md={8}>
-                                <Form.Item label="Minimum Salary" name="lower_range">
-                                    <InputNumber
-                                        style={{ width: '100%' }}
-                                        min={0}
-                                        precision={0}
-                                        placeholder="0"
-                                        size={controlSize}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} md={8}>
-                                <Form.Item
-                                    label="Maximum Salary"
-                                    name="upper_range"
-                                    dependencies={['lower_range']}
-                                    rules={[
-                                        ({ getFieldValue }) => ({
-                                            validator(_, value: number | null | undefined) {
-                                                const minValue = getFieldValue('lower_range') as number | null | undefined;
-                                                if (
-                                                    minValue === null
-                                                    || minValue === undefined
-                                                    || value === null
-                                                    || value === undefined
-                                                    || value >= minValue
-                                                ) {
-                                                    return Promise.resolve();
-                                                }
-                                                return Promise.reject(new Error('Maximum salary must be greater than or equal to minimum salary'));
-                                            },
-                                        }),
-                                    ]}
-                                >
-                                    <InputNumber
-                                        style={{ width: '100%' }}
-                                        min={0}
-                                        precision={0}
-                                        placeholder="0"
-                                        size={controlSize}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} md={8}>
-                                <Form.Item label="Currency" name="currency">
-                                    <Input placeholder="e.g. KES" maxLength={10} size={controlSize} />
-                                </Form.Item>
-                            </Col>
-                        </Row>
-
-                        <Row gutter={formGutter}>
-                            <Col xs={24} md={8}>
-                                <Form.Item label="Salary Period" name="salary_per">
-                                    <Select allowClear options={SALARY_PERIOD_OPTIONS} size={controlSize} />
-                                </Form.Item>
-                            </Col>
-                        </Row>
-
-                        <Form.Item label="Description" name="description">
-                            <Input.TextArea rows={isVerySmallScreen ? 4 : 5} maxLength={4000} showCount />
-                        </Form.Item>
-                    </Form>
                 )}
             </Drawer>
         </div>

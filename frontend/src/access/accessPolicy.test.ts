@@ -23,6 +23,16 @@ describe('getAccessPolicy', () => {
         expect(isRouteAllowed('claims', policy)).toBe(true);
     });
 
+    it('allows recruitment job post editor routes for full access modes', () => {
+        const companyPolicy = getAccessPolicy('company');
+        const oversightPolicy = getAccessPolicy('oversight');
+
+        expect(isRouteAllowed('recruitment/job-posts/new', companyPolicy)).toBe(true);
+        expect(isRouteAllowed('recruitment/job-posts/edit', companyPolicy)).toBe(true);
+        expect(isRouteAllowed('recruitment/job-posts/new', oversightPolicy)).toBe(true);
+        expect(isRouteAllowed('recruitment/job-posts/edit', oversightPolicy)).toBe(true);
+    });
+
     it('returns no-access policy', () => {
         const policy = getAccessPolicy('none');
 

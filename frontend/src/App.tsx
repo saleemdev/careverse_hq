@@ -30,6 +30,7 @@ import ProfilePage from './pages/profile/ProfilePage';
 import LeaveApplicationsListView from './components/modules/hr/LeaveApplicationsListView';
 import ClaimsListView from './components/modules/claims/ClaimsListView';
 import RecruitmentDeskPage from './components/modules/recruitment/RecruitmentDeskPage';
+import JobPostEditorPage from './components/modules/recruitment/JobPostEditorPage';
 import CandidateProfileView from './components/modules/recruitment/CandidateProfileView';
 import { getCsrfToken, setCsrfToken } from './utils/csrf';
 import { COMPANY_PERMISSION_ROUTE, getAccessPolicy, isRouteAllowed } from './access/accessPolicy';
@@ -230,11 +231,20 @@ function App() {
       } else if (
         parts[0] === 'recruitment'
         && parts[1] === 'job-posts'
+        && parts[2] === 'new'
+      ) {
+        route = 'recruitment/job-posts/new';
+      } else if (
+        parts[0] === 'recruitment'
+        && parts[1] === 'job-posts'
         && parts[2] === 'edit'
         && parts.length >= 4
       ) {
+        route = 'recruitment/job-posts/edit';
+        id = parts.slice(3).join('/');
+      } else if (parts[0] === 'recruitment' && parts[1] === 'job-posts' && parts.length >= 3) {
         route = 'recruitment/job-posts';
-        id = `edit:${parts.slice(3).join('/')}`;
+        id = parts.slice(2).join('/');
       } else if (parts.length === 3) {
         // e.g., #bulk-upload/status/JOB-001
         route = `${parts[0]}/${parts[1]}`;
@@ -273,9 +283,7 @@ function App() {
   const navigateToRoute = useCallback((route: string, id?: string) => {
     const normalizedId = !id
       ? null
-      : (route === 'recruitment/job-posts' && id.startsWith('edit:'))
-        ? `edit/${encodeHashId(id.slice(5))}`
-        : encodeHashId(id);
+      : encodeHashId(id);
 
     const hash = normalizedId ? `#${route}/${normalizedId}` : `#${route}`;
     window.location.hash = hash;
@@ -537,6 +545,21 @@ function App() {
             selectedJobPostId={currentDetailId || undefined}
           />
         );
+
+      case 'recruitment/job-posts/new':
+        return <JobPostEditorPage mode="create" navigateToRoute={navigateToRoute} />;
+
+      case 'recruitment/job-posts/edit':
+        if (!currentDetailId) {
+          return (
+            <RecruitmentDeskPage
+              key="recruitment-job-posts-edit-fallback"
+              navigateToRoute={navigateToRoute}
+              initialTab="job-posts"
+            />
+          );
+        }
+        return <JobPostEditorPage mode="edit" jobId={currentDetailId} navigateToRoute={navigateToRoute} />;
 
       case 'recruitment/candidates':
         if (currentDetailId) {

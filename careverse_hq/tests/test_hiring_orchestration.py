@@ -449,14 +449,50 @@ class TestRecruitmentDeskHPResolution(unittest.TestCase):
 
     def test_link_option_normalization_is_dynamic(self):
         """Backend should normalize link options from DocType data, not hardcoded aliases."""
-        self.assertIn("_JOB_OPENING_LINK_FIELD_DOCTYPES", self.source)
+        self.assertIn("_get_link_doctype", self.source)
         self.assertIn("_normalize_link_option", self.source)
         self.assertIn("_get_link_option_map", self.source)
         self.assertNotIn("_EMPLOYMENT_TYPE_ALIASES", self.source)
 
+    def test_location_mapping_uses_facility_resolution_helpers(self):
+        """Location mapping must resolve via facility context, not hardcoded Location doctype assumptions."""
+        self.assertIn("ensure_branch_for_facility", self.source)
+        self.assertIn("get_location_for_facility", self.source)
+        self.assertIn("_normalize_job_opening_payload", self.source)
+
+    def test_form_options_are_metadata_driven(self):
+        """Form options endpoint should read options from Job Opening metadata."""
+        section = self.source.split("def get_job_opening_form_options")[1].split("def ")[0]
+        self.assertIn("frappe.get_meta(\"Job Opening\")", section)
+        self.assertIn("_get_select_options", section)
+        self.assertIn("location_link_doctype", section)
+        self.assertIn("status_options", section)
+        self.assertIn("salary_per_options", section)
+
     def test_create_update_surface_real_validation_errors(self):
         """Create/update should expose actionable validation messages."""
         self.assertIn("_extract_exception_message", self.source)
+
+    def test_create_update_wrap_payload_application_inside_try(self):
+        """Payload application errors should be handled by create/update exception path."""
+        create_section = self.source.split("def create_job_opening")[1].split("def ")[0]
+        update_section = self.source.split("def update_job_opening")[1].split("def ")[0]
+
+        self.assertIn("try:", create_section)
+        self.assertIn("_apply_job_opening_payload(doc, data)", create_section)
+        self.assertIn("except Exception as exc", create_section)
+
+        self.assertIn("try:", update_section)
+        self.assertIn("_apply_job_opening_payload(doc, data)", update_section)
+        self.assertIn("except Exception as exc", update_section)
+
+    def test_payload_normalization_handles_object_shaped_values(self):
+        """Recruitment payload normalization should safely handle {label, value} objects."""
+        self.assertIn("def _extract_scalar_value", self.source)
+        self.assertIn("def _normalize_optional_text", self.source)
+        self.assertIn("value = _extract_scalar_value(value)", self.source)
+        self.assertIn("candidate = _extract_scalar_value(value)", self.source)
+        self.assertIn("link_value = _normalize_optional_text(value)", self.source)
 
     def test_candidate_detail_uses_affiliation_status_helper(self):
         """Candidate detail should not assume a direct status field on affiliation."""
@@ -549,6 +585,39 @@ class TestCustomFieldsPatch(unittest.TestCase):
         with open(patches_path) as f:
             patches = f.read()
         self.assertIn("add_hiring_custom_fields", patches)
+
+
+class TestJobOpeningHealthFacilityPatch(unittest.TestCase):
+    """Tests for the Job Opening health_facility migration patch."""
+
+    def setUp(self):
+        patch_path = os.path.join(_APP_ROOT, "patches", "add_job_opening_health_facility.py")
+        with open(patch_path) as f:
+            self.source = f.read()
+        self.tree = ast.parse(self.source)
+
+    def test_patch_has_execute_function(self):
+        func_names = [
+            node.name for node in ast.walk(self.tree)
+            if isinstance(node, ast.FunctionDef)
+        ]
+        self.assertIn("execute", func_names)
+
+    def test_patch_creates_health_facility_custom_field(self):
+        self.assertIn('fieldname = "health_facility"', self.source)
+        self.assertIn('cf.options = "Health Facility"', self.source)
+        self.assertIn('frappe.db.exists("Custom Field", cf_name)', self.source)
+
+    def test_patch_backfills_and_branch_normalizes(self):
+        self.assertIn("_backfill_job_opening_facility_context", self.source)
+        self.assertIn("ensure_branch_for_facility", self.source)
+        self.assertIn("resolve_health_facility_reference", self.source)
+
+    def test_patch_registered(self):
+        patches_path = os.path.join(_APP_ROOT, "patches.txt")
+        with open(patches_path) as f:
+            patches = f.read()
+        self.assertIn("add_job_opening_health_facility", patches)
 
 
 class TestReminderNotifications(unittest.TestCase):

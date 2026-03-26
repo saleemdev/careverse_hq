@@ -22,6 +22,11 @@ interface RecruitmentJobPostsStore {
     designationLoading: boolean;
     employmentTypeOptions: string[];
     locationOptions: string[];
+    healthFacilityOptions: string[];
+    statusOptions: string[];
+    salaryPeriodOptions: string[];
+    currencyOptions: string[];
+    locationLinkDoctype?: string;
     initialize: () => Promise<void>;
     refreshJobs: () => Promise<void>;
     setPage: (page: number, pageSize: number) => Promise<void>;
@@ -47,6 +52,11 @@ const useRecruitmentJobPostsStore = create<RecruitmentJobPostsStore>((set, get) 
     designationLoading: false,
     employmentTypeOptions: [],
     locationOptions: [],
+    healthFacilityOptions: [],
+    statusOptions: [],
+    salaryPeriodOptions: [],
+    currencyOptions: [],
+    locationLinkDoctype: undefined,
 
     initialize: async () => {
         await Promise.all([
@@ -144,12 +154,22 @@ const useRecruitmentJobPostsStore = create<RecruitmentJobPostsStore>((set, get) 
             set({
                 employmentTypeOptions: Array.isArray(options?.employment_types) ? options.employment_types : [],
                 locationOptions: Array.isArray(options?.locations) ? options.locations : [],
+                healthFacilityOptions: Array.isArray(options?.health_facilities) ? options.health_facilities : [],
+                statusOptions: Array.isArray(options?.status_options) ? options.status_options : [],
+                salaryPeriodOptions: Array.isArray(options?.salary_per_options) ? options.salary_per_options : [],
+                currencyOptions: Array.isArray(options?.currency_options) ? options.currency_options : [],
+                locationLinkDoctype: options?.location_link_doctype || undefined,
             });
         } catch (error) {
             console.error('Failed to load job opening form options', error);
             set({
                 employmentTypeOptions: [],
                 locationOptions: [],
+                healthFacilityOptions: [],
+                statusOptions: [],
+                salaryPeriodOptions: [],
+                currencyOptions: [],
+                locationLinkDoctype: undefined,
             });
         }
     },

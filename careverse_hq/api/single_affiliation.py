@@ -18,6 +18,13 @@ from .utils import api_response
 from healthpro_erp.api.utils import fetch_hwr_practitioner
 
 
+def _normalize_choice(value, default):
+    if isinstance(value, (dict, list, tuple, set)):
+        return default
+    text = str(value).strip() if value is not None else ""
+    return (text or default).lower()
+
+
 # ---------------------------------------------------------------------------
 # Search
 # ---------------------------------------------------------------------------
@@ -35,7 +42,7 @@ def search_health_professional(search_term=None, search_mode="auto", search_by="
         api_response with results list, source indicator.
         HWR results include a server-side `cache_key` instead of raw HWR data.
     """
-    if not search_term or not search_term.strip():
+    if not isinstance(search_term, str) or not search_term.strip():
         return api_response(
             success=False,
             message="Search term is required",
@@ -43,8 +50,8 @@ def search_health_professional(search_term=None, search_mode="auto", search_by="
         )
 
     search_term = search_term.strip()
-    mode = (search_mode or "auto").strip().lower()
-    search_key = (search_by or "national_id").strip().lower()
+    mode = _normalize_choice(search_mode, "auto")
+    search_key = _normalize_choice(search_by, "national_id")
     if mode not in {"auto", "local", "hwr"}:
         return api_response(
             success=False,

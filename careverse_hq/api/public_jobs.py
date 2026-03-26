@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import frappe
 from frappe.utils import getdate, validate_email_address
 
+from .dashboard_utils import resolve_health_facility_reference
 from .utils import api_response
 
 
@@ -26,6 +27,7 @@ _PUBLIC_JOB_FIELDS = [
     "company",
     "department",
     "location",
+    "health_facility",
     "description",
     "status",
     "publish",
@@ -46,6 +48,7 @@ _PUBLIC_JOB_LIST_FIELDS = [
     "company",
     "department",
     "location",
+    "health_facility",
     "status",
     "employment_type",
     "posted_on",
@@ -74,6 +77,7 @@ _PHONE_PATTERN = re.compile(r"^\+?[0-9][0-9\s().-]{5,31}$")
 def get_public_jobs(
     search=None,
     location=None,
+    health_facility=None,
     employment_type=None,
     designation=None,
     company=None,
@@ -83,7 +87,8 @@ def get_public_jobs(
     """
     Public jobs list for /jobs page.
 
-    Filters: search (title/designation), location, employment_type, designation, company.
+    Filters: search (title/designation/location/facility), location, health_facility,
+    employment_type, designation, company.
     Pagination: page + page_size (max 50).
     Only returns open, published jobs.
     """
@@ -91,9 +96,13 @@ def get_public_jobs(
     page_size = min(50, max(1, int(page_size or 20)))
     search = _clean_text(search, _MAX_SEARCH_LENGTH)
     location = _clean_text(location, 140)
+    health_facility = _clean_text(health_facility, 140)
     employment_type = _clean_text(employment_type, 80)
     designation = _clean_text(designation, 140)
     company = _clean_text(company, 140)
+
+    meta = frappe.get_meta("Job Opening")
+    has_health_facility_field = meta.has_field("health_facility")
 
     filters = {"status": "Open"}
 
@@ -104,6 +113,11 @@ def get_public_jobs(
     if location:
         filters["location"] = location
 
+    if health_facility and has_health_facility_field:
+        resolved = resolve_health_facility_reference(health_facility)
+        facility_docname = (resolved.get("facility_docname") or "").strip()
+        filters["health_facility"] = facility_docname or health_facility
+
     if employment_type:
         filters["employment_type"] = employment_type
 
@@ -113,27 +127,29 @@ def get_public_jobs(
     if company:
         filters["company"] = company
 
-    or_filters = None
-    if search:
-        safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        or_filters = [
-            ["job_title", "like", f"%{safe_search}%"],
-            ["designation", "like", f"%{safe_search}%"],
-        ]
+    or_filters = _build_public_search_filters(
+        search,
+        has_health_facility_field=has_health_facility_field,
+    )
 
     try:
         total_count = _count_with_or_filters(filters, or_filters or [])
+
+        list_fields = list(_PUBLIC_JOB_LIST_FIELDS)
+        if not has_health_facility_field and "health_facility" in list_fields:
+            list_fields.remove("health_facility")
 
         jobs = frappe.get_list(
             "Job Opening",
             filters=filters,
             or_filters=or_filters,
-            fields=_PUBLIC_JOB_LIST_FIELDS,
+            fields=list_fields,
             order_by="posted_on DESC, creation DESC",
             start=(page - 1) * page_size,
             page_length=page_size,
             ignore_permissions=True,
         )
+        _add_health_facility_context(jobs)
 
         # Sanitize: strip any fields that slipped through
         sanitized = [_sanitize_job_list_item(j) for j in jobs]
@@ -211,11 +227,24 @@ def get_public_job_detail(job_id=None, slug=None):
         )
 
     detail = _sanitize_job_detail(job)
+    _add_health_facility_context([detail])
 
     # Generate slug for canonical URL
     detail["slug"] = _make_job_slug(job)
 
     # Related jobs (same designation, exclude current)
+    related_fields = [
+        "name",
+        "job_title",
+        "designation",
+        "company",
+        "department",
+        "location",
+        "employment_type",
+    ]
+    if frappe.get_meta("Job Opening").has_field("health_facility"):
+        related_fields.append("health_facility")
+
     related = frappe.get_list(
         "Job Opening",
         filters={
@@ -224,11 +253,12 @@ def get_public_job_detail(job_id=None, slug=None):
             "name": ["!=", job.name],
             **({"publish": 1} if frappe.get_meta("Job Opening").has_field("publish") else {}),
         },
-        fields=["name", "job_title", "designation", "company", "department", "location", "employment_type"],
+        fields=related_fields,
         order_by="creation DESC",
         page_length=3,
         ignore_permissions=True,
     )
+    _add_health_facility_context(related)
 
     detail["related_jobs"] = [_sanitize_job_list_item(row) for row in related]
 
@@ -248,6 +278,8 @@ def get_job_filter_options():
     base_filters = {"status": "Open"}
     if frappe.get_meta("Job Opening").has_field("publish"):
         base_filters["publish"] = 1
+
+    meta = frappe.get_meta("Job Opening")
 
     locations = frappe.get_list(
         "Job Opening",
@@ -281,6 +313,25 @@ def get_job_filter_options():
         ignore_permissions=True,
     )
 
+    health_facility_values = []
+    if meta.has_field("health_facility"):
+        health_facility_rows = frappe.get_list(
+            "Job Opening",
+            filters=base_filters,
+            fields=["health_facility"],
+            distinct=True,
+            ignore_permissions=True,
+        )
+        health_facility_values = sorted(
+            set(
+                (row.get("health_facility") if isinstance(row, dict) else getattr(row, "health_facility", None))
+                for row in health_facility_rows
+                if (row.get("health_facility") if isinstance(row, dict) else getattr(row, "health_facility", None))
+            )
+        )
+
+    health_facility_labels = _health_facility_labels(health_facility_values)
+
     return api_response(
         success=True,
         data={
@@ -288,6 +339,7 @@ def get_job_filter_options():
             "employment_types": sorted(set(e.employment_type for e in employment_types if e.employment_type)),
             "designations": sorted(set(d.designation for d in designations if d.designation)),
             "companies": sorted(set(c.company for c in companies if c.company)),
+            "health_facilities": health_facility_labels,
         },
     )
 
@@ -494,6 +546,9 @@ def submit_application(
 def _sanitize_job_list_item(job):
     """Ensure only whitelisted fields are returned."""
     payload = {k: job.get(k) for k in _PUBLIC_JOB_LIST_FIELDS if job.get(k) is not None}
+    health_facility_name = job.get("health_facility_name")
+    if health_facility_name:
+        payload["health_facility_name"] = health_facility_name
     return _strip_salary_fields(payload, job)
 
 
@@ -517,6 +572,171 @@ def _strip_salary_fields(payload, job):
         payload.pop(field, None)
 
     return payload
+
+
+def _build_public_search_filters(search, has_health_facility_field=False):
+    if not search:
+        return None
+
+    safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    like_pattern = f"%{safe_search}%"
+    or_filters = [
+        ["job_title", "like", like_pattern],
+        ["designation", "like", like_pattern],
+        ["location", "like", like_pattern],
+        ["company", "like", like_pattern],
+    ]
+
+    if has_health_facility_field:
+        or_filters.append(["health_facility", "like", like_pattern])
+        matched_facilities = _search_health_facility_docnames(safe_search)
+        if matched_facilities:
+            or_filters.append(["health_facility", "in", matched_facilities])
+
+            location_link_doctype = _job_opening_location_link_doctype()
+            if location_link_doctype == "Branch":
+                matched_branches = _branches_for_health_facilities(matched_facilities)
+                if matched_branches:
+                    or_filters.append(["location", "in", matched_branches])
+            if location_link_doctype == "Location":
+                matched_locations = _locations_for_health_facilities(matched_facilities)
+                if matched_locations:
+                    or_filters.append(["location", "in", matched_locations])
+
+    return or_filters
+
+
+def _search_health_facility_docnames(search_text):
+    if not search_text:
+        return []
+    try:
+        return frappe.get_list(
+            "Health Facility",
+            or_filters=[
+                ["name", "like", f"%{search_text}%"],
+                ["hie_id", "like", f"%{search_text}%"],
+                ["facility_name", "like", f"%{search_text}%"],
+            ],
+            pluck="name",
+            limit_page_length=200,
+        )
+    except (frappe.PermissionError, frappe.ValidationError, frappe.DoesNotExistError):
+        return []
+
+
+def _branches_for_health_facilities(facility_docnames):
+    if not facility_docnames:
+        return []
+    try:
+        branch_meta = frappe.get_meta("Branch")
+    except Exception:
+        return []
+    if not branch_meta.has_field("custom_health_facility"):
+        return []
+
+    try:
+        return frappe.get_list(
+            "Branch",
+            filters={"custom_health_facility": ["in", facility_docnames]},
+            pluck="name",
+            limit_page_length=500,
+        )
+    except (frappe.PermissionError, frappe.ValidationError, frappe.DoesNotExistError):
+        return []
+
+
+def _locations_for_health_facilities(facility_docnames):
+    if not facility_docnames:
+        return []
+    try:
+        location_meta = frappe.get_meta("Location")
+    except Exception:
+        return []
+    if not location_meta.has_field("custom_health_facility"):
+        return []
+
+    try:
+        return frappe.get_list(
+            "Location",
+            filters={"custom_health_facility": ["in", facility_docnames]},
+            pluck="name",
+            limit_page_length=500,
+        )
+    except (frappe.PermissionError, frappe.ValidationError, frappe.DoesNotExistError):
+        return []
+
+
+def _job_opening_location_link_doctype():
+    meta = frappe.get_meta("Job Opening")
+    if not meta.has_field("location"):
+        return None
+    field = meta.get_field("location")
+    if not field or field.fieldtype != "Link":
+        return None
+    return (field.options or "").strip() or None
+
+
+def _add_health_facility_context(rows):
+    if not rows:
+        return
+
+    meta = frappe.get_meta("Job Opening")
+    has_health_facility_field = meta.has_field("health_facility")
+    location_link_doctype = _job_opening_location_link_doctype()
+
+    for row in rows:
+        health_facility = row.get("health_facility")
+        location_value = row.get("location")
+
+        if not health_facility and location_value:
+            if location_link_doctype == "Branch":
+                health_facility = _health_facility_from_branch(location_value)
+            elif location_link_doctype == "Location":
+                health_facility = _health_facility_from_location(location_value)
+            if health_facility and has_health_facility_field:
+                row["health_facility"] = health_facility
+
+        if health_facility:
+            resolved = resolve_health_facility_reference(health_facility)
+            facility_name = (resolved.get("facility_name") or "").strip()
+            if facility_name:
+                row["health_facility_name"] = facility_name
+
+
+def _health_facility_from_branch(branch_name):
+    if not branch_name or not frappe.db.exists("Branch", branch_name):
+        return None
+    branch_meta = frappe.get_meta("Branch")
+    if branch_meta.has_field("custom_health_facility"):
+        linked = frappe.db.get_value("Branch", branch_name, "custom_health_facility")
+        if linked:
+            resolved = resolve_health_facility_reference(linked)
+            return (resolved.get("facility_docname") or "").strip() or None
+    return None
+
+
+def _health_facility_from_location(location_name):
+    if not location_name or not frappe.db.exists("Location", location_name):
+        return None
+    location_meta = frappe.get_meta("Location")
+    if location_meta.has_field("custom_health_facility"):
+        linked = frappe.db.get_value("Location", location_name, "custom_health_facility")
+        if linked:
+            resolved = resolve_health_facility_reference(linked)
+            return (resolved.get("facility_docname") or "").strip() or None
+    return None
+
+
+def _health_facility_labels(facility_docnames):
+    labels = []
+    for value in facility_docnames or []:
+        resolved = resolve_health_facility_reference(value)
+        label = (resolved.get("facility_name") or "").strip()
+        if label:
+            labels.append(label)
+        elif value:
+            labels.append(value)
+    return sorted(set(labels))
 
 
 def _is_salary_public(job):

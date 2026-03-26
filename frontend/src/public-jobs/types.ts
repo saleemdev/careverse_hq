@@ -5,6 +5,8 @@ export interface PublicJobsListItem {
   company?: string;
   department?: string;
   location?: string;
+  health_facility?: string;
+  health_facility_name?: string;
   status?: string;
   employment_type?: string;
   posted_on?: string;
@@ -25,6 +27,7 @@ export interface PublicJobDetail extends PublicJobsListItem {
 
 export interface PublicJobFilters {
   locations: string[];
+  health_facilities: string[];
   employment_types: string[];
   designations: string[];
   companies: string[];

@@ -9,6 +9,7 @@ const DEFAULT_PAGE_SIZE = 20;
 
 const EMPTY_FILTERS: PublicJobFilters = {
   locations: [],
+  health_facilities: [],
   employment_types: [],
   designations: [],
   companies: [],
@@ -50,6 +51,7 @@ export function JobsListPage() {
     return {
       search: (searchParams.get('search') || '').trim(),
       location: (searchParams.get('location') || '').trim(),
+      healthFacility: (searchParams.get('health_facility') || '').trim(),
       employmentType: (searchParams.get('employment_type') || '').trim(),
       designation: (searchParams.get('designation') || '').trim(),
       company: (searchParams.get('company') || '').trim(),
@@ -111,6 +113,7 @@ export function JobsListPage() {
           page_size: DEFAULT_PAGE_SIZE,
           search: routeState.search,
           location: routeState.location,
+          health_facility: routeState.healthFacility,
           employment_type: routeState.employmentType,
           designation: routeState.designation,
           company: routeState.company,
@@ -136,7 +139,7 @@ export function JobsListPage() {
     return () => {
       cancelled = true;
     };
-  }, [routeState.company, routeState.designation, routeState.employmentType, routeState.location, routeState.page, routeState.search, retryToken]);
+  }, [routeState.company, routeState.designation, routeState.employmentType, routeState.healthFacility, routeState.location, routeState.page, routeState.search, retryToken]);
 
   const totalPages = Math.max(1, Math.ceil((pagination.total_count || 0) / (pagination.per_page || DEFAULT_PAGE_SIZE)));
   const pageWindow = buildPaginationWindow(routeState.page, totalPages);
@@ -154,6 +157,7 @@ export function JobsListPage() {
 
     if (updates.search !== undefined) apply('search', updates.search);
     if (updates.location !== undefined) apply('location', updates.location);
+    if (updates.healthFacility !== undefined) apply('health_facility', updates.healthFacility);
     if (updates.employmentType !== undefined) apply('employment_type', updates.employmentType);
     if (updates.designation !== undefined) apply('designation', updates.designation);
     if (updates.company !== undefined) apply('company', updates.company);
@@ -183,6 +187,7 @@ export function JobsListPage() {
   const activeFilterCount = [
     routeState.search,
     routeState.location,
+    routeState.healthFacility,
     routeState.employmentType,
     routeState.designation,
     routeState.company,
@@ -208,7 +213,7 @@ export function JobsListPage() {
               className="pj-input"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search by role title or designation"
+              placeholder="Search by role, location, or facility"
               maxLength={120}
               aria-label="Search jobs"
             />
@@ -217,7 +222,7 @@ export function JobsListPage() {
 
           <div className="pj-filters-grid">
             <label>
-              <span>Facility</span>
+              <span>Organization</span>
               <select
                 className="pj-select"
                 value={routeState.company}
@@ -226,6 +231,21 @@ export function JobsListPage() {
               >
                 <option value="">All facilities</option>
                 {filters.companies.map((entry) => (
+                  <option key={entry} value={entry}>{entry}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Health Facility</span>
+              <select
+                className="pj-select"
+                value={routeState.healthFacility}
+                onChange={(event) => setRouteValue({ healthFacility: event.target.value }, true)}
+                disabled={filterLoading}
+              >
+                <option value="">All facilities</option>
+                {filters.health_facilities.map((entry) => (
                   <option key={entry} value={entry}>{entry}</option>
                 ))}
               </select>
@@ -346,12 +366,12 @@ export function JobsListPage() {
                   return (
                     <Link key={job.name} className="pj-job-card" to={detailPath}>
                       <div className="pj-job-card-head">
-                        <p className="pj-job-company">{job.company || 'Healthcare facility'}</p>
+                        <p className="pj-job-company">{job.company || job.health_facility_name || job.health_facility || 'Healthcare facility'}</p>
                         <span className={'pj-deadline ' + deadline.tone}>{deadline.label}</span>
                       </div>
                       <h3>{job.job_title || job.designation || 'Open role'}</h3>
                       <p className="pj-job-meta">
-                        {[job.location, job.employment_type, job.designation].filter(Boolean).join(' • ') || 'Details available on role page'}
+                        {[job.health_facility_name || job.health_facility, job.location, job.employment_type, job.designation].filter(Boolean).join(' • ') || 'Details available on role page'}
                       </p>
                       <div className="pj-job-highlight-row">
                         <span>{salary || 'Compensation shared during hiring process'}</span>

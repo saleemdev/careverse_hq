@@ -20,6 +20,8 @@ export interface JobOpening {
     designation: string;
     company: string;
     location: string;
+    health_facility?: string;
+    health_facility_name?: string;
     status: string;
     publish?: number;
     employment_type?: string;
@@ -130,6 +132,8 @@ export interface JobOpeningUpsertPayload {
     job_title?: string;
     designation?: string;
     company?: string;
+    health_facility?: string;
+    facility_id?: string;
     location?: string;
     employment_type?: string;
     description?: string;
@@ -146,7 +150,24 @@ export interface JobOpeningUpsertPayload {
 export interface JobOpeningFormOptions {
     employment_types: string[];
     locations: string[];
+    health_facilities: string[];
+    status_options: string[];
+    salary_per_options: string[];
+    currency_options: string[];
+    employment_type_link_doctype?: string;
+    location_link_doctype?: string;
+    currency_link_doctype?: string;
+    health_facility_link_doctype?: string;
 }
+
+const extractSavedJobOpeningId = (data: unknown, action: 'create' | 'update'): string => {
+    const candidate = data as { name?: unknown } | null | undefined;
+    const name = typeof candidate?.name === 'string' ? candidate.name.trim() : '';
+    if (!name) {
+        throw new Error(`Job post ${action} succeeded but no job ID was returned`);
+    }
+    return name;
+};
 
 // ---------------------------------------------------------------------------
 // Job Openings
@@ -189,7 +210,14 @@ export const recruitmentApi = {
         if (!resp?.success) {
             throw new Error(resp?.error || 'Failed to load job form options');
         }
-        return (resp?.data || { employment_types: [], locations: [] }) as JobOpeningFormOptions;
+        return (resp?.data || {
+            employment_types: [],
+            locations: [],
+            health_facilities: [],
+            status_options: [],
+            salary_per_options: [],
+            currency_options: [],
+        }) as JobOpeningFormOptions;
     },
 
     /**
@@ -233,6 +261,16 @@ export const recruitmentApi = {
      * Create Job Opening from Recruitment Desk UI
      */
     createJobOpening: async (payload: JobOpeningUpsertPayload): Promise<{ name: string }> => {
+        const trimmedTitle = (payload.job_title || '').trim();
+        const trimmedDesignation = (payload.designation || '').trim();
+
+        if (!trimmedTitle) {
+            throw new Error('Job title is required');
+        }
+        if (!trimmedDesignation) {
+            throw new Error('Designation is required');
+        }
+
         const resp = await callFrappePostMethod(
             'careverse_hq.api.recruitment_desk.create_job_opening',
             { payload },
@@ -240,21 +278,28 @@ export const recruitmentApi = {
         if (!resp?.success) {
             throw new Error(resp?.error || 'Failed to create job opening');
         }
-        return resp?.data;
+        const savedId = extractSavedJobOpeningId(resp?.data, 'create');
+        return { name: savedId };
     },
 
     /**
      * Update Job Opening from Recruitment Desk UI
      */
     updateJobOpening: async (name: string, payload: JobOpeningUpsertPayload): Promise<{ name: string }> => {
+        const trimmedName = (name || '').trim();
+        if (!trimmedName) {
+            throw new Error('Missing job opening ID');
+        }
+
         const resp = await callFrappePostMethod(
             'careverse_hq.api.recruitment_desk.update_job_opening',
-            { name, payload },
+            { name: trimmedName, payload },
         );
         if (!resp?.success) {
             throw new Error(resp?.error || 'Failed to update job opening');
         }
-        return resp?.data;
+        const savedId = extractSavedJobOpeningId(resp?.data, 'update');
+        return { name: savedId };
     },
 
     /**
@@ -402,6 +447,23 @@ export const recruitmentApi = {
             throw new Error(resp?.error || 'Failed to link Health Professional');
         }
         return resp;
+    },
+
+    /**
+     * Update Candidate (Job Applicant) Status
+     */
+    updateCandidateStatus: async (params: {
+        name: string;
+        status: string;
+    }): Promise<{ success: boolean; name: string }> => {
+        const resp = await callFrappePostMethod(
+            'careverse_hq.api.recruitment_desk.update_candidate_status',
+            params,
+        );
+        if (!resp?.success) {
+            throw new Error(resp?.error || 'Failed to update candidate status');
+        }
+        return resp?.data;
     },
 
     /**
