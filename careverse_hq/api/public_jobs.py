@@ -67,6 +67,18 @@ _MAX_PHONE_LENGTH = 32
 _MAX_COVER_LETTER_LENGTH = 5000
 _MAX_URL_LENGTH = 2048
 _PHONE_PATTERN = re.compile(r"^\+?[0-9][0-9\s().-]{5,31}$")
+_STANDARD_FIELDS = {
+    "name",
+    "owner",
+    "creation",
+    "modified",
+    "modified_by",
+    "idx",
+    "docstatus",
+    "parent",
+    "parenttype",
+    "parentfield",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +122,7 @@ def get_public_jobs(
     if frappe.get_meta("Job Opening").has_field("publish"):
         filters["publish"] = 1
 
-    if location:
+    if location and _meta_has_field(meta, "location"):
         filters["location"] = location
 
     if health_facility and has_health_facility_field:
@@ -118,13 +130,13 @@ def get_public_jobs(
         facility_docname = (resolved.get("facility_docname") or "").strip()
         filters["health_facility"] = facility_docname or health_facility
 
-    if employment_type:
+    if employment_type and _meta_has_field(meta, "employment_type"):
         filters["employment_type"] = employment_type
 
-    if designation:
+    if designation and _meta_has_field(meta, "designation"):
         filters["designation"] = designation
 
-    if company:
+    if company and _meta_has_field(meta, "company"):
         filters["company"] = company
 
     or_filters = _build_public_search_filters(
@@ -135,16 +147,16 @@ def get_public_jobs(
     try:
         total_count = _count_with_or_filters(filters, or_filters or [])
 
-        list_fields = list(_PUBLIC_JOB_LIST_FIELDS)
-        if not has_health_facility_field and "health_facility" in list_fields:
-            list_fields.remove("health_facility")
+        list_fields = _existing_public_fields(meta, _PUBLIC_JOB_LIST_FIELDS)
+        if not list_fields:
+            list_fields = ["name"]
 
         jobs = frappe.get_list(
             "Job Opening",
             filters=filters,
             or_filters=or_filters,
             fields=list_fields,
-            order_by="posted_on DESC, creation DESC",
+            order_by=_public_jobs_order_by(meta),
             start=(page - 1) * page_size,
             page_length=page_size,
             ignore_permissions=True,
@@ -202,6 +214,8 @@ def get_public_job_detail(job_id=None, slug=None):
                 status_code=404,
             )
 
+    meta = frappe.get_meta("Job Opening")
+
     if not frappe.db.exists("Job Opening", job_id):
         return api_response(
             success=False,
@@ -219,7 +233,7 @@ def get_public_job_detail(job_id=None, slug=None):
             status_code=404,
         )
 
-    if frappe.get_meta("Job Opening").has_field("publish") and not job.publish:
+    if meta.has_field("publish") and not job.publish:
         return api_response(
             success=False,
             message="This job is not published",
@@ -242,8 +256,9 @@ def get_public_job_detail(job_id=None, slug=None):
         "location",
         "employment_type",
     ]
-    if frappe.get_meta("Job Opening").has_field("health_facility"):
+    if meta.has_field("health_facility"):
         related_fields.append("health_facility")
+    related_fields = _existing_public_fields(meta, related_fields)
 
     related = frappe.get_list(
         "Job Opening",
@@ -251,7 +266,7 @@ def get_public_job_detail(job_id=None, slug=None):
             "status": "Open",
             "designation": job.designation,
             "name": ["!=", job.name],
-            **({"publish": 1} if frappe.get_meta("Job Opening").has_field("publish") else {}),
+            **({"publish": 1} if meta.has_field("publish") else {}),
         },
         fields=related_fields,
         order_by="creation DESC",
@@ -280,38 +295,45 @@ def get_job_filter_options():
         base_filters["publish"] = 1
 
     meta = frappe.get_meta("Job Opening")
+    locations = []
+    if _meta_has_field(meta, "location"):
+        locations = frappe.get_list(
+            "Job Opening",
+            filters=base_filters,
+            fields=["location"],
+            distinct=True,
+            ignore_permissions=True,
+        )
 
-    locations = frappe.get_list(
-        "Job Opening",
-        filters=base_filters,
-        fields=["location"],
-        distinct=True,
-        ignore_permissions=True,
-    )
+    employment_types = []
+    if _meta_has_field(meta, "employment_type"):
+        employment_types = frappe.get_list(
+            "Job Opening",
+            filters=base_filters,
+            fields=["employment_type"],
+            distinct=True,
+            ignore_permissions=True,
+        )
 
-    employment_types = frappe.get_list(
-        "Job Opening",
-        filters=base_filters,
-        fields=["employment_type"],
-        distinct=True,
-        ignore_permissions=True,
-    )
+    designations = []
+    if _meta_has_field(meta, "designation"):
+        designations = frappe.get_list(
+            "Job Opening",
+            filters=base_filters,
+            fields=["designation"],
+            distinct=True,
+            ignore_permissions=True,
+        )
 
-    designations = frappe.get_list(
-        "Job Opening",
-        filters=base_filters,
-        fields=["designation"],
-        distinct=True,
-        ignore_permissions=True,
-    )
-
-    companies = frappe.get_list(
-        "Job Opening",
-        filters=base_filters,
-        fields=["company"],
-        distinct=True,
-        ignore_permissions=True,
-    )
+    companies = []
+    if _meta_has_field(meta, "company"):
+        companies = frappe.get_list(
+            "Job Opening",
+            filters=base_filters,
+            fields=["company"],
+            distinct=True,
+            ignore_permissions=True,
+        )
 
     health_facility_values = []
     if meta.has_field("health_facility"):
@@ -796,17 +818,31 @@ def _resolve_job_from_slug(slug):
 
 def _count_with_or_filters(filters, or_filters):
     """Count records with guest-safe aggregation for the public jobs board."""
-    result = frappe.get_all(
+    # Keep counting implementation intentionally simple and version-safe:
+    # fetch matching names with ignore_permissions and count in Python.
+    names = frappe.get_list(
         "Job Opening",
         filters=filters or {},
         or_filters=or_filters,
-        fields=[{"COUNT": "*", "as": "count"}],
-        limit_page_length=1,
+        pluck="name",
+        limit_page_length=0,
         ignore_permissions=True,
     )
-    if not result:
-        return 0
-    return int(result[0].get("count") or 0)
+    return len(names or [])
+
+
+def _meta_has_field(meta, fieldname):
+    return fieldname in _STANDARD_FIELDS or meta.has_field(fieldname)
+
+
+def _existing_public_fields(meta, fields):
+    return [field for field in fields if _meta_has_field(meta, field)]
+
+
+def _public_jobs_order_by(meta):
+    if _meta_has_field(meta, "posted_on"):
+        return "posted_on DESC, creation DESC"
+    return "creation DESC"
 
 
 def _is_truthy_flag(value):
