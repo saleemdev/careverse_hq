@@ -83,7 +83,7 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
 
         try {
             const response = await fetch(
-                `/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_bulk_upload_job_details?job_id=${jobId}`,
+                `/api/method/careverse_hq.api.bulk_health_worker_onboarding.get_bulk_upload_job_details?job_id=${encodeURIComponent(jobId)}`,
                 {
                     method: 'GET',
                     headers: {
@@ -96,7 +96,11 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch job details');
+                const rawMessage = errorData?.message;
+                const extractedMessage = (typeof rawMessage === 'object' && rawMessage !== null)
+                    ? rawMessage.message
+                    : rawMessage;
+                throw new Error(extractedMessage || 'Failed to fetch job details');
             }
 
             const result = await response.json();
@@ -128,9 +132,10 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
                 throw new Error(actualResult.message || 'Failed to fetch job details');
             }
 
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load job details';
             console.error('Error fetching job details:', err);
-            setError(err.message || 'Failed to load job details');
+            setError(errorMessage);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -367,7 +372,7 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
                         <Text type="danger" strong>{error || 'Job not found'}</Text>
                         <Button
                             type="primary"
-                            onClick={() => navigateToRoute('bulk-upload/status')}
+                            onClick={() => navigateToRoute('bulk-upload')}
                         >
                             Back to List
                         </Button>
@@ -393,7 +398,7 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
                     items={[
                         {
                             title: (
-                                <a onClick={() => navigateToRoute('home')} style={{ cursor: 'pointer' }}>
+                                <a onClick={() => navigateToRoute('dashboard')} style={{ cursor: 'pointer' }}>
                                     <HomeOutlined style={{ marginRight: 4 }} />
                                     Home
                                 </a>
@@ -401,7 +406,7 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
                         },
                         {
                             title: (
-                                <a onClick={() => navigateToRoute('bulk-upload/status')} style={{ cursor: 'pointer' }}>
+                                <a onClick={() => navigateToRoute('bulk-upload')} style={{ cursor: 'pointer' }}>
                                     Bulk Upload
                                 </a>
                             )
@@ -457,7 +462,7 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
                             >
                                 Refresh
                             </Button>
-                            <Button onClick={() => navigateToRoute('bulk-upload/status')}>
+                            <Button onClick={() => navigateToRoute('bulk-upload')}>
                                 Back to List
                             </Button>
                         </Space>

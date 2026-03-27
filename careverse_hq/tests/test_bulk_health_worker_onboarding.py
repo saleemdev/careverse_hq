@@ -1,9 +1,16 @@
 """
 Tests for bulk health worker onboarding API: validation and record limit.
 """
+from pathlib import Path
 import unittest
 
 from careverse_hq.api.bulk_health_worker_onboarding import _validate_record
+
+
+def _read_bulk_upload_source() -> str:
+    from careverse_hq.api import bulk_health_worker_onboarding
+
+    return Path(bulk_health_worker_onboarding.__file__).read_text()
 
 
 class TestValidateRecord(unittest.TestCase):
@@ -85,7 +92,25 @@ class TestUploadRecordLimitEnforcement(unittest.TestCase):
     """Test that the module enforces a maximum of 500 records per upload."""
 
     def test_max_records_constant_defined(self):
-        from careverse_hq.api import bulk_health_worker_onboarding
-        source = open(bulk_health_worker_onboarding.__file__).read()
+        source = _read_bulk_upload_source()
         self.assertIn("max_records = 500", source, "Server should enforce max 500 records")
         self.assertIn("len(records) > max_records", source, "Length check should be present")
+
+
+class TestBulkUploadPermissionGuards(unittest.TestCase):
+    """Source-level checks to guard against permission regressions."""
+
+    def test_shared_helper_uses_document_permission_check(self):
+        source = _read_bulk_upload_source()
+        section = source.split("def _get_job_with_read_access")[1].split("def get_bulk_records_by_facility")[0]
+        self.assertIn('job.check_permission("read")', section)
+
+    def test_job_records_endpoint_reuses_shared_access_helper(self):
+        source = _read_bulk_upload_source()
+        section = source.split("def get_bulk_records_by_job")[1].split("def get_bulk_upload_jobs")[0]
+        self.assertIn("_get_job_with_read_access(job_id)", section)
+
+    def test_job_details_endpoint_reuses_shared_access_helper(self):
+        source = _read_bulk_upload_source()
+        section = source.split("def get_bulk_upload_job_details")[1].split("def process_bulk_upload")[0]
+        self.assertIn("_get_job_with_read_access(job_id)", section)

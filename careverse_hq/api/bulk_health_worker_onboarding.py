@@ -108,11 +108,42 @@ def upload_bulk_health_workers(**kwargs):
                 message="No valid records found in input",
                 status_code=400,
             )
+        if not all(isinstance(record, dict) for record in records):
+            return api_response(
+                success=False,
+                message="records must be a list of objects",
+                status_code=400,
+            )
+
+        # Guardrail: keep single uploads bounded to protect worker queue latency.
+        max_records = 500
+        if len(records) > max_records:
+            return api_response(
+                success=False,
+                message=f"Maximum {max_records} records allowed per upload. Received {len(records)} records.",
+                status_code=400,
+            )
+
+        # Server-side validation must run even if the UI validates beforehand.
+        validation_errors = []
+        for idx, record in enumerate(records, start=1):
+            validation_errors.extend(_validate_record(record, idx))
+
+        if validation_errors:
+            capped_errors = validation_errors[:25]
+            remaining = len(validation_errors) - len(capped_errors)
+            if remaining > 0:
+                capped_errors.append(f"...and {remaining} more validation error(s)")
+            return api_response(
+                success=False,
+                message="; ".join(capped_errors),
+                status_code=400,
+            )
 
         # Create parent record — validation is handled by the doctype itself
         parent_doc = frappe.new_doc("Bulk Health Worker Upload")
         parent_doc.facility = facility_name
-        parent_doc.uploaded_by = frappe.session.user
+        parent_doc.uploaded_by = requested_by or frappe.session.user
         parent_doc.upload_date = datetime.now()
         parent_doc.status = "Queued"
 
@@ -162,6 +193,41 @@ def upload_bulk_health_workers(**kwargs):
             message=f"Failed to upload bulk records: {str(e)}",
             status_code=500,
         )
+
+
+def _is_legacy_uploaded_job_reader(job_doc):
+    """
+    Legacy compatibility:
+    some older jobs may have owner metadata set to Administrator while
+    uploaded_by is the actual requesting user.
+    """
+    current_user = frappe.session.user
+    if not current_user or current_user == "Guest":
+        return False
+
+    if not frappe.has_permission("Bulk Health Worker Upload", "read"):
+        return False
+
+    return (job_doc.get("uploaded_by") or "") == current_user
+
+
+def _get_job_with_read_access(job_id):
+    normalized_job_id = (str(job_id or "")).strip()
+    if not normalized_job_id:
+        return None, 400, "job_id is required"
+
+    try:
+        job = frappe.get_doc("Bulk Health Worker Upload", normalized_job_id)
+    except frappe.DoesNotExistError:
+        return None, 404, "Job not found"
+
+    try:
+        job.check_permission("read")
+    except frappe.PermissionError:
+        if not _is_legacy_uploaded_job_reader(job):
+            return None, 403, "Job not found or access denied"
+
+    return job, None, None
 
 
 @frappe.whitelist()
@@ -320,16 +386,16 @@ def get_bulk_records_by_job(**kwargs):
                 status_code=400,
             )
 
-        # Check if job exists
-        if not frappe.db.exists("Bulk Health Worker Upload", job_id):
+        job, error_code, error_message = _get_job_with_read_access(job_id)
+        if error_code:
             return api_response(
                 success=False,
-                message=f"Job '{job_id}' does not exist",
-                status_code=404,
+                message=error_message,
+                status_code=error_code,
             )
 
         # Build filters
-        filters = {"parent": job_id}
+        filters = {"parent": job.name}
 
         if verification_status:
             filters["verification_status"] = verification_status
@@ -371,7 +437,7 @@ def get_bulk_records_by_job(**kwargs):
         )
 
         # Calculate summary metrics
-        summary = _calculate_summary_metrics(job_id=job_id)
+        summary = _calculate_summary_metrics(job_id=job.name)
 
         return api_response(
             success=True,
@@ -572,20 +638,13 @@ def get_bulk_upload_job_details(job_id):
         - Progress metrics (total, verified, created, failed, pending)
     """
     try:
-        # Verify document exists and user has permission
-        if not frappe.db.exists("Bulk Health Worker Upload", job_id):
+        job, error_code, error_message = _get_job_with_read_access(job_id)
+        if error_code:
             return api_response(
                 success=False,
-                message="Job not found",
-                status_code=404
+                message=error_message,
+                status_code=error_code
             )
-        if not frappe.has_permission("Bulk Health Worker Upload", "read", job_id):
-            return api_response(
-                success=False,
-                message="Job not found or access denied",
-                status_code=403
-            )
-        job = frappe.get_doc("Bulk Health Worker Upload", job_id)
 
         # Get facility details
         facility_name = ""
@@ -595,27 +654,26 @@ def get_bulk_upload_job_details(job_id):
             facility_name = resolved.get("facility_name") or job.facility
             facility_id = resolved.get("facility_id") or job.facility
 
-        # Get all child items efficiently
-        items = frappe.get_list(
-            "Bulk Health Worker Upload Item",
-            filters={"parent": job_id},
-            fields=[
-                "name",
-                "row_number",
-                "identification_type",
-                "identification_number",
-                "registration_number",
-                "regulator",
-                "employment_type",
-                "designation",
-                "verification_status",
-                "verification_error",
-                "onboarding_status",
-                "onboarding_error"
-            ],
-            order_by="idx asc",
-            limit_page_length=1000
-        )
+        # Child table rows belong to the parent doc; read from loaded document after
+        # parent permission succeeds to avoid child doctype permission mismatches.
+        items = []
+        for row in (job.get("items") or []):
+            items.append(
+                {
+                    "name": row.name,
+                    "row_number": row.row_number,
+                    "identification_type": row.identification_type,
+                    "identification_number": row.identification_number,
+                    "registration_number": row.registration_number,
+                    "regulator": row.regulator,
+                    "employment_type": row.employment_type,
+                    "designation": row.designation,
+                    "verification_status": row.verification_status,
+                    "verification_error": row.verification_error,
+                    "onboarding_status": row.onboarding_status,
+                    "onboarding_error": row.onboarding_error,
+                }
+            )
 
         # Calculate statistics using SQL aggregation for efficiency
         stats_query = """
@@ -630,7 +688,7 @@ def get_bulk_upload_job_details(job_id):
             WHERE parent = %s
         """
 
-        stats_result = frappe.db.sql(stats_query, (job_id,), as_dict=True)
+        stats_result = frappe.db.sql(stats_query, (job.name,), as_dict=True)
         stats = stats_result[0] if stats_result else {
             "total_records": 0,
             "verified": 0,
