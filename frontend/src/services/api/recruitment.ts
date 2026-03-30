@@ -87,6 +87,11 @@ export interface CandidateDetail {
     modified?: string;
     cover_letter?: string;
     resume_link?: string;
+    is_health_worker?: boolean;
+    registration_number?: string;
+    registering_body?: string;
+    registering_body_label?: string;
+    registering_body_abbreviation?: string;
     job_offers?: CandidateOffer[];
     interviews?: CandidateInterview[];
     hiring_log?: CandidateHiringLog;

@@ -1,16 +1,13 @@
 """
 Bulk Health Worker Onboarding API
 
-This module handles bulk upload and processing of health worker onboarding records.
-Supports CSV and JSON input formats.
+This module saves bulk upload records in HQ and hands them off to
+healthpro_erp for all post-save processing.
 """
 
 from .utils import *
 import frappe
-from frappe import _
 from datetime import datetime
-import csv
-import io
 import json
 from .dashboard_utils import resolve_health_facility_reference, _count
 
@@ -37,24 +34,13 @@ def get_facilities():
 @frappe.whitelist()
 def upload_bulk_health_workers(**kwargs):
     """
-    API 1: Upload bulk health worker records (CSV or JSON)
+    API 1: Save bulk health worker records into the Bulk Health Worker Upload
+    doctype and hand off processing to healthpro_erp.
 
     Args:
         facility_fid (str): Health Facility ID (required)
         requested_by (str): User requesting the upload (required for guest users)
-        records (str/list): CSV string or JSON array of worker records
-
-    Expected CSV columns (mandatory):
-        - identification_type (required)
-        - identification_number (required)
-        - employment_type (required)
-        - designation (required)
-        - start_date (required)
-        - end_date (required)
-
-    Expected CSV columns (optional):
-        - registration_number (optional - saved but not used in HWR verification)
-        - regulator (optional - saved but not used in HWR verification)
+        records (str/list): JSON array or JSON string array of worker records
 
     Returns:
         API response with job_id
@@ -99,7 +85,7 @@ def upload_bulk_health_workers(**kwargs):
             )
         facility_name = facility_matches[0].name
 
-        # Parse records (CSV or JSON)
+        # Parse records (HQ accepts JSON list or a JSON-stringified list)
         records = _parse_records_input(records_input)
 
         if not records:
@@ -115,36 +101,13 @@ def upload_bulk_health_workers(**kwargs):
                 status_code=400,
             )
 
-        # Guardrail: keep single uploads bounded to protect worker queue latency.
-        max_records = 500
-        if len(records) > max_records:
-            return api_response(
-                success=False,
-                message=f"Maximum {max_records} records allowed per upload. Received {len(records)} records.",
-                status_code=400,
-            )
+        uploaded_at = datetime.now()
 
-        # Server-side validation must run even if the UI validates beforehand.
-        validation_errors = []
-        for idx, record in enumerate(records, start=1):
-            validation_errors.extend(_validate_record(record, idx))
-
-        if validation_errors:
-            capped_errors = validation_errors[:25]
-            remaining = len(validation_errors) - len(capped_errors)
-            if remaining > 0:
-                capped_errors.append(f"...and {remaining} more validation error(s)")
-            return api_response(
-                success=False,
-                message="; ".join(capped_errors),
-                status_code=400,
-            )
-
-        # Create parent record — validation is handled by the doctype itself
+        # Save the upload in HQ, then hand the saved job off to healthpro_erp.
         parent_doc = frappe.new_doc("Bulk Health Worker Upload")
         parent_doc.facility = facility_name
         parent_doc.uploaded_by = requested_by or frappe.session.user
-        parent_doc.upload_date = datetime.now()
+        parent_doc.upload_date = uploaded_at
         parent_doc.status = "Queued"
 
         # Create child records
@@ -165,18 +128,17 @@ def upload_bulk_health_workers(**kwargs):
             child.onboarding_status = "Pending"
 
         parent_doc.insert()
-        frappe.db.commit()
 
-        # Enqueue background job
-        # Note: 'job_id' is a reserved parameter in frappe.enqueue, so we use 'upload_id' instead
         frappe.enqueue(
-            method="careverse_hq.api.bulk_health_worker_onboarding.process_bulk_upload",
+            method="healthpro_erp.api.bulk_health_worker_onboarding.process_bulk_upload",
             queue="long",
-            timeout=3600,  # 1 hour
+            timeout=3600,
             job_name=f"bulk_hw_upload_{parent_doc.name}",
             enqueue_after_commit=True,
-            upload_id=parent_doc.name,  # Renamed from job_id to avoid conflict
+            upload_id=parent_doc.name,
         )
+
+        frappe.db.commit()
 
         return api_response(
             success=True,
@@ -329,7 +291,7 @@ def get_bulk_records_by_facility(**kwargs):
                 "health_professional_id",
                 "facility_affiliation_id",
             ],
-            order_by="parent desc, `row_number` asc",  # Escaped because row_number is a SQL reserved keyword
+            order_by="parent desc, row_number asc",
             limit_start=offset,
             limit_page_length=per_page,
         )
@@ -431,7 +393,7 @@ def get_bulk_records_by_job(**kwargs):
                 "health_professional_id",
                 "facility_affiliation_id",
             ],
-            order_by="`row_number` asc",  # Escaped because row_number is a SQL reserved keyword
+            order_by="row_number asc",
             limit_start=offset,
             limit_page_length=per_page,
         )
@@ -754,458 +716,34 @@ def get_bulk_upload_job_details(job_id):
             status_code=500
         )
 
-
-# ============================================================================
-# BACKGROUND PROCESSING FUNCTION
-# ============================================================================
-
-
-def process_bulk_upload(upload_id):
-    """
-    Background job to process bulk health worker upload
-
-    This function:
-    1. Fetches all pending records for the job
-    2. For each record:
-       - Verifies with HWR
-       - Creates Health Professional (if verified)
-       - Creates Facility Affiliation
-       - Updates record status
-       - Commits after each record
-    3. Updates parent job status when complete
-
-    Args:
-        upload_id (str): Bulk Health Worker Upload document name
-    """
-    logger = frappe.logger("careverse_hq.bulk_upload")
-    logger.info("Bulk upload job started: %s", upload_id)
-    try:
-        parent_doc = frappe.get_doc("Bulk Health Worker Upload", upload_id)
-
-        # Update status to Processing
-        # IMPORTANT: Use db.set_value instead of save() to avoid reloading child table
-        frappe.db.set_value(
-            "Bulk Health Worker Upload",
-            upload_id,
-            {
-                "status": "Processing",
-                "started_at": datetime.now(),
-            },
-        )
-        frappe.db.commit()
-
-        # Get all child records
-        child_records = frappe.get_list(
-            "Bulk Health Worker Upload Item",
-            filters={"parent": upload_id},
-            fields=[
-                "name",
-                "identification_type",
-                "identification_number",
-                "registration_number",
-                "regulator",
-                "fid",
-                "employment_type",
-                "designation",
-                "start_date",
-                "end_date",
-                "requested_by",
-            ],
-            order_by="`row_number` asc",  # Escaped because row_number is a SQL reserved keyword
-            limit_page_length=0,
-        )
-
-        # Process each record sequentially
-        for record in child_records:
-            _process_single_record(record, parent_doc.facility)
-
-        # Update parent status to Completed
-        # IMPORTANT: Use db.set_value instead of save() to avoid reloading child table
-        # which would overwrite the child records we just updated
-        frappe.db.set_value(
-            "Bulk Health Worker Upload",
-            upload_id,
-            {
-                "status": "Completed",
-                "completed_at": datetime.now(),
-            },
-        )
-        frappe.db.commit()
-
-        logger.info("Bulk upload job completed: %s", upload_id)
-
-    except Exception:
-        logger.exception("process_bulk_upload failed for job %s", upload_id)
-        frappe.log_error(
-            title=f"Bulk upload failed: {upload_id}",
-            message=frappe.get_traceback(),
-        )
-
-        # Update parent status to Failed
-        try:
-            # IMPORTANT: Use db.set_value instead of save() to avoid reloading child table
-            frappe.db.set_value(
-                "Bulk Health Worker Upload",
-                upload_id,
-                {
-                    "status": "Failed",
-                    "completed_at": datetime.now(),
-                },
-            )
-            frappe.db.commit()
-        except:
-            pass
-
-
-def _process_single_record(record, facility_name):
-    """
-    Process a single bulk upload record
-
-    Args:
-        record (dict): Child record data
-        facility_name (str): Health Facility document name
-    """
-    try:
-        frappe.log_error(
-            "Bulk Upload Single Record",
-            f"Processing single record: {record['name']}",
-        )
-        child_doc = frappe.get_doc("Bulk Health Worker Upload Item", record["name"])
-
-        # Skip records that are already successfully processed
-        if child_doc.onboarding_status == "Success":
-            frappe.log_error(
-                "Bulk Upload Skip Record",
-                f"Skipping already processed record: {record['name']}",
-            )
-            return
-
-        # Step 1: Verify with HWR
-        hwr_data, error = _verify_with_hwr(
-            record["identification_type"], record["identification_number"]
-        )
-        frappe.log_error(
-            "Bulk Upload Verification Result",
-            f"Verification result for {record['name']}: hwr_data={hwr_data}, error={error}",
-        )
-
-        if error or not hwr_data:
-            child_doc.verification_status = "Failed"
-            child_doc.verification_error = (
-                error.get("message", "Unknown error") if error else "No data returned"
-            )
-            child_doc.onboarding_status = "Failed"
-            child_doc.save(ignore_permissions=True)
-            frappe.db.commit()
-            return
-
-        # Verification successful
-        frappe.log_error(
-            "Bulk Upload Step: Setting verification_status to Verified",
-            f"Record {record['name']}: Setting verification_status to Verified",
-        )
-        child_doc.verification_status = "Verified"
-        child_doc.save(ignore_permissions=True)
-        frappe.log_error(
-            "Bulk Upload Step: Saved verification status, committing",
-            f"Record {record['name']}: Saved verification status, committing...",
-        )
-        frappe.db.commit()
-        frappe.log_error(
-            "Bulk Upload Step: Committed. Proceeding to create HP",
-            f"Record {record['name']}: Committed. Proceeding to create HP...",
-        )
-
-        # Step 2: Create Health Professional
-        hp_name = _create_health_professional(hwr_data)
-
-        if not hp_name:
-            child_doc.onboarding_status = "Failed"
-            child_doc.onboarding_error = "Failed to create Health Professional record"
-            child_doc.save(ignore_permissions=True)
-            frappe.db.commit()
-            return
-
-        child_doc.health_professional_id = hp_name
-        child_doc.save(ignore_permissions=True)
-        frappe.db.commit()
-
-        # Step 3: Create Facility Affiliation
-        employment_details = {
-            "fid": facility_name,  # Use facility name, not FID
-            "employment_type": record.get("employment_type"),
-            "designation": record.get("designation"),
-            "start_date": record.get("start_date"),
-            "end_date": record.get("end_date"),
-        }
-
-        # Pass requested_by directly to the internal function (no need to set_user in background jobs)
-        affiliation_result = _create_facility_affiliation(
-            hp_name, employment_details, requested_by=record.get("requested_by")
-        )
-
-        if affiliation_result.get("error"):
-            child_doc.onboarding_status = "Failed"
-            child_doc.onboarding_error = affiliation_result.get(
-                "message", "Unknown error"
-            )
-            child_doc.save(ignore_permissions=True)
-            frappe.db.commit()
-            return
-
-        # Success
-        child_doc.onboarding_status = "Success"
-        child_doc.facility_affiliation_id = affiliation_result.get("name")
-        child_doc.save(ignore_permissions=True)
-        frappe.db.commit()
-
-    except Exception as e:
-        frappe.log_error(
-            f"_process_single_record failed for {record['name']}",
-            frappe.get_traceback(),
-        )
-        try:
-            child_doc = frappe.get_doc("Bulk Health Worker Upload Item", record["name"])
-            child_doc.onboarding_status = "Failed"
-            child_doc.onboarding_error = str(e)
-            child_doc.save(ignore_permissions=True)
-            frappe.db.commit()
-        except:
-            pass
-
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-
 def _parse_records_input(records_input):
     """
-    Parse CSV or JSON input into list of record dictionaries
+    Parse the request payload into a list of record dictionaries.
 
     Args:
-        records_input: CSV string or JSON array
+        records_input: JSON array or JSON-stringified array
 
     Returns:
         list: List of record dictionaries
     """
-    # CSV parsing expectations:
-    # - CSV has header row
-    # - Mandatory columns: identification_type, identification_number, employment_type, designation, start_date, end_date
-    # - Optional columns: registration_number, regulator
-
     if not records_input:
         return []
 
-    # Try to parse as JSON first
     if isinstance(records_input, list):
         return records_input
 
     if isinstance(records_input, str):
-        # Try JSON
         try:
             parsed = json.loads(records_input)
             if isinstance(parsed, list):
                 return parsed
-        except:
-            pass
-
-        # Try CSV
-        try:
-            csv_file = io.StringIO(records_input)
-            reader = csv.DictReader(csv_file)
-            records = []
-            for row in reader:
-                # Clean up the row data
-                cleaned_row = {
-                    k.strip(): v.strip() if v else None for k, v in row.items()
-                }
-                records.append(cleaned_row)
-            return records
         except Exception as e:
             frappe.log_error(
-                "Bulk Upload CSV Parse Error",
-                f"CSV parsing error: {str(e)}",
+                "Bulk Upload JSON Parse Error",
+                f"JSON parsing error: {str(e)}",
             )
-            return []
 
     return []
-
-
-def _validate_record(record, row_number):
-    """
-    Validate a single record
-
-    Args:
-        record (dict): Record data
-        row_number (int): Row number for error messages
-
-    Returns:
-        list: List of error messages (empty if valid)
-    """
-    errors = []
-
-    # Check mandatory fields
-    mandatory_fields = [
-        "identification_type",
-        "identification_number",
-        "employment_type",
-        "designation",
-        "start_date",
-        # "end_date",
-    ]
-
-    for field in mandatory_fields:
-        if not record.get(field):
-            errors.append(f"Row {row_number}: Missing required field '{field}'")
-
-    # Validate employment_type against allowed values
-    if record.get("employment_type"):
-        allowed_employment_types = [
-            "Full-time Employee",
-            "Part-time Employee",
-            "Consultant",
-            "Locum/Temporary",
-            "Volunteer",
-            "Intern/Resident",
-            "Contracted",
-        ]
-
-        employment_type = record.get("employment_type").strip()
-
-        if employment_type not in allowed_employment_types:
-            errors.append(
-                f"Row {row_number}: Invalid employment_type '{employment_type}'. "
-                f"Allowed values: {', '.join(allowed_employment_types)}"
-            )
-
-    # Validate regulator against allowed values (optional field)
-    if record.get("regulator"):
-        regulator = record.get("regulator").strip()
-
-        allowed_regulators = {
-            "KMPDC": "Kenya Medical Practitioners and Dentists Council",
-            "NCK": "Nursing Council of Kenya",
-            "PPB": "Pharmacy and Poisons Board",
-            "COC": "Clinical Officers Council",
-        }
-
-        # Check if the regulator matches either an abbreviation or full name (case-insensitive)
-        valid_abbreviations = list(allowed_regulators.keys())
-        valid_full_names = list(allowed_regulators.values())
-
-        # Case-insensitive comparison
-        is_valid = False
-        for abbr in valid_abbreviations:
-            if regulator.upper() == abbr.upper():
-                is_valid = True
-                break
-
-        if not is_valid:
-            for full_name in valid_full_names:
-                if regulator.lower() == full_name.lower():
-                    is_valid = True
-                    break
-
-        if not is_valid:
-            errors.append(
-                f"Row {row_number}: Invalid regulator '{regulator}'. "
-                f"Allowed abbreviations: {', '.join(valid_abbreviations)} "
-                f"or their full names: {', '.join(valid_full_names)}"
-            )
-
-    return errors
-
-
-def _verify_with_hwr(identification_type, identification_number):
-    """
-    Verify health worker with HWR API
-
-    Args:
-        identification_type (str): Type of identification (e.g., 'National ID')
-        identification_number (str): Identification number
-
-    Returns:
-        tuple: (hwr_data, error)
-    """
-    try:
-        from healthpro_erp.api.utils import fetch_hwr_practitioner
-    except ImportError:
-        return None, {"message": "HWR verification unavailable (healthpro_erp not installed)"}
-
-    try:
-        # Call HWR API using identification details
-        hwr_data, error = fetch_hwr_practitioner(
-            identification_type=identification_type,
-            identification_number=identification_number,
-        )
-        return hwr_data, error
-    except Exception as e:
-        frappe.log_error(
-            "Bulk Upload HWR Error",
-            f"HWR verification error: {str(e)}\n\nFull Traceback:\n{frappe.get_traceback()}",
-        )
-        return None, {"message": str(e), "status_code": 500}
-
-
-def _create_health_professional(hwr_data):
-    """
-    Create Health Professional record from HWR data
-
-    Args:
-        hwr_data (dict): HWR practitioner data
-
-    Returns:
-        str: Health Professional document name, or None if failed
-    """
-    try:
-        frappe.log_error(
-            "Bulk Upload HP Creation",
-            f"Creating Health Professional from HWR data: {hwr_data}",
-        )
-        hp_doc = frappe.new_doc("Health Professional")
-        hp_name = hp_doc.create_hp_from_hwr_data(hwr_data)
-        return hp_name
-    except Exception as e:
-        frappe.log_error(
-            "Bulk Upload HP Creation Error",
-            f"Health Professional creation error: {str(e)}\n\nFull Traceback:\n{frappe.get_traceback()}",
-        )
-        return None
-
-
-def _create_facility_affiliation(hp_name, employment_details, requested_by=None):
-    """
-    Create Facility Affiliation record (for background job use).
-
-    Uses the internal function without auth decorator to avoid HTTP request context issues.
-
-    Args:
-        hp_name (str): Health Professional document name
-        employment_details (dict): Employment details
-        requested_by (str): User who requested the affiliation (for background jobs)
-
-    Returns:
-        dict: Result with 'success' or 'error' key
-    """
-    from .health_worker_onboarding import _create_facility_affiliation_record_internal
-
-    try:
-        # Use internal function to bypass auth decorator (no HTTP context in background jobs)
-        result = _create_facility_affiliation_record_internal(
-            hp_name,
-            employment_details,
-            requested_by=requested_by,
-            ignore_permissions=True,  # Background jobs need to bypass permission checks
-        )
-        return result
-    except Exception as e:
-        traceback_str = frappe.get_traceback()
-        frappe.log_error(
-            "Bulk Upload Affiliation Error",
-            f"hp_name={hp_name}\nemployment_details={employment_details}\nrequested_by={requested_by}\n\nError: {str(e)}\n\nTraceback:\n{traceback_str}",
-        )
-        return {"error": True, "message": str(e)}
 
 
 def _calculate_summary_metrics(facility_name=None, job_id=None):

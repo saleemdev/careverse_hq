@@ -10,6 +10,7 @@ import {
     Row,
     Col,
     Breadcrumb,
+    Alert,
     Spin,
     Input,
     Tooltip,
@@ -147,9 +148,13 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
         fetchJobDetails();
     }, [fetchJobDetails]);
 
-    // Auto-refresh every 10 seconds when processing
+    // Auto-refresh every 10 seconds while the job is queued or processing
     useEffect(() => {
-        if (!autoRefresh || !job || job.status === 'Completed' || job.status === 'Failed') {
+        if (
+            !autoRefresh ||
+            !job ||
+            (job.status !== 'Queued' && job.status !== 'Processing')
+        ) {
             return;
         }
 
@@ -343,6 +348,7 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
 
     const progress = getProgress();
     const filteredItems = getFilteredItems();
+    const isQueuedForProcessing = job?.status === 'Queued' && progress.total > 0 && progress.processed === 0;
 
     // Loading state
     if (loading && !job) {
@@ -450,7 +456,7 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
                             </Tag>
                         </Space>
                         <Space>
-                            {autoRefresh && job.status === 'Processing' && (
+                            {autoRefresh && (job.status === 'Queued' || job.status === 'Processing') && (
                                 <Text type="secondary" style={{ fontSize: 12 }}>
                                     <SyncOutlined spin /> Auto-refreshing...
                                 </Text>
@@ -523,10 +529,20 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
                         )}
                     </Row>
 
+                    {isQueuedForProcessing && (
+                        <Alert
+                            style={{ marginTop: 20 }}
+                            type="info"
+                            showIcon
+                            message="Queued for processing"
+                            description="This upload is waiting for background processing to start."
+                        />
+                    )}
+
                     {/* Progress Section */}
                     <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${token.colorBorder}` }}>
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                            <Text type="secondary" style={{ fontSize: 12 }}>Processing Progress</Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Processing Status</Text>
                             <Progress
                                 percent={progress.percentage}
                                 status={getProgressStatus()}
@@ -536,7 +552,9 @@ const BulkUploadDetailView: React.FC<BulkUploadDetailViewProps> = ({ jobId, navi
                                 }}
                             />
                             <Text style={{ fontSize: 13 }}>
-                                {progress.processed} of {progress.total} records processed ({progress.percentage}%)
+                                {isQueuedForProcessing
+                                    ? `${progress.total} record(s) saved and waiting for background processing.`
+                                    : `${progress.processed} of ${progress.total} records processed (${progress.percentage}%)`}
                             </Text>
                         </Space>
                     </div>

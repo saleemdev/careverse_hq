@@ -1142,7 +1142,8 @@ export const mockData = {
 export const bulkUploadApi = {
     /**
      * Submit bulk health worker records via canonical backend API.
-     * Uses facility_fid (Health Facility hie_id) and enqueues background processing.
+     * Uses facility_fid (Health Facility hie_id), saves the upload in HQ,
+     * then hands processing off to healthpro_erp.
      */
     createUpload: async (args: {
         facility_fid: string;

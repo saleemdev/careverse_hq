@@ -4,6 +4,7 @@ import type {
   PublicJobDetail,
   PublicJobFilters,
   PublicJobsListItem,
+  PublicRegulatorOption,
 } from './types';
 
 const API_BASE = '/api/method/careverse_hq.api.public_jobs';
@@ -124,5 +125,17 @@ export const publicJobsApi = {
     const envelope = normalizeEnvelope<{ applicant_id?: string }>(await parseJsonSafe(response));
     const valid = ensureSuccess(response, envelope, 'Failed to submit application');
     return valid.data || {};
+  },
+
+  async getRegulatorOptions(): Promise<PublicRegulatorOption[]> {
+    const response = await fetch(API_BASE + '.get_public_regulator_options', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    });
+
+    const envelope = normalizeEnvelope<{ regulators?: PublicRegulatorOption[] }>(await parseJsonSafe(response));
+    const valid = ensureSuccess(response, envelope, 'Failed to load regulator options');
+    return Array.isArray(valid.data?.regulators) ? valid.data.regulators : [];
   },
 };

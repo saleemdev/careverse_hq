@@ -14,7 +14,8 @@ import {
     Statistic,
     Select,
     theme,
-    Breadcrumb
+    Breadcrumb,
+    Tag
 } from 'antd';
 import {
     UploadOutlined,
@@ -33,11 +34,17 @@ import { useResponsive } from '../../hooks/useResponsive';
 import { bulkUploadApi } from '../../services/api';
 import { getCsrfToken } from '../../utils/csrf';
 import {
+    BULK_UPLOAD_FIELD_GUIDE,
     validateBulkUploadRecords,
     normalizeRecordsForSubmit,
     type CSVRecord,
     ALLOWED_EMPLOYMENT_TYPES,
 } from '../../utils/bulkUploadCsv';
+import {
+    downloadBulkUploadCsvTemplate,
+    downloadBulkUploadExcelTemplate,
+    parseBulkUploadWorkbook,
+} from '../../utils/bulkUploadSpreadsheet';
 
 const { Title, Text } = Typography;
 const { Step } = Steps;
@@ -60,6 +67,8 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
     const [facilitiesLoading, setFacilitiesLoading] = useState(false);
     const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
     const selectedFacility = facilities.find((f) => f.hie_id === selectedFacilityId) ?? null;
+    const requiredFields = BULK_UPLOAD_FIELD_GUIDE.filter((field) => field.required);
+    const optionalFields = BULK_UPLOAD_FIELD_GUIDE.filter((field) => !field.required);
 
     useEffect(() => {
         setFacilitiesLoading(true);
@@ -85,75 +94,71 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
         boxShadow: '0 4px 10px rgba(22, 119, 255, 0.2)'
     };
 
-    // Generate CSV template
-    const generateCSVTemplate = () => {
-        const headers = [
-            'identification_type',
-            'identification_number',
-            'registration_number',
-            'regulator',
-            'employment_type',
-            'designation',
-            'start_date',
-            'end_date'
-        ];
-
-        const exampleRow = [
-            'National ID',
-            '12345678',
-            'A12345',
-            'NCK',
-            ALLOWED_EMPLOYMENT_TYPES[0],
-            'Nurse',
-            '2025-03-01',
-            '2026-03-01'
-        ];
-
-        const csv = [headers.join(','), exampleRow.join(',')].join('\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `affiliation_template_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
+    const generateCsvTemplate = useCallback(() => {
+        downloadBulkUploadCsvTemplate();
         message.success('CSV template downloaded successfully');
-    };
+    }, []);
 
-    // Handle file upload
-    const handleFileUpload = useCallback((file: RcFile) => {
-        const reader = new FileReader();
+    const generateExcelTemplate = useCallback(async () => {
+        try {
+            await downloadBulkUploadExcelTemplate();
+            message.success('Excel template downloaded successfully');
+        } catch (error: any) {
+            message.error(error?.message || 'Failed to generate Excel template');
+        }
+    }, []);
 
-        reader.onload = (e) => {
-            const text = e.target?.result as string;
+    const applyParsedRecords = useCallback((records: Record<string, unknown>[]) => {
+        const errors = validateBulkUploadRecords(records);
 
-            Papa.parse(text, {
-                header: true,
-                skipEmptyLines: true,
-                transformHeader: (h: string) => h.trim(),
-                complete: (results) => {
-                    const records = (results.data || []) as Record<string, unknown>[];
-                    const errors = validateBulkUploadRecords(records);
+        if (errors.length > 0) {
+            setValidationErrors(errors);
+            setCsvRecords([]);
+            message.error('Spreadsheet validation failed');
+            return;
+        }
 
-                    if (errors.length > 0) {
-                        setValidationErrors(errors);
-                        setCsvRecords([]);
-                        message.error('CSV validation failed');
-                    } else {
-                        setCsvRecords(normalizeRecordsForSubmit(records));
-                        setValidationErrors([]);
-                        message.success(`Successfully parsed ${records.length} records`);
-                    }
-                }
+        setCsvRecords(normalizeRecordsForSubmit(records));
+        setValidationErrors([]);
+        message.success(`Validated ${records.length} records successfully`);
+    }, []);
+
+    // Handle CSV or Excel upload
+    const handleFileUpload = useCallback(async (file: RcFile) => {
+        try {
+            if (file.name.toLowerCase().endsWith('.xlsx')) {
+                const records = await parseBulkUploadWorkbook(file as File);
+                applyParsedRecords(records);
+                return false;
+            }
+
+            const text = await file.text();
+            await new Promise<void>((resolve, reject) => {
+                Papa.parse(text, {
+                    header: true,
+                    comments: '#',
+                    skipEmptyLines: 'greedy',
+                    transformHeader: (header: string) => header.trim(),
+                    complete: (results) => {
+                        try {
+                            applyParsedRecords((results.data || []) as Record<string, unknown>[]);
+                            resolve();
+                        } catch (error) {
+                            reject(error);
+                        }
+                    },
+                    error: (error) => reject(error),
+                });
             });
-        };
-
-        reader.readAsText(file);
+        } catch (error: any) {
+            const errorMessage = error?.message || 'Failed to parse the selected file';
+            setValidationErrors([errorMessage]);
+            setCsvRecords([]);
+            message.error(errorMessage);
+        }
 
         return false; // Prevent auto upload
-    }, []);
+    }, [applyParsedRecords]);
 
     // Submit bulk upload (canonical API; duplicate submit guarded)
     const handleSubmit = async () => {
@@ -163,7 +168,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
             return;
         }
         if (csvRecords.length === 0) {
-            message.error('Please upload a valid CSV file');
+            message.error('Please upload a valid CSV or Excel file');
             return;
         }
 
@@ -189,7 +194,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                 return;
             }
 
-            message.success('Bulk upload submitted successfully!');
+            message.success('Upload queued successfully.');
             navigateToRoute('bulk-upload/status', jobId);
         } catch (error: any) {
             console.error('Bulk upload error:', error);
@@ -242,7 +247,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
     // Render step content
     const renderStepContent = () => {
         switch (currentStep) {
-            case 0: // Select Facility + Upload CSV
+            case 0: // Select Facility + Upload File
                 return (
                     <Row gutter={[16, 16]}>
                         <Col xs={24}>
@@ -278,31 +283,100 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             >
                                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                     <Alert
-                                        message="Use the official template to ensure correct column headers."
+                                        message="Use the official template so required columns and formatting stay intact."
                                         type="info"
                                         showIcon
                                         style={{ borderRadius: 8 }}
                                     />
-                                    <ul style={{ margin: 0, paddingLeft: 18, color: token.colorTextSecondary, fontSize: 13 }}>
-                                        <li>Fill all required columns</li>
-                                        <li>employment_type: e.g. {ALLOWED_EMPLOYMENT_TYPES.slice(0, 3).join(', ')}</li>
-                                        <li>Dates in YYYY-MM-DD format</li>
-                                    </ul>
-                                    <Button
-                                        icon={<DownloadOutlined />}
-                                        onClick={generateCSVTemplate}
-                                        type="primary"
-                                        style={primaryCtaStyle}
-                                        block
+                                    <div
+                                        style={{
+                                            padding: 14,
+                                            borderRadius: 12,
+                                            background: 'linear-gradient(145deg, rgba(22, 119, 255, 0.08), rgba(22, 119, 255, 0.02))',
+                                            border: `1px solid ${token.colorPrimaryBorder}`,
+                                        }}
                                     >
-                                        Download CSV Template
-                                    </Button>
+                                        <Text strong style={{ display: 'block', marginBottom: 10 }}>
+                                            Required columns
+                                        </Text>
+                                        <Space size={[6, 8]} wrap>
+                                            {requiredFields.map((field) => (
+                                                <Tag
+                                                    key={field.key}
+                                                    color="blue"
+                                                    style={{ marginInlineEnd: 0, borderRadius: 999 }}
+                                                >
+                                                    {field.key}
+                                                </Tag>
+                                            ))}
+                                        </Space>
+                                        <Text type="secondary" style={{ display: 'block', marginTop: 10, fontSize: 12 }}>
+                                            Optional columns: {optionalFields.map((field) => field.key).join(', ')}
+                                        </Text>
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            display: 'grid',
+                                            gap: 10,
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                padding: '10px 12px',
+                                                borderRadius: 10,
+                                                border: `1px solid ${token.colorBorderSecondary}`,
+                                                background: token.colorBgContainer,
+                                            }}
+                                        >
+                                            <Text strong style={{ display: 'block', marginBottom: 4 }}>
+                                                Employment type
+                                            </Text>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                                Use exact values such as {ALLOWED_EMPLOYMENT_TYPES.slice(0, 3).join(', ')}.
+                                            </Text>
+                                        </div>
+                                        <div
+                                            style={{
+                                                padding: '10px 12px',
+                                                borderRadius: 10,
+                                                border: `1px solid ${token.colorBorderSecondary}`,
+                                                background: token.colorBgContainer,
+                                            }}
+                                        >
+                                            <Text strong style={{ display: 'block', marginBottom: 4 }}>
+                                                Date format
+                                            </Text>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                                `start_date` and `end_date` must use YYYY-MM-DD.
+                                            </Text>
+                                        </div>
+                                    </div>
+
+                                    <Space direction={isMobile ? 'vertical' : 'horizontal'} style={{ width: '100%' }}>
+                                        <Button
+                                            icon={<FileExcelOutlined />}
+                                            onClick={generateExcelTemplate}
+                                            type="primary"
+                                            style={primaryCtaStyle}
+                                            block={isMobile}
+                                        >
+                                            Download Excel Template
+                                        </Button>
+                                        <Button
+                                            icon={<DownloadOutlined />}
+                                            onClick={generateCsvTemplate}
+                                            block={isMobile}
+                                        >
+                                            Download CSV Template
+                                        </Button>
+                                    </Space>
                                 </Space>
                             </Card>
                         </Col>
                         <Col xs={24} lg={15}>
                             <Card
-                                title={<Space><CloudUploadOutlined />Upload CSV</Space>}
+                                title={<Space><CloudUploadOutlined />Upload File</Space>}
                                 size="small"
                                 style={{
                                     borderRadius: 12,
@@ -313,17 +387,17 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                             >
                                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                                     <Text type="secondary">
-                                        Select a prepared CSV file. Validation runs immediately after selection.
+                                        Upload a prepared CSV file or the Excel template. Validation runs immediately after selection.
                                     </Text>
                                     <Upload
-                                        accept=".csv"
+                                        accept=".csv,.xlsx"
                                         maxCount={1}
                                         beforeUpload={handleFileUpload}
                                         fileList={csvFile ? [csvFile] : []}
                                         onChange={(info) => setCsvFile(info.fileList[0] || null)}
                                     >
                                         <Button icon={<UploadOutlined />} type="primary" style={primaryCtaStyle} size="large">
-                                            Select CSV File
+                                            Select CSV or Excel File
                                         </Button>
                                     </Upload>
 
@@ -471,7 +545,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                         Bulk Facility Affiliation Upload
                     </Title>
                     <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13 }}>
-                        Upload multiple health worker affiliations at once using a CSV file
+                        Upload multiple health worker affiliations at once using the CSV or Excel template
                     </Text>
                 </div>
 
@@ -482,7 +556,7 @@ const BulkUploadPage: React.FC<BulkUploadPageProps> = ({ navigateToRoute }) => {
                     style={{ marginBottom: 16 }}
                     responsive
                 >
-                    <Step title="Upload CSV" description={isTablet ? undefined : "Select and validate file"} />
+                    <Step title="Upload File" description={isTablet ? undefined : "Select and validate file"} />
                     <Step title="Review & Submit" description={isTablet ? undefined : "Verify data and submit"} />
                 </Steps>
 

@@ -3,12 +3,47 @@
  * Aligns with backend: careverse_hq.api.bulk_health_worker_onboarding (required columns, employment_type, regulator, date format).
  */
 
+export type BulkUploadFieldKey =
+    | 'identification_type'
+    | 'identification_number'
+    | 'registration_number'
+    | 'regulator'
+    | 'employment_type'
+    | 'designation'
+    | 'start_date'
+    | 'end_date';
+
+export interface CSVRecord {
+    identification_type: string;
+    identification_number: string;
+    registration_number?: string;
+    regulator?: string;
+    employment_type: string;
+    designation: string;
+    start_date: string;
+    end_date?: string;
+}
+
+export interface BulkUploadFieldDefinition {
+    key: BulkUploadFieldKey;
+    label: string;
+    required: boolean;
+    example: string;
+    description: string;
+}
+
 export const REQUIRED_CSV_COLUMNS = [
     'identification_type',
     'identification_number',
     'employment_type',
     'designation',
     'start_date',
+] as const;
+
+export const OPTIONAL_CSV_COLUMNS = [
+    'registration_number',
+    'regulator',
+    'end_date',
 ] as const;
 
 export const ALLOWED_EMPLOYMENT_TYPES = [
@@ -28,18 +63,66 @@ export const ALLOWED_REGULATORS: Record<string, string> = {
     COC: 'Clinical Officers Council',
 };
 
-const DATE_YYYY_MM_DD = /^\d{4}-\d{2}-\d{2}$/;
+export const BULK_UPLOAD_FIELD_GUIDE = [
+    {
+        key: 'identification_type',
+        label: 'Identification Type',
+        required: true,
+        example: 'National ID',
+        description: 'The identification document type used for the worker.',
+    },
+    {
+        key: 'identification_number',
+        label: 'Identification Number',
+        required: true,
+        example: '12345678',
+        description: 'The worker identifier that will be used during verification.',
+    },
+    {
+        key: 'registration_number',
+        label: 'Registration Number',
+        required: false,
+        example: 'A12345',
+        description: 'Professional council registration number when available.',
+    },
+    {
+        key: 'regulator',
+        label: 'Regulator',
+        required: false,
+        example: 'NCK',
+        description: `Optional regulator abbreviation. Allowed: ${Object.keys(ALLOWED_REGULATORS).join(', ')}`,
+    },
+    {
+        key: 'employment_type',
+        label: 'Employment Type',
+        required: true,
+        example: ALLOWED_EMPLOYMENT_TYPES[0],
+        description: 'Must match one of the supported employment types exactly.',
+    },
+    {
+        key: 'designation',
+        label: 'Designation',
+        required: true,
+        example: 'Nurse',
+        description: 'The role or professional designation at the facility.',
+    },
+    {
+        key: 'start_date',
+        label: 'Start Date',
+        required: true,
+        example: '2025-03-01',
+        description: 'Use ISO date format: YYYY-MM-DD.',
+    },
+    {
+        key: 'end_date',
+        label: 'End Date',
+        required: false,
+        example: '2026-03-01',
+        description: 'Optional. Leave blank for open-ended affiliations.',
+    },
+] as const satisfies readonly BulkUploadFieldDefinition[];
 
-export interface CSVRecord {
-    identification_type: string;
-    identification_number: string;
-    registration_number?: string;
-    regulator?: string;
-    employment_type: string;
-    designation: string;
-    start_date: string;
-    end_date?: string;
-}
+const DATE_YYYY_MM_DD = /^\d{4}-\d{2}-\d{2}$/;
 
 function trimRecord(record: Record<string, unknown>): Record<string, string> {
     const out: Record<string, string> = {};

@@ -222,6 +222,7 @@ ignore_csrf = [
 	"careverse_hq.api.public_jobs.get_public_jobs",
 	"careverse_hq.api.public_jobs.get_public_job_detail",
 	"careverse_hq.api.public_jobs.get_job_filter_options",
+	"careverse_hq.api.public_jobs.get_public_regulator_options",
 	"careverse_hq.api.public_jobs.submit_application",
 ]
 

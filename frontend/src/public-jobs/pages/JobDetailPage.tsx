@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { publicJobsApi } from '../api';
 import { PublicStatePanel } from '../components/PublicStatePanel';
 import { getPublicJobsBoot } from '../boot';
-import type { PublicApplicationPayload, PublicJobDetail } from '../types';
+import type { PublicApplicationPayload, PublicJobDetail, PublicRegulatorOption } from '../types';
 import { PHONE_PATTERN, formatDate, formatSalary, getDeadlineMeta, isHttpUrl, isValidEmail, toJobSlug } from '../utils';
 
 interface ApplicationState {
@@ -12,6 +12,9 @@ interface ApplicationState {
   phone: string;
   resume_link: string;
   cover_letter: string;
+  is_health_worker: boolean;
+  registration_number: string;
+  registering_body: string;
   consent_given: boolean;
   website: string;
 }
@@ -22,6 +25,9 @@ const EMPTY_FORM: ApplicationState = {
   phone: '',
   resume_link: '',
   cover_letter: '',
+  is_health_worker: false,
+  registration_number: '',
+  registering_body: '',
   consent_given: false,
   website: '',
 };
@@ -48,6 +54,9 @@ export function JobDetailPage() {
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [reloadToken, setReloadToken] = useState<number>(0);
+  const [regulatorOptions, setRegulatorOptions] = useState<PublicRegulatorOption[]>([]);
+  const [regulatorsLoading, setRegulatorsLoading] = useState<boolean>(false);
+  const [regulatorsError, setRegulatorsError] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -90,11 +99,48 @@ export function JobDetailPage() {
     }
   }, [job]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRegulators = async () => {
+      setRegulatorsLoading(true);
+      setRegulatorsError('');
+      try {
+        const options = await publicJobsApi.getRegulatorOptions();
+        if (cancelled) return;
+        setRegulatorOptions(options);
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Failed to load regulators.';
+        setRegulatorsError(message);
+        setRegulatorOptions([]);
+      } finally {
+        if (cancelled === false) {
+          setRegulatorsLoading(false);
+        }
+      }
+    };
+
+    void loadRegulators();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const deadlineMeta = useMemo(() => getDeadlineMeta(job?.closes_on), [job?.closes_on]);
   const canApply = Boolean(job && job.status === 'Open' && deadlineMeta.closed === false);
 
   const setField = <K extends keyof ApplicationState>(key: K, value: ApplicationState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const setHealthWorker = (checked: boolean) => {
+    setForm((current) => ({
+      ...current,
+      is_health_worker: checked,
+      registration_number: checked ? current.registration_number : '',
+      registering_body: checked ? current.registering_body : '',
+    }));
   };
 
   const validateStepOne = (): boolean => {
@@ -129,6 +175,23 @@ export function JobDetailPage() {
     if (form.resume_link.trim().length > 0 && isHttpUrl(form.resume_link.trim()) === false) {
       setFormError('Resume link must start with http:// or https://');
       return false;
+    }
+
+    if (form.is_health_worker) {
+      if (form.registration_number.trim().length === 0) {
+        setFormError('Registration number is required when applying as a health worker.');
+        return false;
+      }
+
+      if (form.registering_body.trim().length === 0) {
+        setFormError('Please select your registering body.');
+        return false;
+      }
+
+      if (regulatorOptions.length === 0) {
+        setFormError('Registering body options are currently unavailable. Please try again shortly.');
+        return false;
+      }
     }
 
     if (form.consent_given === false) {
@@ -181,6 +244,9 @@ export function JobDetailPage() {
       resume_link: form.resume_link.trim() || undefined,
       cover_letter: form.cover_letter.trim() || undefined,
       consent_given: 1,
+      is_health_worker: form.is_health_worker ? 1 : 0,
+      registration_number: form.is_health_worker ? (form.registration_number.trim() || undefined) : undefined,
+      registering_body: form.is_health_worker ? (form.registering_body.trim() || undefined) : undefined,
       website: form.website.trim() || undefined,
     };
 
@@ -412,6 +478,54 @@ export function JobDetailPage() {
                           rows={4}
                         />
                       </label>
+
+                      <label className="pj-checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={form.is_health_worker}
+                          onChange={(event) => setHealthWorker(event.target.checked)}
+                        />
+                        <span>I am a health worker and want to include regulatory registration details.</span>
+                      </label>
+
+                      {form.is_health_worker ? (
+                        <div className="pj-form-group">
+                          <label>
+                            <span>Registration Number</span>
+                            <input
+                              className="pj-input"
+                              value={form.registration_number}
+                              onChange={(event) => setField('registration_number', event.target.value)}
+                              maxLength={140}
+                              required={form.is_health_worker}
+                            />
+                          </label>
+
+                          <label>
+                            <span>Registering Body</span>
+                            <select
+                              className="pj-select"
+                              value={form.registering_body}
+                              onChange={(event) => setField('registering_body', event.target.value)}
+                              required={form.is_health_worker}
+                              disabled={regulatorsLoading || regulatorOptions.length === 0}
+                            >
+                              <option value="">
+                                {regulatorsLoading ? 'Loading regulators...' : 'Select registering body'}
+                              </option>
+                              {regulatorOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.abbreviation ? `${option.label} (${option.abbreviation})` : option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          {regulatorsError ? (
+                            <div className="pj-field-help pj-field-help-error">{regulatorsError}</div>
+                          ) : null}
+                        </div>
+                      ) : null}
 
                       <label className="pj-checkbox-row">
                         <input

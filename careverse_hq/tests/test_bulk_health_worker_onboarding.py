@@ -1,10 +1,11 @@
 """
-Tests for bulk health worker onboarding API: validation and record limit.
+Tests for bulk upload handoff behavior.
 """
+
 from pathlib import Path
 import unittest
 
-from careverse_hq.api.bulk_health_worker_onboarding import _validate_record
+from careverse_hq.api.bulk_health_worker_onboarding import _parse_records_input
 
 
 def _read_bulk_upload_source() -> str:
@@ -13,88 +14,51 @@ def _read_bulk_upload_source() -> str:
     return Path(bulk_health_worker_onboarding.__file__).read_text()
 
 
-class TestValidateRecord(unittest.TestCase):
-    """Unit tests for _validate_record."""
+class TestParseRecordsInput(unittest.TestCase):
+    """Unit tests for request payload parsing."""
 
-    def test_valid_record_no_errors(self):
-        record = {
-            "identification_type": "National ID",
-            "identification_number": "12345678",
-            "employment_type": "Full-time Employee",
-            "designation": "Nurse",
-            "start_date": "2025-03-01",
-        }
-        errors = _validate_record(record, 1)
-        self.assertEqual(errors, [])
+    def test_returns_list_input_as_is(self):
+        records = [{"identification_type": "National ID", "identification_number": "12345678"}]
+        self.assertEqual(_parse_records_input(records), records)
 
-    def test_missing_required_field(self):
-        record = {
-            "identification_type": "National ID",
-            "identification_number": "12345678",
-            "employment_type": "Full-time Employee",
-            "designation": "Nurse",
-            # start_date missing
-        }
-        errors = _validate_record(record, 1)
-        self.assertIn("start_date", errors[0])
-        self.assertIn("Missing required field", errors[0])
+    def test_parses_json_string_payload(self):
+        payload = '[{"identification_type":"National ID","identification_number":"12345678"}]'
+        parsed = _parse_records_input(payload)
+        self.assertEqual(len(parsed), 1)
+        self.assertEqual(parsed[0]["identification_number"], "12345678")
 
-    def test_invalid_employment_type(self):
-        record = {
-            "identification_type": "National ID",
-            "identification_number": "12345678",
-            "employment_type": "Part-time",
-            "designation": "Nurse",
-            "start_date": "2025-03-01",
-        }
-        errors = _validate_record(record, 1)
-        self.assertTrue(any("employment_type" in e and "Invalid" in e for e in errors))
-        self.assertTrue(any("Part-time Employee" in e or "Allowed" in e for e in errors))
-
-    def test_invalid_regulator(self):
-        record = {
-            "identification_type": "National ID",
-            "identification_number": "12345678",
-            "employment_type": "Full-time Employee",
-            "designation": "Nurse",
-            "start_date": "2025-03-01",
-            "regulator": "INVALID_REG",
-        }
-        errors = _validate_record(record, 1)
-        self.assertTrue(any("regulator" in e and "Invalid" in e for e in errors))
-
-    def test_valid_regulator_abbreviation(self):
-        record = {
-            "identification_type": "National ID",
-            "identification_number": "12345678",
-            "employment_type": "Full-time Employee",
-            "designation": "Nurse",
-            "start_date": "2025-03-01",
-            "regulator": "NCK",
-        }
-        errors = _validate_record(record, 1)
-        self.assertEqual(errors, [])
-
-    def test_valid_regulator_full_name(self):
-        record = {
-            "identification_type": "National ID",
-            "identification_number": "12345678",
-            "employment_type": "Consultant",
-            "designation": "Doctor",
-            "start_date": "2025-03-01",
-            "regulator": "Nursing Council of Kenya",
-        }
-        errors = _validate_record(record, 1)
-        self.assertEqual(errors, [])
+    def test_invalid_json_returns_empty_list(self):
+        self.assertEqual(_parse_records_input("not-json"), [])
 
 
-class TestUploadRecordLimitEnforcement(unittest.TestCase):
-    """Test that the module enforces a maximum of 500 records per upload."""
+class TestHandoffContract(unittest.TestCase):
+    """Source-level checks for the HQ handoff contract."""
 
-    def test_max_records_constant_defined(self):
+    def test_upload_queues_job_and_returns_queued_message(self):
         source = _read_bulk_upload_source()
-        self.assertIn("max_records = 500", source, "Server should enforce max 500 records")
-        self.assertIn("len(records) > max_records", source, "Length check should be present")
+        section = source.split("def upload_bulk_health_workers")[1].split("def _is_legacy_uploaded_job_reader")[0]
+        self.assertIn('parent_doc.status = "Queued"', section)
+        self.assertIn('message="Bulk upload queued successfully"', section)
+        self.assertIn('status_code=202', section)
+
+    def test_upload_enqueues_healthpro_processor_only(self):
+        source = _read_bulk_upload_source()
+        self.assertIn("frappe.enqueue(", source)
+        self.assertIn('method="healthpro_erp.api.bulk_health_worker_onboarding.process_bulk_upload"', source)
+        self.assertNotIn("def process_bulk_upload", source)
+        self.assertNotIn("def _process_single_record", source)
+
+    def test_upload_does_not_run_server_side_business_validation(self):
+        source = _read_bulk_upload_source()
+        self.assertNotIn("max_records = 500", source)
+        self.assertNotIn("validation_errors", source)
+        self.assertNotIn("def _validate_record", source)
+
+    def test_upload_does_not_trigger_hwr_or_affiliation_processing(self):
+        source = _read_bulk_upload_source()
+        self.assertNotIn("def _verify_with_hwr", source)
+        self.assertNotIn("def _create_health_professional", source)
+        self.assertNotIn("def _create_facility_affiliation", source)
 
 
 class TestBulkUploadPermissionGuards(unittest.TestCase):
@@ -112,5 +76,5 @@ class TestBulkUploadPermissionGuards(unittest.TestCase):
 
     def test_job_details_endpoint_reuses_shared_access_helper(self):
         source = _read_bulk_upload_source()
-        section = source.split("def get_bulk_upload_job_details")[1].split("def process_bulk_upload")[0]
+        section = source.split("def get_bulk_upload_job_details")[1].split("def _parse_records_input")[0]
         self.assertIn("_get_job_with_read_access(job_id)", section)

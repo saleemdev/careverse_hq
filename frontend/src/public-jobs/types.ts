@@ -51,7 +51,16 @@ export interface PublicApplicationPayload {
   cover_letter?: string;
   resume_link?: string;
   consent_given: 1;
+  is_health_worker?: 0 | 1;
+  registration_number?: string;
+  registering_body?: string;
   website?: string;
+}
+
+export interface PublicRegulatorOption {
+  value: string;
+  label: string;
+  abbreviation?: string;
 }
 
 export interface PublicJobsBoot {

@@ -795,6 +795,15 @@ a {
   flex-wrap: wrap;
 }
 
+.pj-form-group {
+  display: grid;
+  gap: var(--spacing-sm);
+  border: 1px solid var(--border-color-light);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  background: color-mix(in srgb, var(--bg-primary) 85%, var(--bg-tertiary) 15%);
+}
+
 .pj-checkbox-row {
   display: flex;
   align-items: flex-start;
@@ -808,6 +817,15 @@ a {
 
 .pj-checkbox-row input {
   margin-top: 2px;
+}
+
+.pj-field-help {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.pj-field-help-error {
+  color: #b1262a;
 }
 
 .pj-hidden-input {

@@ -66,6 +66,7 @@ _MAX_EMAIL_LENGTH = 254
 _MAX_PHONE_LENGTH = 32
 _MAX_COVER_LETTER_LENGTH = 5000
 _MAX_URL_LENGTH = 2048
+_MAX_REGISTRATION_NUMBER_LENGTH = 140
 _PHONE_PATTERN = re.compile(r"^\+?[0-9][0-9\s().-]{5,31}$")
 _STANDARD_FIELDS = {
     "name",
@@ -367,6 +368,21 @@ def get_job_filter_options():
 
 
 # ---------------------------------------------------------------------------
+# Public application form options
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def get_public_regulator_options():
+    """
+    Return all available registering bodies for the public job application form.
+    """
+    return api_response(
+        success=True,
+        data={"regulators": _get_regulatory_body_options()},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Application submission
 # ---------------------------------------------------------------------------
 
@@ -380,6 +396,9 @@ def submit_application(
     resume_link=None,
     consent_given=None,
     website=None,
+    is_health_worker=None,
+    registration_number=None,
+    registering_body=None,
 ):
     """
     Submit a public job application.
@@ -393,6 +412,9 @@ def submit_application(
     cover_letter = _clean_text(cover_letter) or None
     resume_link = _clean_text(resume_link) or None
     website = _clean_text(website, 256)
+    is_health_worker = _is_truthy_flag(is_health_worker)
+    registration_number = _clean_text(registration_number)
+    registering_body = _clean_text(registering_body)
 
     # Honeypot for basic bot/spam filtering without affecting real users.
     if website:
@@ -458,6 +480,44 @@ def submit_application(
             status_code=400,
         )
 
+    if is_health_worker:
+        if not registration_number:
+            return api_response(
+                success=False,
+                message="Registration number is required when applying as a health worker.",
+                status_code=400,
+            )
+        if not registering_body:
+            return api_response(
+                success=False,
+                message="Registering body is required when applying as a health worker.",
+                status_code=400,
+            )
+        if len(registration_number) > _MAX_REGISTRATION_NUMBER_LENGTH:
+            return api_response(
+                success=False,
+                message="Registration number is too long.",
+                status_code=400,
+            )
+        if len(registering_body) > _MAX_NAME_LENGTH:
+            return api_response(
+                success=False,
+                message="Registering body value is too long.",
+                status_code=400,
+            )
+
+        normalized_body = _normalize_regulatory_body(registering_body)
+        if not normalized_body:
+            return api_response(
+                success=False,
+                message="Please select a valid registering body from the available regulators.",
+                status_code=400,
+            )
+        registering_body = normalized_body
+    else:
+        registration_number = None
+        registering_body = None
+
     retry_after = _submission_retry_after(job_opening, email_id)
     if retry_after:
         return api_response(
@@ -522,6 +582,8 @@ def submit_application(
         applicant.designation = job.designation
         applicant.status = "Open"
 
+        applicant_meta = frappe.get_meta("Job Applicant")
+
         source = _get_public_application_source()
         if source:
             applicant.source = source
@@ -536,10 +598,31 @@ def submit_application(
         if resume_link:
             applicant.resume_link = resume_link
 
+        _set_first_existing_field(
+            applicant,
+            applicant_meta,
+            ("is_health_worker",),
+            1 if is_health_worker else 0,
+        )
+
+        if is_health_worker:
+            _set_first_existing_field(
+                applicant,
+                applicant_meta,
+                ("registration_number", "regulator_registration_number"),
+                registration_number,
+            )
+            _set_first_existing_field(
+                applicant,
+                applicant_meta,
+                ("registering_body", "regulatory_body", "regulator"),
+                registering_body,
+            )
+
         # Store consent artifact
-        if frappe.get_meta("Job Applicant").has_field("consent_given"):
+        if applicant_meta.has_field("consent_given"):
             applicant.consent_given = 1
-        if frappe.get_meta("Job Applicant").has_field("consent_timestamp"):
+        if applicant_meta.has_field("consent_timestamp"):
             applicant.consent_timestamp = frappe.utils.now_datetime()
 
         applicant.flags.ignore_permissions = True
@@ -854,6 +937,97 @@ def _is_truthy_flag(value):
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "y", "on"}
     return False
+
+
+def _set_first_existing_field(doc, meta, fieldnames, value):
+    for fieldname in fieldnames:
+        if meta.has_field(fieldname):
+            doc.set(fieldname, value)
+            return fieldname
+    return None
+
+
+def _normalize_option_key(value):
+    text = _clean_text(value).lower()
+    if not text:
+        return ""
+    return " ".join(text.replace("-", " ").replace("_", " ").split())
+
+
+def _normalize_regulatory_body(value):
+    key = _normalize_option_key(value)
+    if not key:
+        return None
+
+    options = _get_regulatory_body_options()
+    lookup = {}
+    for option in options:
+        canonical = _clean_text(option.get("value"))
+        if not canonical:
+            continue
+
+        for alias in (option.get("value"), option.get("label"), option.get("abbreviation")):
+            normalized_alias = _normalize_option_key(alias)
+            if normalized_alias and normalized_alias not in lookup:
+                lookup[normalized_alias] = canonical
+
+    return lookup.get(key)
+
+
+def _get_regulatory_body_options(limit=500):
+    cache = getattr(frappe.local, "_public_jobs_regulatory_body_options", None)
+    if cache is not None:
+        return cache
+
+    if not frappe.db.exists("DocType", "Regulatory Body"):
+        frappe.local._public_jobs_regulatory_body_options = []
+        return []
+
+    try:
+        meta = frappe.get_meta("Regulatory Body")
+        fields = ["name"]
+        if meta.has_field("regulatory_body_name"):
+            fields.append("regulatory_body_name")
+        if meta.has_field("abbreviation"):
+            fields.append("abbreviation")
+
+        order_by = "name ASC"
+        if "regulatory_body_name" in fields:
+            order_by = "regulatory_body_name ASC, name ASC"
+
+        rows = frappe.get_list(
+            "Regulatory Body",
+            fields=fields,
+            order_by=order_by,
+            limit_page_length=limit,
+            ignore_permissions=True,
+        )
+    except (frappe.PermissionError, frappe.ValidationError, frappe.DoesNotExistError):
+        frappe.local._public_jobs_regulatory_body_options = []
+        return []
+
+    options = []
+    seen = set()
+    for row in rows:
+        value = _clean_text(row.get("name"))
+        if not value:
+            continue
+
+        label = _clean_text(row.get("regulatory_body_name")) or value
+        abbreviation = _clean_text(row.get("abbreviation"), 24)
+
+        key = (value, label, abbreviation)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        item = {"value": value, "label": label}
+        if abbreviation:
+            item["abbreviation"] = abbreviation
+        options.append(item)
+
+    frappe.local._public_jobs_regulatory_body_options = options
+    return options
 
 
 def _get_public_application_source():

@@ -412,6 +412,8 @@ def get_candidate_detail(name):
         "modified": applicant.modified,
     }
 
+    data.update(_get_job_applicant_registration_context(applicant))
+
     # HP linkage
     if hasattr(applicant, "health_professional"):
         data["health_professional"] = applicant.health_professional
@@ -1313,6 +1315,46 @@ def _get_job_applicant_phone_field():
 def _get_job_applicant_phone_value(applicant):
     for fieldname in ("phone_number", "phone"):
         value = getattr(applicant, fieldname, None)
+        if value:
+            return value
+    return None
+
+
+def _get_job_applicant_registration_context(applicant):
+    meta = frappe.get_meta("Job Applicant")
+    payload = {}
+
+    if meta.has_field("is_health_worker"):
+        payload["is_health_worker"] = bool(getattr(applicant, "is_health_worker", 0))
+    else:
+        payload["is_health_worker"] = False
+
+    registration_number = _first_non_empty_field_value(
+        applicant,
+        ("registration_number", "regulator_registration_number"),
+    )
+    if registration_number:
+        payload["registration_number"] = registration_number
+
+    registering_body_value = _first_non_empty_field_value(
+        applicant,
+        ("registering_body", "regulatory_body", "regulator"),
+    )
+    if registering_body_value:
+        payload["registering_body"] = registering_body_value
+        if frappe.db.exists("Regulatory Body", registering_body_value):
+            label = frappe.get_cached_value("Regulatory Body", registering_body_value, "regulatory_body_name")
+            abbreviation = frappe.get_cached_value("Regulatory Body", registering_body_value, "abbreviation")
+            payload["registering_body_label"] = label or registering_body_value
+            if abbreviation:
+                payload["registering_body_abbreviation"] = abbreviation
+
+    return payload
+
+
+def _first_non_empty_field_value(doc, fieldnames):
+    for fieldname in fieldnames:
+        value = getattr(doc, fieldname, None)
         if value:
             return value
     return None

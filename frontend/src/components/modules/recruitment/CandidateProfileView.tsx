@@ -264,6 +264,10 @@ export default function CandidateProfileView({ candidateId, navigateToRoute }: P
     const hasHpLink = !!candidate.health_professional;
     const hasAcceptedOffer = candidate.job_offers?.some((offer) => offer.status === 'Accepted');
     const canCompleteHire = hasHpLink && hasAcceptedOffer;
+    const registeringBody = candidate.registering_body_label || candidate.registering_body || '';
+    const registrationSummary = candidate.registration_number
+        ? `${candidate.registration_number}${registeringBody ? ` (${registeringBody})` : ''}`
+        : '—';
 
     return (
         <div style={{ padding: isVerySmallScreen ? 8 : (isMobile ? 12 : 24) }}>
@@ -317,6 +321,8 @@ export default function CandidateProfileView({ candidateId, navigateToRoute }: P
                     <Descriptions.Item label="Designation">{candidate.designation || '—'}</Descriptions.Item>
                     <Descriptions.Item label="Source">{candidate.source || '—'}</Descriptions.Item>
                     <Descriptions.Item label="HP Reference">{candidate.health_professional || 'Not linked'}</Descriptions.Item>
+                    <Descriptions.Item label="Health Worker">{candidate.is_health_worker ? 'Yes' : 'No'}</Descriptions.Item>
+                    <Descriptions.Item label="Registration">{candidate.is_health_worker ? registrationSummary : '—'}</Descriptions.Item>
                     <Descriptions.Item label="Applied">{candidate.creation ? new Date(candidate.creation).toLocaleDateString() : '—'}</Descriptions.Item>
                 </Descriptions>
 

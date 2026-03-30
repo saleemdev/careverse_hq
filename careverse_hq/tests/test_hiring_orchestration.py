@@ -363,6 +363,7 @@ class TestHooksConfiguration(unittest.TestCase):
         """Public job APIs must be CSRF-exempt for guest access."""
         self.assertIn("careverse_hq.api.public_jobs.get_public_jobs", self.source)
         self.assertIn("careverse_hq.api.public_jobs.get_public_job_detail", self.source)
+        self.assertIn("careverse_hq.api.public_jobs.get_public_regulator_options", self.source)
         self.assertIn("careverse_hq.api.public_jobs.submit_application", self.source)
 
     def test_scheduler_has_expiry_check(self):

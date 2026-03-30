@@ -322,7 +322,7 @@ const BulkUploadListPage: React.FC<BulkUploadListPageProps> = ({ navigateToRoute
                 </Col>
 
                 <Col xs={24} md={24} lg={8}>
-                    <Text type="secondary" style={{ fontSize: 11 }}>Processing Breakdown</Text>
+                    <Text type="secondary" style={{ fontSize: 11 }}>Record Breakdown</Text>
                     <div style={{ marginTop: 6 }}>
                         <Space wrap size={[8, 8]}>
                             <Tag color="blue">Total: {record.total_records || 0}</Tag>
