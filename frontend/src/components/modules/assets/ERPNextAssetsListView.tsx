@@ -8,6 +8,7 @@ import {
     SearchOutlined, ReloadOutlined, EnvironmentOutlined, BarcodeOutlined,
     MedicineBoxOutlined, PlusOutlined, ClockCircleOutlined, FallOutlined, UserOutlined,
 } from '@ant-design/icons';
+import { shallow } from 'zustand/shallow';
 import useERPNextAssetStore from '../../../stores/modules/erpnextAssetStore';
 import type { AssetItem } from '../../../stores/modules/erpnextAssetStore';
 import useFacilityStore from '../../../stores/facilityStore';
@@ -42,12 +43,22 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
     const { availableFacilities, loading: facilitiesLoading } = useFacilityStore();
 
     const [categories, setCategories] = useState<{ name: string; asset_category_name: string }[]>([]);
+    const [searchInput, setSearchInput] = useState('');
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const {
         assets, loading, total, statusAggregates, filters,
         fetchAssets, fetchDashboard, setFilters,
-    } = useERPNextAssetStore();
+    } = useERPNextAssetStore((state) => ({
+        assets: state.assets,
+        loading: state.loading,
+        total: state.total,
+        statusAggregates: state.statusAggregates,
+        filters: state.filters,
+        fetchAssets: state.fetchAssets,
+        fetchDashboard: state.fetchDashboard,
+        setFilters: state.setFilters,
+    }), shallow);
 
     // Fetch categories once
     useEffect(() => {
@@ -66,28 +77,59 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
         };
     }, []);
 
+    useEffect(() => {
+        setSearchInput(filters.search || '');
+    }, [filters.search]);
+
     const getFacilityIdsForFetch = useCallback(() => {
         if (filters.facilities.length > 0) return filters.facilities;
         return availableFacilities.map((f) => f.hie_id);
     }, [filters.facilities, availableFacilities]);
 
-    const handleRefresh = useCallback(() => {
+    const refreshAssets = useCallback(() => {
         const ids = getFacilityIdsForFetch();
         fetchAssets(ids);
+    }, [fetchAssets, getFacilityIdsForFetch]);
+
+    const refreshDashboard = useCallback(() => {
+        const ids = getFacilityIdsForFetch();
         fetchDashboard(ids);
-    }, [fetchAssets, fetchDashboard, getFacilityIdsForFetch]);
+    }, [fetchDashboard, getFacilityIdsForFetch]);
 
     useEffect(() => {
-        handleRefresh();
-    }, [handleRefresh, filters.status, filters.category, filters.search, filters.page, filters.pageSize, filters.facilities]);
+        refreshAssets();
+    }, [refreshAssets, filters.status, filters.category, filters.search, filters.page, filters.pageSize, filters.facilities]);
+
+    useEffect(() => {
+        refreshDashboard();
+    }, [refreshDashboard, filters.facilities]);
 
     const handleSearch = (value: string) => {
+        setSearchInput(value);
         if (searchDebounceRef.current) {
             clearTimeout(searchDebounceRef.current);
         }
         searchDebounceRef.current = setTimeout(() => {
             setFilters({ search: value });
         }, 400);
+    };
+
+    const clearPendingSearchDebounce = () => {
+        if (searchDebounceRef.current) {
+            clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = null;
+        }
+    };
+
+    const handleRefresh = () => {
+        clearPendingSearchDebounce();
+        const pendingSearch = searchInput;
+        if (pendingSearch !== filters.search) {
+            setFilters({ search: pendingSearch });
+            return;
+        }
+        refreshAssets();
+        refreshDashboard();
     };
 
     // KPI data
@@ -265,7 +307,10 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                             <Select
                                 mode="multiple"
                                 value={filters.facilities}
-                                onChange={(values) => setFilters({ facilities: values })}
+                                onChange={(values) => {
+                                    clearPendingSearchDebounce();
+                                    setFilters({ facilities: values, search: searchInput });
+                                }}
                                 placeholder="All Facilities"
                                 allowClear
                                 loading={facilitiesLoading}
@@ -292,7 +337,10 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                             {/* Status Filter */}
                             <Select
                                 value={filters.status}
-                                onChange={(val) => setFilters({ status: val })}
+                                onChange={(val) => {
+                                    clearPendingSearchDebounce();
+                                    setFilters({ status: val, search: searchInput });
+                                }}
                                 style={{ width: isMobile ? 130 : 180 }}
                                 options={ASSET_STATUSES}
                             />
@@ -300,7 +348,10 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                             {/* Category Filter */}
                             <Select
                                 value={filters.category || undefined}
-                                onChange={(val) => setFilters({ category: val || '' })}
+                                onChange={(val) => {
+                                    clearPendingSearchDebounce();
+                                    setFilters({ category: val || '', search: searchInput });
+                                }}
                                 placeholder="All Categories"
                                 allowClear
                                 style={{ width: isMobile ? 130 : 170 }}
@@ -316,7 +367,7 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                             <Input
                                 placeholder="Search assets..."
                                 prefix={<SearchOutlined style={{ color: token.colorTextPlaceholder }} />}
-                                value={filters.search}
+                                value={searchInput}
                                 onChange={(e) => handleSearch(e.target.value)}
                                 style={{
                                     width: getResponsiveValue(COMPONENT_WIDTHS.searchInput),
@@ -352,7 +403,10 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                             pageSize: filters.pageSize,
                             total,
                             showSizeChanger: true,
-                            onChange: (page, pageSize) => setFilters({ page, pageSize }),
+                            onChange: (page, pageSize) => {
+                                clearPendingSearchDebounce();
+                                setFilters({ page, pageSize, search: searchInput });
+                            },
                         }}
                         scroll={{ x: 'max-content' }}
                         size="middle"

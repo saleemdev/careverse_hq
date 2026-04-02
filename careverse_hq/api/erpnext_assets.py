@@ -30,21 +30,32 @@ from .location_sync import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _resolve_facility_locations(facility_csv: Optional[str]) -> Optional[List[str]]:
-    """Parse comma-separated facility hie_ids and resolve to Location names.
+def _get_user_facility_hie_ids() -> List[str]:
+    """Return all facility hie_ids the current user is allowed to access."""
+    return [facility_id for facility_id in frappe.get_list(
+        "Health Facility",
+        pluck="hie_id",
+        limit_page_length=0,
+    ) if facility_id]
 
-    Returns None if no facility filter provided (= show all user-accessible assets).
-    Returns empty list if user has no access to requested facilities.
+
+def _resolve_facility_locations(facility_csv: Optional[str]) -> List[str]:
+    """Resolve requested facilities (or all user facilities) to Location names.
+
+    This is intentionally fail-closed:
+    - No facility selection means "all facilities user can access"
+    - No accessible facilities yields an empty list
     """
-    if not facility_csv:
-        return None
+    facility_ids: List[str] = []
+    if facility_csv:
+        facility_ids = [f.strip() for f in facility_csv.split(",") if f.strip()]
+    else:
+        facility_ids = _get_user_facility_hie_ids()
 
-    facility_ids = [f.strip() for f in facility_csv.split(",") if f.strip()]
     if not facility_ids:
-        return None
+        return []
 
-    locations = get_locations_for_user_facilities(facility_ids)
-    return locations
+    return get_locations_for_user_facilities(facility_ids)
 
 
 def _enrich_assets_with_facility(assets: List[dict]) -> List[dict]:
@@ -119,6 +130,48 @@ def _validate_purchase_document_choice(
         )
 
 
+def _ensure_purchase_document_access(
+    doctype: str,
+    docname: Optional[str],
+    company: Optional[str],
+    item_code: Optional[str],
+) -> None:
+    if not docname:
+        return
+
+    filters: Dict[str, Any] = {"name": docname, "docstatus": 1}
+    if company:
+        filters["company"] = company
+    if doctype == "Purchase Invoice":
+        filters["update_stock"] = 1
+
+    docs = frappe.get_list(
+        doctype,
+        filters=filters,
+        fields=["name"],
+        limit_page_length=1,
+    )
+    if not docs:
+        frappe.throw(
+            _("You do not have access to {0} {1}.").format(doctype, docname),
+            frappe.PermissionError,
+        )
+
+    if item_code:
+        child_doctype = f"{doctype} Item"
+        child_rows = frappe.get_list(
+            child_doctype,
+            filters={"parent": docname, "item_code": item_code},
+            pluck="name",
+            limit_page_length=1,
+        )
+        if not child_rows:
+            frappe.throw(
+                _("{0} {1} does not contain item {2}.").format(doctype, docname, item_code),
+                frappe.ValidationError,
+            )
+
+
 def _ensure_facility_access(facility_id: Optional[str]) -> None:
     if not facility_id:
         return
@@ -136,8 +189,40 @@ def _ensure_location_access(location_name: Optional[str]) -> None:
         return
 
     facility_id = get_facility_for_location(location_name)
-    if facility_id:
-        _ensure_facility_access(facility_id)
+    if not facility_id:
+        frappe.throw(
+            _("Location {0} is not mapped to a permitted facility.").format(location_name),
+            frappe.PermissionError,
+        )
+
+    _ensure_facility_access(facility_id)
+
+
+def _ensure_location_matches_facility(location_name: Optional[str], facility_id: Optional[str]) -> None:
+    """Ensure location/facility pairing cannot be spoofed across scopes."""
+    if not location_name or not facility_id:
+        return
+
+    expected_location = get_location_for_facility(facility_id)
+    if not expected_location:
+        frappe.throw(
+            _("No Location found for facility {0}. Run location sync first.").format(facility_id),
+            frappe.ValidationError,
+        )
+    if expected_location != location_name:
+        frappe.throw(
+            _("Location {0} does not belong to facility {1}.").format(location_name, facility_id),
+            frappe.PermissionError,
+        )
+
+
+def _get_asset_doc_with_access(asset_name: str, perm_type: str = "read"):
+    """Fetch an Asset doc and enforce both DocPerm and facility/location scope."""
+    asset = frappe.get_doc("Asset", asset_name)
+    if not asset.has_permission(perm_type):
+        frappe.throw(_("Permission denied"), frappe.PermissionError)
+    _ensure_location_access(asset.location)
+    return asset
 
 
 def _parse_finance_books_payload(raw_value: Any) -> Optional[List[Dict[str, Any]]]:
@@ -240,17 +325,15 @@ def get_asset_dashboard(**kwargs):
 
     try:
         locations = _resolve_facility_locations(kwargs.get("facilities"))
+        if not locations:
+            return api_response(success=True, data={
+                "status_aggregates": {s.lower().replace(" ", "_"): 0 for s in ASSET_STATUSES},
+                "category_aggregates": [],
+                "maintenance_due_count": 0,
+                "overdue_maintenance_count": 0,
+            })
 
-        base_filters = {}
-        if locations is not None:
-            if not locations:
-                return api_response(success=True, data={
-                    "status_aggregates": {s.lower().replace(" ", "_"): 0 for s in ASSET_STATUSES},
-                    "category_aggregates": [],
-                    "maintenance_due_count": 0,
-                    "overdue_maintenance_count": 0,
-                })
-            base_filters["location"] = ["in", locations]
+        base_filters = {"location": ["in", locations]}
 
         # Status aggregates
         status_agg = {"total": 0}
@@ -335,12 +418,10 @@ def get_assets_list(**kwargs):
 
     try:
         locations = _resolve_facility_locations(kwargs.get("facilities"))
+        if not locations:
+            return api_response(success=True, data={"items": [], "total_count": 0})
 
-        filters = {}
-        if locations is not None:
-            if not locations:
-                return api_response(success=True, data={"items": [], "total_count": 0})
-            filters["location"] = ["in", locations]
+        filters = {"location": ["in", locations]}
 
         status = kwargs.get("status")
         if status:
@@ -362,15 +443,14 @@ def get_assets_list(**kwargs):
 
         # Total count
         if or_filters:
-            total_count = len(
-                frappe.get_list(
-                    "Asset",
-                    filters=filters,
-                    or_filters=or_filters,
-                    pluck="name",
-                    limit_page_length=0,
-                )
+            count_rows = frappe.get_list(
+                "Asset",
+                filters=filters,
+                or_filters=or_filters,
+                fields=["count(name) as count"],
+                limit_page_length=1,
             )
+            total_count = int((count_rows[0].get("count") if count_rows else 0) or 0)
         else:
             total_count = _count("Asset", filters)
 
@@ -450,15 +530,13 @@ def get_asset_detail(**kwargs):
         return api_response(success=False, message="asset_name is required", status_code=400)
 
     try:
-        asset = frappe.get_doc("Asset", asset_name)
+        asset = _get_asset_doc_with_access(asset_name, "read")
     except frappe.PermissionError:
         return api_response(success=False, message="Permission denied", status_code=403)
     except frappe.DoesNotExistError:
         return api_response(success=False, message="Asset not found", status_code=404)
 
     try:
-        _ensure_location_access(asset.location)
-
         result = asset.as_dict()
 
         # Facility info from Location
@@ -518,7 +596,7 @@ def get_asset_detail(**kwargs):
         )
 
         # Movements
-        movement_items = frappe.get_all(
+        movement_items = frappe.get_list(
             "Asset Movement Item",
             filters={"asset": asset_name},
             pluck="parent",
@@ -535,11 +613,11 @@ def get_asset_detail(**kwargs):
             )
             # Enrich with item details
             for mov in movements:
-                items = frappe.get_all(
+                items = frappe.get_list(
                     "Asset Movement Item",
                     filters={"parent": mov.name, "asset": asset_name},
                     fields=["source_location", "target_location", "from_employee", "to_employee"],
-                    limit=1,
+                    limit_page_length=1,
                 )
                 if items:
                     mov.update(items[0])
@@ -566,7 +644,7 @@ def get_asset_detail(**kwargs):
             )
             schedules = []
             for ds in dep_schedules:
-                entries = frappe.get_all(
+                entries = frappe.get_list(
                     "Depreciation Schedule",
                     filters={"parent": ds.name},
                     fields=[
@@ -669,8 +747,11 @@ def create_asset(**kwargs):
 
         if facility_id:
             _ensure_facility_access(facility_id)
-        else:
-            _ensure_location_access(location)
+            _ensure_location_matches_facility(location, facility_id)
+        _ensure_location_access(location)
+
+        _ensure_purchase_document_access("Purchase Receipt", purchase_receipt, company, item_code)
+        _ensure_purchase_document_access("Purchase Invoice", purchase_invoice, company, item_code)
 
         # Build asset doc
         asset_data = {
@@ -729,7 +810,7 @@ def update_asset(**kwargs):
         return api_response(success=False, message="asset_name is required", status_code=400)
 
     try:
-        doc = frappe.get_doc("Asset", asset_name)
+        doc = _get_asset_doc_with_access(asset_name, "write")
     except frappe.PermissionError:
         return api_response(success=False, message="Permission denied", status_code=403)
     except frappe.DoesNotExistError:
@@ -759,8 +840,8 @@ def update_asset(**kwargs):
 
         if facility_id:
             _ensure_facility_access(facility_id)
-        else:
-            _ensure_location_access(doc.location)
+            _ensure_location_matches_facility(doc.location, facility_id)
+        _ensure_location_access(doc.location)
 
         if "updated_asset_name" in kwargs:
             doc.asset_name = kwargs.get("updated_asset_name") or doc.asset_name
@@ -801,6 +882,8 @@ def update_asset(**kwargs):
                 else _as_optional_text(doc.purchase_invoice)
             )
         _validate_purchase_document_choice(is_existing_asset, purchase_receipt, purchase_invoice)
+        _ensure_purchase_document_access("Purchase Receipt", purchase_receipt, doc.company, doc.item_code)
+        _ensure_purchase_document_access("Purchase Invoice", purchase_invoice, doc.company, doc.item_code)
 
         doc.is_existing_asset = is_existing_asset
         doc.purchase_receipt = purchase_receipt
@@ -870,7 +953,7 @@ def submit_asset(**kwargs):
         return api_response(success=False, message="asset_name is required", status_code=400)
 
     try:
-        doc = frappe.get_doc("Asset", asset_name)
+        doc = _get_asset_doc_with_access(asset_name, "submit")
 
         if doc.docstatus != 0:
             return api_response(
@@ -883,8 +966,6 @@ def submit_asset(**kwargs):
                 message="Available-for-use Date is required before submitting",
                 status_code=400,
             )
-
-        _ensure_location_access(doc.location)
 
         doc.submit()
 
@@ -940,7 +1021,7 @@ def create_maintenance_request(**kwargs):
                 success=False, message="At least one maintenance task is required", status_code=400
             )
 
-        asset = frappe.get_doc("Asset", asset_name)
+        asset = _get_asset_doc_with_access(asset_name, "write")
 
         # Check if maintenance already exists (unique constraint)
         existing = frappe.db.exists("Asset Maintenance", {"asset_name": asset_name})
@@ -951,8 +1032,8 @@ def create_maintenance_request(**kwargs):
                 status_code=400,
             )
 
-        # Enable maintenance on asset
-        frappe.db.set_value("Asset", asset_name, "maintenance_required", 1)
+        # Enable maintenance on asset after explicit write permission check.
+        asset.db_set("maintenance_required", 1, update_modified=False)
 
         doc = frappe.get_doc({
             "doctype": "Asset Maintenance",
@@ -992,11 +1073,13 @@ def get_maintenance_schedule(**kwargs):
         return api_response(success=False, message="asset_name is required", status_code=400)
 
     try:
+        _get_asset_doc_with_access(asset_name, "read")
+
         maintenance = frappe.get_list(
             "Asset Maintenance",
             filters={"asset_name": asset_name},
             fields=["name", "maintenance_team", "maintenance_manager"],
-            limit=1,
+            limit_page_length=1,
         )
 
         result = {"maintenance": None, "tasks": [], "logs": []}
@@ -1045,6 +1128,7 @@ def complete_maintenance_log(**kwargs):
 
     try:
         doc = frappe.get_doc("Asset Maintenance Log", log_name)
+        _get_asset_doc_with_access(doc.asset_name, "read")
 
         if doc.maintenance_status not in ("Planned", "Overdue"):
             return api_response(
@@ -1103,7 +1187,7 @@ def create_repair_request(**kwargs):
         )
 
     try:
-        asset = frappe.get_doc("Asset", asset_name)
+        asset = _get_asset_doc_with_access(asset_name, "read")
 
         if asset.status in ("Sold", "Scrapped"):
             return api_response(
@@ -1157,6 +1241,7 @@ def complete_repair(**kwargs):
 
     try:
         doc = frappe.get_doc("Asset Repair", repair_name)
+        _get_asset_doc_with_access(doc.asset, "read")
 
         if doc.repair_status != "Pending":
             return api_response(
@@ -1201,6 +1286,8 @@ def get_repairs(**kwargs):
         return api_response(success=False, message="asset_name is required", status_code=400)
 
     try:
+        _get_asset_doc_with_access(asset_name, "read")
+
         filters = {"asset": asset_name}
         if kwargs.get("repair_status"):
             filters["repair_status"] = kwargs["repair_status"]
@@ -1254,13 +1341,22 @@ def create_asset_movement(**kwargs):
         )
 
     try:
-        asset = frappe.get_doc("Asset", asset_name)
+        asset = _get_asset_doc_with_access(asset_name, "read")
 
         # Resolve target location from facility_id if provided
         target_location = kwargs.get("target_location")
         target_facility_id = kwargs.get("target_facility_id")
         if target_facility_id and not target_location:
             target_location = get_location_for_facility(target_facility_id)
+            if not target_location:
+                return api_response(
+                    success=False,
+                    message=f"No Location found for facility '{target_facility_id}'. Run location sync first.",
+                    status_code=400,
+                )
+
+        if target_location:
+            _ensure_location_access(target_location)
 
         movement_item = {
             "asset": asset_name,
@@ -1309,8 +1405,10 @@ def get_asset_movements(**kwargs):
         return api_response(success=False, message="asset_name is required", status_code=400)
 
     try:
+        _get_asset_doc_with_access(asset_name, "read")
+
         # Get parent movement names from child table
-        movement_items = frappe.get_all(
+        movement_items = frappe.get_list(
             "Asset Movement Item",
             filters={"asset": asset_name},
             pluck="parent",
@@ -1331,11 +1429,11 @@ def get_asset_movements(**kwargs):
         )
 
         for mov in movements:
-            items = frappe.get_all(
+            items = frappe.get_list(
                 "Asset Movement Item",
                 filters={"parent": mov.name, "asset": asset_name},
                 fields=["source_location", "target_location", "from_employee", "to_employee"],
-                limit=1,
+                limit_page_length=1,
             )
             if items:
                 mov.update(items[0])
@@ -1381,7 +1479,7 @@ def get_depreciation_summary(**kwargs):
         return api_response(success=False, message="asset_name is required", status_code=400)
 
     try:
-        asset = frappe.get_doc("Asset", asset_name)
+        asset = _get_asset_doc_with_access(asset_name, "read")
 
         finance_books = []
         for fb in asset.finance_books:
@@ -1404,7 +1502,7 @@ def get_depreciation_summary(**kwargs):
             limit_page_length=5,
         )
         for ds in dep_schedule_docs:
-            entries = frappe.get_all(
+            entries = frappe.get_list(
                 "Depreciation Schedule",
                 filters={"parent": ds.name},
                 fields=[
@@ -1470,7 +1568,6 @@ def get_asset_categories(**kwargs):
             fields=["name", "asset_category_name"],
             order_by="asset_category_name asc",
             limit_page_length=100,
-            ignore_permissions=True,
         )
 
         return api_response(success=True, data={"items": categories})
@@ -1504,7 +1601,7 @@ def get_maintenance_teams(**kwargs):
 
         # Enrich with team members
         for team in teams:
-            members = frappe.get_all(
+            members = frappe.get_list(
                 "Maintenance Team Member",
                 filters={"parent": team.name},
                 fields=["team_member", "full_name", "maintenance_role"],
@@ -1556,7 +1653,6 @@ def search_fixed_asset_items(**kwargs):
             ],
             order_by="item_name asc",
             limit_page_length=limit,
-            ignore_permissions=True,
         )
 
         return api_response(success=True, data={"items": items})
@@ -1729,7 +1825,6 @@ def get_item_groups(**kwargs):
             fields=["name", "item_group_name", "parent_item_group"],
             order_by="item_group_name asc",
             limit_page_length=100,
-            ignore_permissions=True,
         )
 
         return api_response(success=True, data={"items": groups})
@@ -1778,7 +1873,6 @@ def get_finance_books(**kwargs):
             fields=["name", "finance_book_name"],
             order_by="finance_book_name asc",
             limit_page_length=100,
-            ignore_permissions=True,
         )
 
         return api_response(success=True, data={"items": finance_books})
@@ -1810,104 +1904,134 @@ def _search_purchase_documents_for_asset(doctype: str, kwargs: Dict[str, Any]):
     company = _as_optional_text(kwargs.get("company"))
     exclude_asset_name = _as_optional_text(kwargs.get("exclude_asset_name"))
     limit = min(50, max(1, int(kwargs.get("limit", 20) or 20)))
-
-    where_conditions = [
-        "parent.docstatus = 1",
-        "item.item_code = %(item_code)s",
-    ]
-    params: Dict[str, Any] = {"item_code": item_code, "limit": limit}
-
-    if company:
-        where_conditions.append("parent.company = %(company)s")
-        params["company"] = company
-
-    if doctype == "Purchase Invoice":
-        where_conditions.append("parent.update_stock = 1")
-
-    if search:
-        where_conditions.append("(parent.name like %(search)s or ifnull(parent.supplier, '') like %(search)s)")
-        params["search"] = f"%{search}%"
+    if not company:
+        return api_response(success=False, message="company is required", status_code=400)
 
     child_doctype = f"{doctype} Item"
 
     try:
-        rows = frappe.db.sql(
-            f"""
-            select
-                parent.name,
-                parent.posting_date,
-                parent.company,
-                parent.supplier,
-                max(item.item_name) as item_name,
-                sum(item.qty) as item_qty,
-                max(item.base_net_rate) as item_rate,
-                sum(item.base_net_amount) as item_amount
-            from `tab{doctype}` parent
-            inner join `tab{child_doctype}` item on item.parent = parent.name
-            where {" and ".join(where_conditions)}
-            group by parent.name, parent.posting_date, parent.company, parent.supplier
-            order by parent.posting_date desc, parent.modified desc
-            limit %(limit)s
-            """,
-            params,
-            as_dict=True,
-        )
-
         purchase_doc_field = "purchase_receipt" if doctype == "Purchase Receipt" else "purchase_invoice"
-        linked_asset_qty_map: Dict[str, float] = {}
-        if rows:
-            exclude_clause = ""
-            linked_params: Dict[str, Any] = {
-                "item_code": item_code,
-                "purchase_docs": tuple(row.name for row in rows),
-            }
-            if exclude_asset_name:
-                exclude_clause = " and name != %(exclude_asset_name)s"
-                linked_params["exclude_asset_name"] = exclude_asset_name
-
-            linked_rows = frappe.db.sql(
-                f"""
-                select {purchase_doc_field} as purchase_doc, sum(asset_quantity) as linked_asset_qty
-                from `tabAsset`
-                where docstatus != 2
-                  and item_code = %(item_code)s
-                  and {purchase_doc_field} in %(purchase_docs)s
-                  {exclude_clause}
-                group by {purchase_doc_field}
-                """,
-                linked_params,
-                as_dict=True,
-            )
-            linked_asset_qty_map = {
-                row.purchase_doc: flt(row.linked_asset_qty) for row in linked_rows if row.purchase_doc
-            }
-
         route = "purchase-receipt" if doctype == "Purchase Receipt" else "purchase-invoice"
-        items = []
-        for row in rows:
-            item_qty = flt(row.item_qty)
-            item_amount = flt(row.item_amount)
-            linked_asset_qty = linked_asset_qty_map.get(row.name, 0.0)
-            available_asset_qty = max(item_qty - linked_asset_qty, 0.0)
-            if available_asset_qty <= 0:
+        parent_filters: Dict[str, Any] = {"docstatus": 1, "company": company}
+        if doctype == "Purchase Invoice":
+            parent_filters["update_stock"] = 1
+
+        parent_or_filters = None
+        if search:
+            term = f"%{search}%"
+            parent_or_filters = [
+                ["name", "like", term],
+                ["supplier", "like", term],
+            ]
+
+        items: List[Dict[str, Any]] = []
+        scanned_parents = 0
+        page_start = 0
+        page_length = max(limit * 5, 100)
+        max_scan = 1000
+
+        while len(items) < limit and scanned_parents < max_scan:
+            parent_docs = frappe.get_list(
+                doctype,
+                filters=parent_filters,
+                or_filters=parent_or_filters,
+                fields=["name", "posting_date", "company", "supplier", "modified"],
+                order_by="posting_date desc, modified desc",
+                limit_start=page_start,
+                limit_page_length=page_length,
+            )
+            if not parent_docs:
+                break
+
+            parent_names = [doc.name for doc in parent_docs]
+            scanned_parents += len(parent_docs)
+            page_start += page_length
+
+            child_rows = frappe.get_list(
+                child_doctype,
+                filters={
+                    "parent": ["in", parent_names],
+                    "item_code": item_code,
+                },
+                fields=["parent", "item_name", "qty", "base_net_rate", "base_net_amount"],
+                limit_page_length=0,
+            )
+            if not child_rows:
                 continue
 
-            items.append({
-                "name": row.name,
-                "posting_date": row.posting_date,
-                "company": row.company,
-                "supplier": row.supplier,
-                "item_name": row.item_name,
-                "item_qty": item_qty,
-                "item_rate": (item_amount / item_qty) if item_qty else flt(row.item_rate),
-                "item_amount": item_amount,
-                "linked_asset_qty": linked_asset_qty,
-                "available_asset_qty": available_asset_qty,
-                "doctype": doctype,
-                "desk_url": f"/app/{route}/{row.name}",
-            })
+            parent_item_totals: Dict[str, Dict[str, Any]] = {}
+            for row in child_rows:
+                parent_name = row.parent
+                current = parent_item_totals.get(parent_name)
+                if not current:
+                    current = {
+                        "item_name": row.item_name,
+                        "item_qty": 0.0,
+                        "item_amount": 0.0,
+                        "item_rate": flt(row.base_net_rate),
+                    }
+                    parent_item_totals[parent_name] = current
 
-        return api_response(success=True, data={"items": items})
+                current["item_qty"] += flt(row.qty)
+                current["item_amount"] += flt(row.base_net_amount)
+                if row.item_name and not current["item_name"]:
+                    current["item_name"] = row.item_name
+
+            linked_asset_qty_map: Dict[str, float] = {}
+            linked_filters: Dict[str, Any] = {
+                "docstatus": ["!=", 2],
+                "item_code": item_code,
+                purchase_doc_field: ["in", list(parent_item_totals.keys())],
+            }
+            if exclude_asset_name:
+                linked_filters["name"] = ["!=", exclude_asset_name]
+
+            linked_assets = frappe.get_list(
+                "Asset",
+                filters=linked_filters,
+                fields=[purchase_doc_field, "asset_quantity"],
+                limit_page_length=0,
+            )
+            for linked in linked_assets:
+                purchase_doc = linked.get(purchase_doc_field)
+                if not purchase_doc:
+                    continue
+                linked_asset_qty_map[purchase_doc] = linked_asset_qty_map.get(purchase_doc, 0.0) + (
+                    flt(linked.get("asset_quantity")) or 1.0
+                )
+
+            for parent in parent_docs:
+                totals = parent_item_totals.get(parent.name)
+                if not totals:
+                    continue
+
+                item_qty = flt(totals["item_qty"])
+                item_amount = flt(totals["item_amount"])
+                item_rate = flt(totals["item_rate"])
+                linked_asset_qty = linked_asset_qty_map.get(parent.name, 0.0)
+                available_asset_qty = max(item_qty - linked_asset_qty, 0.0)
+                if available_asset_qty <= 0:
+                    continue
+
+                items.append({
+                    "name": parent.name,
+                    "posting_date": parent.posting_date,
+                    "company": parent.company,
+                    "supplier": parent.supplier,
+                    "item_name": totals["item_name"],
+                    "item_qty": item_qty,
+                    "item_rate": (item_amount / item_qty) if item_qty else item_rate,
+                    "item_amount": item_amount,
+                    "linked_asset_qty": linked_asset_qty,
+                    "available_asset_qty": available_asset_qty,
+                    "doctype": doctype,
+                    "desk_url": f"/app/{route}/{parent.name}",
+                })
+
+                if len(items) >= limit:
+                    break
+
+        return api_response(success=True, data={"items": items[:limit]})
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Search Purchase Documents Error"))
         return api_response(success=False, message=str(e), status_code=500)
@@ -1948,7 +2072,6 @@ def search_employees(**kwargs):
             fields=["name", "employee_name", "designation", "department", "company"],
             order_by="employee_name asc",
             limit_page_length=limit,
-            ignore_permissions=True,
         )
 
         return api_response(success=True, data={"items": employees})
@@ -1984,7 +2107,6 @@ def get_departments(**kwargs):
             fields=["name", "department_name", "company"],
             order_by="department_name asc",
             limit_page_length=100,
-            ignore_permissions=True,
         )
 
         return api_response(success=True, data={"items": departments})

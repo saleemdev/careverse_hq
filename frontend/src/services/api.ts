@@ -193,7 +193,8 @@ const isCsrfErrorResponse = (response: Response, result: any): boolean => {
 const apiCall = async <T = any>(
     method: string,
     endpoint: string,
-    data?: Record<string, any>
+    data?: Record<string, any>,
+    requestConfig?: { signal?: AbortSignal }
 ): Promise<ApiResponse<T>> => {
     try {
         const csrfToken = method === 'GET' ? getCsrfToken() : await ensureCsrfToken();
@@ -207,6 +208,7 @@ const apiCall = async <T = any>(
             method,
             credentials: 'include',
             headers,
+            signal: requestConfig?.signal,
         };
 
         if (data && method !== 'GET') {
@@ -274,6 +276,13 @@ const apiCall = async <T = any>(
             data: finalData,
         };
     } catch (error: any) {
+        if (error?.name === 'AbortError') {
+            return {
+                success: false,
+                error: 'Request timed out. Verify the latest asset state before retrying.',
+                data: { __request_timeout: true } as T,
+            };
+        }
         console.error(`[API] Error calling ${endpoint}:`, error);
         const errorMsg = error.message || 'Network error';
         notifyApiError(errorMsg);
@@ -282,6 +291,43 @@ const apiCall = async <T = any>(
             error: errorMsg,
         };
     }
+};
+
+const apiCallWithTimeout = async <T = any>(
+    method: string,
+    endpoint: string,
+    data?: Record<string, any>,
+    timeoutMs = 30000
+): Promise<ApiResponse<T>> => {
+    const controller = new AbortController();
+    return await new Promise<ApiResponse<T>>((resolve) => {
+        let settled = false;
+
+        const finish = (result: ApiResponse<T>) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutHandle);
+            resolve(result);
+        };
+
+        const timeoutHandle = window.setTimeout(() => {
+            controller.abort();
+            finish({
+                success: false,
+                error: 'Request timed out. Verify the latest asset state before retrying.',
+                data: { __request_timeout: true } as T,
+            });
+        }, timeoutMs);
+
+        apiCall<T>(method, endpoint, data, { signal: controller.signal })
+            .then(finish)
+            .catch((error: unknown) => {
+                finish({
+                    success: false,
+                    error: error instanceof Error ? error.message : 'Request failed',
+                });
+            });
+    });
 };
 
 // Frappe method call helper
@@ -336,7 +382,7 @@ export const callFrappePostMethod = async <T = any>(
             const timeoutHandle = window.setTimeout(() => {
                 finish({
                     success: false,
-                    error: 'Request timeout via Frappe bridge. Retrying over direct API.',
+                    error: 'Request timeout via Frappe bridge. The server may still process it; refresh and retry once.',
                     data: { __frappe_bridge_timeout: true } as any,
                 });
             }, FRAPPE_CALL_TIMEOUT_MS);
@@ -399,11 +445,6 @@ export const callFrappePostMethod = async <T = any>(
                 },
             });
         });
-
-        // If the Desk bridge hangs, force fallback to direct HTTP call.
-        if (!deskResult.success && (deskResult.data as any)?.__frappe_bridge_timeout) {
-            return apiCall<T>('POST', `/api/method/${methodName}`, args);
-        }
 
         // Universal CSRF retry: if frappe.call failed due to stale token,
         // fall back to apiCall which refreshes the token from the server and retries.
@@ -1494,19 +1535,19 @@ export const erpnextAssetsApi = {
     },
 
     createAsset: async (data: Record<string, any>): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_asset', data);
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.create_asset', data);
     },
 
     updateAsset: async (data: Record<string, any>): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.update_asset', data);
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.update_asset', data);
     },
 
     submitAsset: async (assetName: string): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.submit_asset', { asset_name: assetName });
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.submit_asset', { asset_name: assetName });
     },
 
     createMaintenanceRequest: async (data: Record<string, any>): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_maintenance_request', data);
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.create_maintenance_request', data);
     },
 
     getMaintenanceSchedule: async (assetName: string): Promise<ApiResponse> => {
@@ -1514,15 +1555,15 @@ export const erpnextAssetsApi = {
     },
 
     completeMaintenanceLog: async (data: Record<string, any>): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.complete_maintenance_log', data);
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.complete_maintenance_log', data);
     },
 
     createRepairRequest: async (data: Record<string, any>): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_repair_request', data);
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.create_repair_request', data);
     },
 
     completeRepair: async (data: Record<string, any>): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.complete_repair', data);
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.complete_repair', data);
     },
 
     getRepairs: async (assetName: string, repairStatus?: string): Promise<ApiResponse> => {
@@ -1532,7 +1573,7 @@ export const erpnextAssetsApi = {
     },
 
     createMovement: async (data: Record<string, any>): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_asset_movement', data);
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.create_asset_movement', data);
     },
 
     getMovements: async (assetName: string): Promise<ApiResponse> => {
@@ -1563,7 +1604,7 @@ export const erpnextAssetsApi = {
     },
 
     createFixedAssetItem: async (data: Record<string, any>): Promise<ApiResponse> => {
-        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_fixed_asset_item', data);
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.create_fixed_asset_item', data);
     },
 
     getItemNamingConfig: async (): Promise<ApiResponse> => {

@@ -173,6 +173,7 @@ interface ERPNextAssetStore {
     // Detail
     selectedAsset: AssetDetail | null;
     selectedAssetLoading: boolean;
+    activeAssetName: string | null;
     maintenanceData: { tasks: MaintenanceTask[]; logs: MaintenanceLog[] } | null;
     repairRecords: RepairRecord[];
     movementRecords: MovementRecord[];
@@ -218,6 +219,14 @@ const DEFAULT_FILTERS: AssetFilters = {
     dateTo: '',
 };
 
+let assetsFetchSeq = 0;
+let dashboardFetchSeq = 0;
+let detailFetchSeq = 0;
+let maintenanceFetchSeq = 0;
+let repairsFetchSeq = 0;
+let movementsFetchSeq = 0;
+let depreciationFetchSeq = 0;
+
 const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     // List state
     assets: [],
@@ -231,6 +240,7 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     // Detail state
     selectedAsset: null,
     selectedAssetLoading: false,
+    activeAssetName: null,
     maintenanceData: null,
     repairRecords: [],
     movementRecords: [],
@@ -241,6 +251,7 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     // -----------------------------------------------------------------------
 
     fetchAssets: async (facilityIds) => {
+        const requestSeq = ++assetsFetchSeq;
         set({ loading: true });
         const { filters } = get();
         try {
@@ -252,6 +263,9 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
                 category: filters.category,
                 search: filters.search,
             });
+            if (requestSeq !== assetsFetchSeq) {
+                return;
+            }
             if (response.success) {
                 set({
                     assets: response.data?.items || [],
@@ -261,17 +275,23 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
         } catch (error) {
             console.error('Failed to fetch assets', error);
         } finally {
-            set({ loading: false });
+            if (requestSeq === assetsFetchSeq) {
+                set({ loading: false });
+            }
         }
     },
 
     fetchDashboard: async (facilityIds) => {
+        const requestSeq = ++dashboardFetchSeq;
         set({ dashboardLoading: true });
         const { filters } = get();
         try {
             const response = await erpnextAssetsApi.getDashboard({
                 facilities: facilityIds || filters.facilities,
             });
+            if (requestSeq !== dashboardFetchSeq) {
+                return;
+            }
             if (response.success) {
                 set({
                     statusAggregates: response.data?.status_aggregates || null,
@@ -281,7 +301,9 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
         } catch (error) {
             console.error('Failed to fetch dashboard', error);
         } finally {
-            set({ dashboardLoading: false });
+            if (requestSeq === dashboardFetchSeq) {
+                set({ dashboardLoading: false });
+            }
         }
     },
 
@@ -300,22 +322,35 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     // -----------------------------------------------------------------------
 
     fetchAssetDetail: async (name) => {
-        set({ selectedAssetLoading: true });
+        const requestSeq = ++detailFetchSeq;
+        set({ selectedAssetLoading: true, activeAssetName: name });
         try {
             const response = await erpnextAssetsApi.getAssetDetail(name);
+            if (requestSeq !== detailFetchSeq || get().activeAssetName !== name) {
+                return;
+            }
             if (response.success) {
                 set({ selectedAsset: response.data });
+            } else {
+                set({ selectedAsset: null });
             }
         } catch (error) {
             console.error('Failed to fetch asset detail', error);
+            if (requestSeq === detailFetchSeq && get().activeAssetName === name) {
+                set({ selectedAsset: null });
+            }
         } finally {
-            set({ selectedAssetLoading: false });
+            if (requestSeq === detailFetchSeq && get().activeAssetName === name) {
+                set({ selectedAssetLoading: false });
+            }
         }
     },
 
     clearSelectedAsset: () => {
         set({
             selectedAsset: null,
+            activeAssetName: null,
+            selectedAssetLoading: false,
             maintenanceData: null,
             repairRecords: [],
             movementRecords: [],
@@ -324,9 +359,10 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     },
 
     fetchMaintenanceData: async (name) => {
+        const requestSeq = ++maintenanceFetchSeq;
         try {
             const response = await erpnextAssetsApi.getMaintenanceSchedule(name);
-            if (response.success) {
+            if (response.success && requestSeq === maintenanceFetchSeq && get().activeAssetName === name) {
                 set({ maintenanceData: response.data });
             }
         } catch (error) {
@@ -335,9 +371,10 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     },
 
     fetchRepairs: async (name) => {
+        const requestSeq = ++repairsFetchSeq;
         try {
             const response = await erpnextAssetsApi.getRepairs(name);
-            if (response.success) {
+            if (response.success && requestSeq === repairsFetchSeq && get().activeAssetName === name) {
                 set({ repairRecords: response.data?.items || [] });
             }
         } catch (error) {
@@ -346,9 +383,10 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     },
 
     fetchMovements: async (name) => {
+        const requestSeq = ++movementsFetchSeq;
         try {
             const response = await erpnextAssetsApi.getMovements(name);
-            if (response.success) {
+            if (response.success && requestSeq === movementsFetchSeq && get().activeAssetName === name) {
                 set({ movementRecords: response.data?.items || [] });
             }
         } catch (error) {
@@ -357,9 +395,10 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     },
 
     fetchDepreciation: async (name) => {
+        const requestSeq = ++depreciationFetchSeq;
         try {
             const response = await erpnextAssetsApi.getDepreciationSummary(name);
-            if (response.success) {
+            if (response.success && requestSeq === depreciationFetchSeq && get().activeAssetName === name) {
                 set({ depreciationSummary: response.data });
             }
         } catch (error) {
@@ -374,6 +413,13 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     createAsset: async (data) => {
         try {
             const response = await erpnextAssetsApi.createAsset(data);
+            const timedOut = !response.success && Boolean((response.data as { __request_timeout?: boolean } | undefined)?.__request_timeout);
+            if (timedOut) {
+                return {
+                    success: false,
+                    error: 'Save request timed out. Confirm whether the draft was created before trying again.',
+                };
+            }
             if (response.success && response.data?.name) {
                 return { success: true, name: response.data?.name };
             }
@@ -390,6 +436,13 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     updateAsset: async (name, data) => {
         try {
             const response = await erpnextAssetsApi.updateAsset({ asset_name: name, ...data });
+            const timedOut = !response.success && Boolean((response.data as { __request_timeout?: boolean } | undefined)?.__request_timeout);
+            if (timedOut) {
+                return {
+                    success: false,
+                    error: 'Update request timed out. Reload the asset before attempting another update.',
+                };
+            }
             if (response.success) {
                 await Promise.all([
                     get().fetchAssetDetail(name),
