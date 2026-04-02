@@ -11,6 +11,7 @@ All endpoints use:
 - api_response() for consistent response shape
 """
 
+import json
 import frappe
 from frappe import _
 from frappe.utils import now_datetime, getdate, flt
@@ -73,6 +74,143 @@ def _enrich_assets_with_facility(assets: List[dict]) -> List[dict]:
             asset["facility_name"] = loc or ""
 
     return assets
+
+
+def _as_check(value: Any, default: int = 0) -> int:
+    if value is None:
+        return default
+
+    if isinstance(value, str):
+        return 0 if value.strip().lower() in {"", "0", "false", "no", "off"} else 1
+
+    return 1 if value else 0
+
+
+def _as_optional_text(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    return text or None
+
+
+def _set_purchase_amount(target: Any, amount: Any) -> None:
+    normalized_amount = flt(amount)
+
+    if isinstance(target, dict):
+        target["net_purchase_amount"] = normalized_amount
+        target["gross_purchase_amount"] = normalized_amount
+        return
+
+    target.net_purchase_amount = normalized_amount
+    if target.meta.has_field("gross_purchase_amount"):
+        target.gross_purchase_amount = normalized_amount
+
+
+def _validate_purchase_document_choice(
+    is_existing_asset: int, purchase_receipt: Optional[str], purchase_invoice: Optional[str]
+) -> None:
+    if purchase_receipt and purchase_invoice:
+        frappe.throw(_("Link either a Purchase Receipt or a Purchase Invoice, not both."))
+
+    if not is_existing_asset and not (purchase_receipt or purchase_invoice):
+        frappe.throw(
+            _("Link a submitted Purchase Receipt or Purchase Invoice before saving a non-existing asset.")
+        )
+
+
+def _ensure_facility_access(facility_id: Optional[str]) -> None:
+    if not facility_id:
+        return
+
+    permitted = set(validate_user_facilities([facility_id]))
+    if facility_id not in permitted:
+        frappe.throw(
+            _("You do not have permission to access facility {0}.").format(facility_id),
+            frappe.PermissionError,
+        )
+
+
+def _ensure_location_access(location_name: Optional[str]) -> None:
+    if not location_name:
+        return
+
+    facility_id = get_facility_for_location(location_name)
+    if facility_id:
+        _ensure_facility_access(facility_id)
+
+
+def _parse_finance_books_payload(raw_value: Any) -> Optional[List[Dict[str, Any]]]:
+    if raw_value is None:
+        return None
+
+    parsed = raw_value
+    if isinstance(raw_value, str):
+        raw_value = raw_value.strip()
+        if not raw_value:
+            return []
+        try:
+            parsed = json.loads(raw_value)
+        except json.JSONDecodeError:
+            parsed = frappe.parse_json(raw_value)
+
+    if not isinstance(parsed, list):
+        frappe.throw(_("Finance books payload must be a list."))
+
+    rows: List[Dict[str, Any]] = []
+    for row in parsed:
+        if not isinstance(row, dict):
+            continue
+        rows.append({
+            "finance_book": _as_optional_text(row.get("finance_book")),
+            "depreciation_method": row.get("depreciation_method") or "Straight Line",
+            "total_number_of_depreciations": int(row.get("total_number_of_depreciations") or 5),
+            "frequency_of_depreciation": int(row.get("frequency_of_depreciation") or 12),
+            "expected_value_after_useful_life": flt(row.get("expected_value_after_useful_life") or 0),
+            "depreciation_start_date": row.get("depreciation_start_date"),
+            "rate_of_depreciation": flt(row.get("rate_of_depreciation") or 0),
+        })
+
+    return rows
+
+
+def _build_legacy_finance_book_row(kwargs: Dict[str, Any], fallback_row: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    fallback_row = fallback_row or {}
+    return {
+        "finance_book": _as_optional_text(kwargs.get("finance_book")) or fallback_row.get("finance_book"),
+        "depreciation_method": kwargs.get("depreciation_method")
+        or fallback_row.get("depreciation_method")
+        or "Straight Line",
+        "total_number_of_depreciations": int(
+            kwargs.get("total_number_of_depreciations", fallback_row.get("total_number_of_depreciations") or 5)
+        ),
+        "frequency_of_depreciation": int(
+            kwargs.get("frequency_of_depreciation", fallback_row.get("frequency_of_depreciation") or 12)
+        ),
+        "expected_value_after_useful_life": flt(
+            kwargs.get("expected_value_after_useful_life", fallback_row.get("expected_value_after_useful_life") or 0)
+        ),
+        "depreciation_start_date": kwargs.get("depreciation_start_date")
+        or fallback_row.get("depreciation_start_date"),
+        "rate_of_depreciation": flt(
+            kwargs.get("rate_of_depreciation", fallback_row.get("rate_of_depreciation") or 0)
+        ),
+    }
+
+
+def _has_legacy_finance_book_fields(kwargs: Dict[str, Any]) -> bool:
+    return any(
+        key in kwargs
+        for key in (
+            "finance_book",
+            "depreciation_method",
+            "total_number_of_depreciations",
+            "frequency_of_depreciation",
+            "expected_value_after_useful_life",
+            "depreciation_start_date",
+            "rate_of_depreciation",
+        )
+    )
 
 
 ASSET_STATUSES = [
@@ -319,6 +457,8 @@ def get_asset_detail(**kwargs):
         return api_response(success=False, message="Asset not found", status_code=404)
 
     try:
+        _ensure_location_access(asset.location)
+
         result = asset.as_dict()
 
         # Facility info from Location
@@ -505,6 +645,11 @@ def create_asset(**kwargs):
                 status_code=400,
             )
 
+        is_existing_asset = _as_check(kwargs.get("is_existing_asset"), 1)
+        purchase_receipt = _as_optional_text(kwargs.get("purchase_receipt"))
+        purchase_invoice = _as_optional_text(kwargs.get("purchase_invoice"))
+        _validate_purchase_document_choice(is_existing_asset, purchase_receipt, purchase_invoice)
+
         # Resolve location from facility_id if provided
         location = kwargs.get("location")
         facility_id = kwargs.get("facility_id")
@@ -522,6 +667,11 @@ def create_asset(**kwargs):
                 success=False, message="location or facility_id is required", status_code=400
             )
 
+        if facility_id:
+            _ensure_facility_access(facility_id)
+        else:
+            _ensure_location_access(location)
+
         # Build asset doc
         asset_data = {
             "doctype": "Asset",
@@ -531,30 +681,25 @@ def create_asset(**kwargs):
             "location": location,
             "asset_category": kwargs.get("asset_category") or item.asset_category,
             "purchase_date": kwargs.get("purchase_date"),
-            "gross_purchase_amount": flt(kwargs.get("gross_purchase_amount")),
             "available_for_use_date": kwargs.get("available_for_use_date"),
-            "is_existing_asset": kwargs.get("is_existing_asset", 0),
+            "is_existing_asset": is_existing_asset,
             "custodian": kwargs.get("custodian"),
             "department": kwargs.get("department"),
             "calculate_depreciation": kwargs.get("calculate_depreciation", 0),
+            "purchase_receipt": purchase_receipt,
+            "purchase_invoice": purchase_invoice,
         }
+        _set_purchase_amount(
+            asset_data, kwargs.get("gross_purchase_amount", kwargs.get("net_purchase_amount"))
+        )
 
         # Depreciation config
         if asset_data["calculate_depreciation"]:
-            finance_book = {
-                "depreciation_method": kwargs.get("depreciation_method", "Straight Line"),
-                "total_number_of_depreciations": int(
-                    kwargs.get("total_number_of_depreciations", 5)
-                ),
-                "frequency_of_depreciation": int(
-                    kwargs.get("frequency_of_depreciation", 12)
-                ),
-                "expected_value_after_useful_life": flt(
-                    kwargs.get("expected_value_after_useful_life", 0)
-                ),
-                "depreciation_start_date": kwargs.get("depreciation_start_date"),
-            }
-            asset_data["finance_books"] = [finance_book]
+            finance_books_payload = _parse_finance_books_payload(kwargs.get("finance_books"))
+            if finance_books_payload is not None:
+                asset_data["finance_books"] = finance_books_payload
+            else:
+                asset_data["finance_books"] = [_build_legacy_finance_book_row(kwargs)]
 
         doc = frappe.get_doc(asset_data)
         doc.insert()
@@ -571,6 +716,143 @@ def create_asset(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Create Asset Error"))
+        return api_response(success=False, message=str(e), status_code=500)
+
+
+@frappe.whitelist()
+def update_asset(**kwargs):
+    """Update a Draft asset so setup can be completed after the quick-create flow."""
+    kwargs.pop("cmd", None)
+    asset_name = kwargs.get("asset_name") or kwargs.get("asset_id") or kwargs.get("name")
+
+    if not asset_name:
+        return api_response(success=False, message="asset_name is required", status_code=400)
+
+    try:
+        doc = frappe.get_doc("Asset", asset_name)
+    except frappe.PermissionError:
+        return api_response(success=False, message="Permission denied", status_code=403)
+    except frappe.DoesNotExistError:
+        return api_response(success=False, message="Asset not found", status_code=404)
+
+    if doc.docstatus != 0:
+        return api_response(
+            success=False,
+            message="Only Draft assets can be updated from this screen",
+            status_code=400,
+        )
+
+    try:
+        location = kwargs.get("location")
+        facility_id = kwargs.get("facility_id")
+        if facility_id and not location:
+            location = get_location_for_facility(facility_id)
+            if not location:
+                return api_response(
+                    success=False,
+                    message=f"No Location found for facility '{facility_id}'. Run location sync first.",
+                    status_code=400,
+                )
+
+        if location:
+            doc.location = location
+
+        if facility_id:
+            _ensure_facility_access(facility_id)
+        else:
+            _ensure_location_access(doc.location)
+
+        if "updated_asset_name" in kwargs:
+            doc.asset_name = kwargs.get("updated_asset_name") or doc.asset_name
+
+        if kwargs.get("company"):
+            doc.company = kwargs.get("company")
+
+        if "purchase_date" in kwargs and kwargs.get("purchase_date"):
+            doc.purchase_date = kwargs.get("purchase_date")
+
+        if "available_for_use_date" in kwargs:
+            doc.available_for_use_date = kwargs.get("available_for_use_date") or None
+
+        if "department" in kwargs:
+            doc.department = kwargs.get("department") or None
+
+        if "custodian" in kwargs:
+            doc.custodian = kwargs.get("custodian") or None
+
+        if "gross_purchase_amount" in kwargs or "net_purchase_amount" in kwargs:
+            _set_purchase_amount(
+                doc, kwargs.get("gross_purchase_amount", kwargs.get("net_purchase_amount"))
+            )
+
+        is_existing_asset = _as_check(kwargs.get("is_existing_asset"), int(doc.is_existing_asset or 0))
+        if is_existing_asset:
+            purchase_receipt = None
+            purchase_invoice = None
+        else:
+            purchase_receipt = (
+                _as_optional_text(kwargs.get("purchase_receipt"))
+                if "purchase_receipt" in kwargs
+                else _as_optional_text(doc.purchase_receipt)
+            )
+            purchase_invoice = (
+                _as_optional_text(kwargs.get("purchase_invoice"))
+                if "purchase_invoice" in kwargs
+                else _as_optional_text(doc.purchase_invoice)
+            )
+        _validate_purchase_document_choice(is_existing_asset, purchase_receipt, purchase_invoice)
+
+        doc.is_existing_asset = is_existing_asset
+        doc.purchase_receipt = purchase_receipt
+        doc.purchase_invoice = purchase_invoice
+
+        calculate_depreciation = _as_check(
+            kwargs.get("calculate_depreciation"), int(doc.calculate_depreciation or 0)
+        )
+        doc.calculate_depreciation = calculate_depreciation
+
+        if calculate_depreciation:
+            existing_rows = [row.as_dict() for row in doc.finance_books] if doc.finance_books else []
+            finance_books_payload = _parse_finance_books_payload(kwargs.get("finance_books"))
+
+            if finance_books_payload is not None:
+                doc.set("finance_books", finance_books_payload)
+            elif _has_legacy_finance_book_fields(kwargs):
+                doc.set(
+                    "finance_books",
+                    [_build_legacy_finance_book_row(kwargs, existing_rows[0] if existing_rows else None)],
+                )
+            elif existing_rows:
+                doc.set("finance_books", existing_rows)
+
+            if is_existing_asset:
+                doc.opening_accumulated_depreciation = flt(
+                    kwargs.get("opening_accumulated_depreciation", 0)
+                )
+                doc.opening_number_of_booked_depreciations = int(
+                    kwargs.get("opening_number_of_booked_depreciations", 0) or 0
+                )
+            else:
+                doc.opening_accumulated_depreciation = 0
+                doc.opening_number_of_booked_depreciations = 0
+        else:
+            doc.set("finance_books", [])
+            doc.opening_accumulated_depreciation = 0
+            doc.opening_number_of_booked_depreciations = 0
+
+        doc.save()
+
+        return api_response(
+            success=True,
+            message=f"Asset '{doc.name}' updated",
+            data={"name": doc.name, "status": doc.status},
+        )
+    except frappe.PermissionError:
+        return api_response(success=False, message="Permission denied", status_code=403)
+    except frappe.ValidationError as e:
+        return api_response(success=False, message=str(e), status_code=400)
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), _("Update Asset Error"))
         return api_response(success=False, message=str(e), status_code=500)
 
 
@@ -601,6 +883,8 @@ def submit_asset(**kwargs):
                 message="Available-for-use Date is required before submitting",
                 status_code=400,
             )
+
+        _ensure_location_access(doc.location)
 
         doc.submit()
 
@@ -1474,6 +1758,158 @@ def get_user_companies(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Companies Error"))
+        return api_response(success=False, message=str(e), status_code=500)
+
+
+@frappe.whitelist()
+def get_finance_books(**kwargs):
+    """List finance books for deferred depreciation setup."""
+    kwargs.pop("cmd", None)
+
+    try:
+        filters: Dict[str, Any] = {}
+        search = kwargs.get("search")
+        if search:
+            filters["finance_book_name"] = ["like", f"%{search}%"]
+
+        finance_books = frappe.get_list(
+            "Finance Book",
+            filters=filters,
+            fields=["name", "finance_book_name"],
+            order_by="finance_book_name asc",
+            limit_page_length=100,
+            ignore_permissions=True,
+        )
+
+        return api_response(success=True, data={"items": finance_books})
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), _("Get Finance Books Error"))
+        return api_response(success=False, message=str(e), status_code=500)
+
+
+@frappe.whitelist()
+def search_purchase_receipts_for_asset(**kwargs):
+    """Search submitted Purchase Receipts containing the selected asset item."""
+    kwargs.pop("cmd", None)
+    return _search_purchase_documents_for_asset("Purchase Receipt", kwargs)
+
+
+@frappe.whitelist()
+def search_purchase_invoices_for_asset(**kwargs):
+    """Search submitted stock-updating Purchase Invoices containing the selected asset item."""
+    kwargs.pop("cmd", None)
+    return _search_purchase_documents_for_asset("Purchase Invoice", kwargs)
+
+
+def _search_purchase_documents_for_asset(doctype: str, kwargs: Dict[str, Any]):
+    item_code = _as_optional_text(kwargs.get("item_code"))
+    if not item_code:
+        return api_response(success=False, message="item_code is required", status_code=400)
+
+    search = _as_optional_text(kwargs.get("search"))
+    company = _as_optional_text(kwargs.get("company"))
+    exclude_asset_name = _as_optional_text(kwargs.get("exclude_asset_name"))
+    limit = min(50, max(1, int(kwargs.get("limit", 20) or 20)))
+
+    where_conditions = [
+        "parent.docstatus = 1",
+        "item.item_code = %(item_code)s",
+    ]
+    params: Dict[str, Any] = {"item_code": item_code, "limit": limit}
+
+    if company:
+        where_conditions.append("parent.company = %(company)s")
+        params["company"] = company
+
+    if doctype == "Purchase Invoice":
+        where_conditions.append("parent.update_stock = 1")
+
+    if search:
+        where_conditions.append("(parent.name like %(search)s or ifnull(parent.supplier, '') like %(search)s)")
+        params["search"] = f"%{search}%"
+
+    child_doctype = f"{doctype} Item"
+
+    try:
+        rows = frappe.db.sql(
+            f"""
+            select
+                parent.name,
+                parent.posting_date,
+                parent.company,
+                parent.supplier,
+                max(item.item_name) as item_name,
+                sum(item.qty) as item_qty,
+                max(item.base_net_rate) as item_rate,
+                sum(item.base_net_amount) as item_amount
+            from `tab{doctype}` parent
+            inner join `tab{child_doctype}` item on item.parent = parent.name
+            where {" and ".join(where_conditions)}
+            group by parent.name, parent.posting_date, parent.company, parent.supplier
+            order by parent.posting_date desc, parent.modified desc
+            limit %(limit)s
+            """,
+            params,
+            as_dict=True,
+        )
+
+        purchase_doc_field = "purchase_receipt" if doctype == "Purchase Receipt" else "purchase_invoice"
+        linked_asset_qty_map: Dict[str, float] = {}
+        if rows:
+            exclude_clause = ""
+            linked_params: Dict[str, Any] = {
+                "item_code": item_code,
+                "purchase_docs": tuple(row.name for row in rows),
+            }
+            if exclude_asset_name:
+                exclude_clause = " and name != %(exclude_asset_name)s"
+                linked_params["exclude_asset_name"] = exclude_asset_name
+
+            linked_rows = frappe.db.sql(
+                f"""
+                select {purchase_doc_field} as purchase_doc, sum(asset_quantity) as linked_asset_qty
+                from `tabAsset`
+                where docstatus != 2
+                  and item_code = %(item_code)s
+                  and {purchase_doc_field} in %(purchase_docs)s
+                  {exclude_clause}
+                group by {purchase_doc_field}
+                """,
+                linked_params,
+                as_dict=True,
+            )
+            linked_asset_qty_map = {
+                row.purchase_doc: flt(row.linked_asset_qty) for row in linked_rows if row.purchase_doc
+            }
+
+        route = "purchase-receipt" if doctype == "Purchase Receipt" else "purchase-invoice"
+        items = []
+        for row in rows:
+            item_qty = flt(row.item_qty)
+            item_amount = flt(row.item_amount)
+            linked_asset_qty = linked_asset_qty_map.get(row.name, 0.0)
+            available_asset_qty = max(item_qty - linked_asset_qty, 0.0)
+            if available_asset_qty <= 0:
+                continue
+
+            items.append({
+                "name": row.name,
+                "posting_date": row.posting_date,
+                "company": row.company,
+                "supplier": row.supplier,
+                "item_name": row.item_name,
+                "item_qty": item_qty,
+                "item_rate": (item_amount / item_qty) if item_qty else flt(row.item_rate),
+                "item_amount": item_amount,
+                "linked_asset_qty": linked_asset_qty,
+                "available_asset_qty": available_asset_qty,
+                "doctype": doctype,
+                "desk_url": f"/app/{route}/{row.name}",
+            })
+
+        return api_response(success=True, data={"items": items})
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), _("Search Purchase Documents Error"))
         return api_response(success=False, message=str(e), status_code=500)
 
 

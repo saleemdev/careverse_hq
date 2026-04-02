@@ -11,7 +11,10 @@ Authority boundary preserved:
 
 import frappe
 
-from .facility_affiliation_status import get_facility_affiliation_status
+from .facility_affiliation_status import (
+    CANONICAL_TERMINATED_AFFILIATION_STATUS,
+    get_facility_affiliation_status,
+)
 
 
 _AFFILIATION_TO_LOG_STATUS = {
@@ -19,6 +22,7 @@ _AFFILIATION_TO_LOG_STATUS = {
     "Rejected": "Rejected",
     "Expired": "Expired",
     "Inactive": "Closed",
+    CANONICAL_TERMINATED_AFFILIATION_STATUS: "Closed",
 }
 
 

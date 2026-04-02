@@ -25,7 +25,7 @@ const StatusTag: React.FC<StatusTagProps> = ({ status }) => {
     } else if (['pending', 'draft', 'open'].includes(s)) {
         color = 'processing';
         icon = <SyncOutlined spin />;
-    } else if (['inactive', 'rejected', 'cancelled', 'absent', 'error', 'left'].includes(s)) {
+    } else if (['inactive', 'terminated', 'rejected', 'cancelled', 'absent', 'error', 'left'].includes(s)) {
         color = 'error';
         icon = <CloseCircleOutlined />;
     } else if (['on leave', 'half day', 'warning'].includes(s)) {

@@ -8,3 +8,4 @@ careverse_hq.patches.insert_facility_claim_samples
 careverse_hq.patches.add_hiring_custom_fields
 careverse_hq.patches.add_job_opening_health_facility
 careverse_hq.patches.add_job_applicant_health_worker_fields
+careverse_hq.patches.add_terminated_affiliation_status

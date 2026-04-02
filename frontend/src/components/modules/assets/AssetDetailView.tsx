@@ -1,13 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Card, Row, Col, Statistic, Tabs, Table, Button, Space, Typography,
-    Descriptions, Tag, Badge, Progress, Timeline, Empty, Spin, theme, Modal,
-    Form, Input, DatePicker, Select, message,
+    Descriptions, Tag, Badge, Progress, Timeline, Empty, Spin, theme, message, Alert, Result, Tooltip,
 } from 'antd';
+import type { BadgeProps } from 'antd';
 import {
     ArrowLeftOutlined, LaptopOutlined, ToolOutlined, WarningOutlined,
-    SwapOutlined, EnvironmentOutlined, CheckCircleOutlined,
-    ExclamationCircleOutlined, ClockCircleOutlined,
+    SwapOutlined, CheckCircleOutlined, EditOutlined,
 } from '@ant-design/icons';
 import useERPNextAssetStore from '../../../stores/modules/erpnextAssetStore';
 import { useResponsive } from '../../../hooks/useResponsive';
@@ -15,13 +14,41 @@ import AssetStatusBadge from './AssetStatusBadge';
 import AssetMaintenanceModal from './AssetMaintenanceModal';
 import AssetRepairModal from './AssetRepairModal';
 import AssetMovementModal from './AssetMovementModal';
+import AssetDraftSetupModal from './AssetDraftSetupModal';
 import dayjs from 'dayjs';
 
 const { Text, Title } = Typography;
 
 interface Props {
     assetId: string;
-    navigateToRoute?: (route: string, id?: string) => void;
+    navigateToRoute: (route: string, id?: string) => void;
+}
+
+type BadgeStatus = NonNullable<BadgeProps['status']>;
+
+interface MovementRecord {
+    name: string;
+    purpose: string;
+    transaction_date: string;
+    source_location?: string;
+    source_location_name?: string;
+    target_location?: string;
+    target_location_name?: string;
+    from_employee_name?: string;
+    to_employee_name?: string;
+}
+
+interface DepreciationScheduleEntry {
+    schedule_date: string;
+    depreciation_amount: number;
+    accumulated_depreciation_amount: number;
+    journal_entry?: string;
+}
+
+interface DepreciationScheduleGroup {
+    name: string;
+    finance_book?: string;
+    entries: DepreciationScheduleEntry[];
 }
 
 const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
@@ -39,6 +66,7 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
     const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
     const [repairModalOpen, setRepairModalOpen] = useState(false);
     const [movementModalOpen, setMovementModalOpen] = useState(false);
+    const [draftSetupOpen, setDraftSetupOpen] = useState(false);
 
     useEffect(() => {
         fetchAssetDetail(assetId);
@@ -47,7 +75,15 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
         fetchMovements(assetId);
         fetchDepreciation(assetId);
         return () => clearSelectedAsset();
-    }, [assetId]);
+    }, [
+        assetId,
+        clearSelectedAsset,
+        fetchAssetDetail,
+        fetchDepreciation,
+        fetchMaintenanceData,
+        fetchMovements,
+        fetchRepairs,
+    ]);
 
     const handleSubmit = async () => {
         const success = await submitAsset(assetId);
@@ -58,10 +94,27 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
         }
     };
 
-    if (selectedAssetLoading || !selectedAsset) {
+    if (selectedAssetLoading) {
         return (
             <div style={{ padding: 24, textAlign: 'center' }}>
                 <Spin size="large" />
+            </div>
+        );
+    }
+
+    if (!selectedAsset) {
+        return (
+            <div style={{ padding: isMobile ? '16px' : '24px' }}>
+                <Result
+                    status="404"
+                    title="Asset Not Available"
+                    subTitle="This asset could not be loaded. It may not exist, or you may not have access to it."
+                    extra={
+                        <Button type="primary" onClick={() => navigateToRoute('assets')}>
+                            Back to Assets
+                        </Button>
+                    }
+                />
             </div>
         );
     }
@@ -70,6 +123,8 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
     const depPct = asset.gross_purchase_amount
         ? Math.round(((asset.gross_purchase_amount - (asset.value_after_depreciation || 0)) / asset.gross_purchase_amount) * 100)
         : 0;
+    const depreciationSchedules: DepreciationScheduleGroup[] = depreciationSummary?.schedules || [];
+    const canSubmitDraft = Boolean(asset.available_for_use_date);
 
     // ----- Overview Tab -----
     const overviewTab = (
@@ -89,7 +144,18 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                 <Descriptions.Item label="Net Purchase Amount">{(asset.net_purchase_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
                 <Descriptions.Item label="Current Value">{(asset.value_after_depreciation || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
                 <Descriptions.Item label="Is Existing Asset">{asset.is_existing_asset ? 'Yes' : 'No'}</Descriptions.Item>
+                <Descriptions.Item label="Purchase Receipt">{asset.purchase_receipt || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Purchase Invoice">{asset.purchase_invoice || '-'}</Descriptions.Item>
             </Descriptions>
+
+            {asset.status === 'Draft' && (
+                <Alert
+                    type="info"
+                    showIcon
+                    message="Draft asset"
+                    description="Use Edit Draft Details to complete purchase traceability, available-for-use date, and depreciation or finance-book settings before submission."
+                />
+            )}
 
             {asset.insurance?.policy_number && (
                 <Card size="small" style={{ borderRadius: 10 }} title="Insurance">
@@ -145,8 +211,8 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                         columns={[
                             { title: 'Due Date', dataIndex: 'due_date', key: 'due', render: (d: string) => d ? dayjs(d).format('DD MMM YYYY') : '-' },
                             { title: 'Status', dataIndex: 'maintenance_status', key: 'status', render: (s: string) => {
-                                const color = s === 'Completed' ? 'success' : s === 'Overdue' ? 'error' : s === 'Cancelled' ? 'default' : 'warning';
-                                return <Badge status={color as any} text={s} />;
+                                const color: BadgeStatus = s === 'Completed' ? 'success' : s === 'Overdue' ? 'error' : s === 'Cancelled' ? 'default' : 'warning';
+                                return <Badge status={color} text={s} />;
                             }},
                             { title: 'Completion', dataIndex: 'completion_date', key: 'completion', render: (d: string) => d ? dayjs(d).format('DD MMM YYYY') : '-' },
                             { title: 'Actions Performed', dataIndex: 'actions_performed', key: 'actions', ellipsis: true },
@@ -175,8 +241,8 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                         { title: 'Failure Date', dataIndex: 'failure_date', key: 'failure', render: (d: string) => d ? dayjs(d).format('DD MMM YYYY') : '-' },
                         { title: 'Description', dataIndex: 'description', key: 'desc', ellipsis: true },
                         { title: 'Status', dataIndex: 'repair_status', key: 'status', render: (s: string) => {
-                            const color = s === 'Completed' ? 'success' : s === 'Cancelled' ? 'default' : 'error';
-                            return <Badge status={color as any} text={s} />;
+                            const color: BadgeStatus = s === 'Completed' ? 'success' : s === 'Cancelled' ? 'default' : 'error';
+                            return <Badge status={color} text={s} />;
                         }},
                         { title: 'Completion', dataIndex: 'completion_date', key: 'completion', render: (d: string) => d ? dayjs(d).format('DD MMM YYYY') : '-' },
                         { title: 'Cost', dataIndex: 'total_repair_cost', key: 'cost', render: (v: number) => v ? v.toLocaleString() : '-' },
@@ -198,7 +264,7 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
             </div>
             {movementRecords.length > 0 ? (
                 <Timeline
-                    items={movementRecords.map((mov: any) => {
+                    items={movementRecords.map((mov: MovementRecord) => {
                         const color = mov.purpose === 'Receipt' ? 'green' : mov.purpose === 'Transfer' ? 'blue' : 'orange';
                         return {
                             color,
@@ -255,7 +321,7 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                     </Row>
                     <Progress percent={depPct} strokeColor={depPct > 80 ? '#52c41a' : '#1890ff'} />
 
-                    {depreciationSummary?.schedules?.map((sched: any) => (
+                    {depreciationSchedules.map((sched) => (
                         <Card key={sched.name} size="small" title={`Schedule: ${sched.finance_book || 'Default'}`} style={{ borderRadius: 10 }}>
                             <Table
                                 dataSource={sched.entries}
@@ -289,7 +355,7 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
             {/* Back button */}
             <Button
                 icon={<ArrowLeftOutlined />}
-                onClick={() => navigateToRoute?.('assets')}
+                onClick={() => navigateToRoute('assets')}
                 style={{ marginBottom: 16 }}
             >
                 Back to Assets
@@ -322,9 +388,22 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                         <AssetStatusBadge status={asset.status} />
                         <Tag>{asset.asset_category}</Tag>
                         {asset.status === 'Draft' && (
-                            <Button type="primary" icon={<CheckCircleOutlined />} onClick={handleSubmit}>
-                                Submit Asset
+                            <Button icon={<EditOutlined />} onClick={() => setDraftSetupOpen(true)}>
+                                Edit Draft Details
                             </Button>
+                        )}
+                        {asset.status === 'Draft' && (
+                            canSubmitDraft ? (
+                                <Button type="primary" icon={<CheckCircleOutlined />} onClick={handleSubmit}>
+                                    Submit Asset
+                                </Button>
+                            ) : (
+                                <Tooltip title="Set Available-for-use Date before submitting the asset.">
+                                    <Button type="primary" icon={<CheckCircleOutlined />} disabled>
+                                        Submit Asset
+                                    </Button>
+                                </Tooltip>
+                            )
                         )}
                     </Space>
                 </div>
@@ -377,9 +456,13 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                 assetName={assetId}
                 currentLocation={asset.location}
                 currentLocationName={asset.facility_name || asset.location}
-                currentCustodian={asset.custodian}
                 currentCustodianName={asset.custodian_name}
                 company={asset.company}
+            />
+            <AssetDraftSetupModal
+                open={draftSetupOpen}
+                onClose={() => setDraftSetupOpen(false)}
+                asset={asset}
             />
         </div>
     );

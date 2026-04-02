@@ -43,4 +43,15 @@ describe('getAccessPolicy', () => {
         expect(isRouteAllowed(COMPANY_PERMISSION_ROUTE, policy)).toBe(true);
         expect(isRouteAllowed('dashboard', policy)).toBe(false);
     });
+
+    it('allows facilities/new for company, oversight, and standalone none-access onboarding', () => {
+        const companyPolicy = getAccessPolicy('company');
+        const oversightPolicy = getAccessPolicy('oversight');
+        const nonePolicy = getAccessPolicy('none');
+
+        expect(isRouteAllowed('facilities/new', companyPolicy)).toBe(true);
+        expect(isRouteAllowed('facilities/new', oversightPolicy)).toBe(true);
+        expect(isRouteAllowed('facilities/new', nonePolicy)).toBe(true);
+        expect(isRouteAllowed('facilities', nonePolicy)).toBe(false);
+    });
 });

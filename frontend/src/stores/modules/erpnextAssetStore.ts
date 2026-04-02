@@ -61,18 +61,99 @@ export interface AssetDetail extends AssetItem {
     additional_asset_cost: number;
     total_asset_cost: number;
     is_existing_asset: boolean;
+    purchase_receipt: string;
+    purchase_invoice: string;
+    opening_accumulated_depreciation: number;
+    opening_number_of_booked_depreciations: number;
     policy_number: string;
     insurer: string;
     insured_value: number;
     insurance_start_date: string;
     insurance_end_date: string;
-    insurance: any;
-    maintenance_records: any[];
-    maintenance_logs: any[];
-    repairs: any[];
-    movements: any[];
-    depreciation_schedules: any[];
-    finance_books: any[];
+    insurance: AssetInsurance;
+    maintenance_records: MaintenanceTask[];
+    maintenance_logs: MaintenanceLog[];
+    repairs: RepairRecord[];
+    movements: MovementRecord[];
+    depreciation_schedules: DepreciationScheduleGroup[];
+    finance_books: AssetFinanceBook[];
+}
+
+export interface AssetInsurance {
+    policy_number?: string;
+    insurer?: string;
+    insured_value?: number;
+    insurance_start_date?: string;
+    insurance_end_date?: string;
+}
+
+export interface MaintenanceTask {
+    name: string;
+    maintenance_type?: string;
+    due_date?: string;
+    maintenance_status?: string;
+    completion_date?: string;
+    actions_performed?: string;
+}
+
+export interface MaintenanceLog {
+    name: string;
+    maintenance_type?: string;
+    maintenance_status?: string;
+    completion_date?: string;
+    actions_performed?: string;
+}
+
+export interface RepairRecord {
+    name: string;
+    failure_date?: string;
+    description?: string;
+    repair_status?: string;
+    completion_date?: string;
+    total_repair_cost?: number;
+}
+
+export interface MovementRecord {
+    name: string;
+    purpose: string;
+    transaction_date: string;
+    source_location?: string;
+    source_location_name?: string;
+    target_location?: string;
+    target_location_name?: string;
+    from_employee_name?: string;
+    to_employee_name?: string;
+}
+
+export interface DepreciationScheduleEntry {
+    schedule_date: string;
+    depreciation_amount: number;
+    accumulated_depreciation_amount: number;
+    journal_entry?: string;
+}
+
+export interface DepreciationScheduleGroup {
+    name: string;
+    finance_book?: string;
+    entries: DepreciationScheduleEntry[];
+}
+
+export interface DepreciationSummary {
+    totals?: {
+        value_after_depreciation?: number;
+        next_depreciation_date?: string;
+    };
+    schedules?: DepreciationScheduleGroup[];
+}
+
+export interface AssetFinanceBook {
+    finance_book?: string;
+    depreciation_method?: string;
+    total_number_of_depreciations?: number;
+    frequency_of_depreciation?: number;
+    expected_value_after_useful_life?: number;
+    depreciation_start_date?: string;
+    rate_of_depreciation?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,10 +173,10 @@ interface ERPNextAssetStore {
     // Detail
     selectedAsset: AssetDetail | null;
     selectedAssetLoading: boolean;
-    maintenanceData: any | null;
-    repairRecords: any[];
-    movementRecords: any[];
-    depreciationSummary: any | null;
+    maintenanceData: { tasks: MaintenanceTask[]; logs: MaintenanceLog[] } | null;
+    repairRecords: RepairRecord[];
+    movementRecords: MovementRecord[];
+    depreciationSummary: DepreciationSummary | null;
 
     // List actions
     fetchAssets: (facilityIds?: string[]) => Promise<void>;
@@ -112,14 +193,19 @@ interface ERPNextAssetStore {
     fetchDepreciation: (name: string) => Promise<void>;
 
     // Mutations
-    createAsset: (data: any) => Promise<{ success: boolean; name?: string; error?: string }>;
+    createAsset: (data: Record<string, unknown>) => Promise<{ success: boolean; name?: string; error?: string }>;
+    updateAsset: (name: string, data: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
     submitAsset: (name: string) => Promise<boolean>;
-    createMaintenanceRequest: (data: any) => Promise<boolean>;
-    completeMaintenanceLog: (data: any) => Promise<boolean>;
-    createRepairRequest: (data: any) => Promise<boolean>;
-    completeRepair: (data: any) => Promise<boolean>;
-    createMovement: (data: any) => Promise<boolean>;
+    createMaintenanceRequest: (data: Record<string, unknown>) => Promise<boolean>;
+    completeMaintenanceLog: (data: Record<string, unknown>) => Promise<boolean>;
+    createRepairRequest: (data: Record<string, unknown>) => Promise<boolean>;
+    completeRepair: (data: Record<string, unknown>) => Promise<boolean>;
+    createMovement: (data: Record<string, unknown>) => Promise<boolean>;
 }
+
+const getErrorMessage = (error: unknown, fallback: string) => (
+    error instanceof Error ? error.message : fallback
+);
 
 const DEFAULT_FILTERS: AssetFilters = {
     page: 1,
@@ -288,13 +374,36 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     createAsset: async (data) => {
         try {
             const response = await erpnextAssetsApi.createAsset(data);
-            if (response.success) {
+            if (response.success && response.data?.name) {
                 return { success: true, name: response.data?.name };
             }
-            return { success: false, error: response.error || response.message || 'Failed to create asset' };
-        } catch (error: any) {
+            return {
+                success: false,
+                error: response.error || response.message || 'Failed to create asset',
+            };
+        } catch (error: unknown) {
             console.error('Failed to create asset', error);
-            return { success: false, error: error?.message || 'Unexpected error creating asset' };
+            return { success: false, error: getErrorMessage(error, 'Unexpected error creating asset') };
+        }
+    },
+
+    updateAsset: async (name, data) => {
+        try {
+            const response = await erpnextAssetsApi.updateAsset({ asset_name: name, ...data });
+            if (response.success) {
+                await Promise.all([
+                    get().fetchAssetDetail(name),
+                    get().fetchDepreciation(name),
+                    get().fetchMovements(name),
+                    get().fetchMaintenanceData(name),
+                    get().fetchRepairs(name),
+                ]);
+                return { success: true };
+            }
+            return { success: false, error: response.error || response.message || 'Failed to update asset' };
+        } catch (error: unknown) {
+            console.error('Failed to update asset', error);
+            return { success: false, error: getErrorMessage(error, 'Unexpected error updating asset') };
         }
     },
 

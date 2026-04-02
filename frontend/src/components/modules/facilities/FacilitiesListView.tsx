@@ -31,7 +31,17 @@ import FacilityDetailDrawer from './FacilityDetailDrawer';
 
 const { Text, Title } = Typography;
 
-const FacilitiesListView: React.FC = () => {
+interface FacilitiesListViewProps {
+    navigateToRoute?: (route: string, id?: string) => void;
+    initialFacilityId?: string | null;
+}
+
+const FEATURE_ENABLED = import.meta.env.VITE_ENABLE_FACILITY_ONBOARDING !== 'false';
+
+const FacilitiesListView: React.FC<FacilitiesListViewProps> = ({
+    navigateToRoute,
+    initialFacilityId,
+}) => {
     const { token } = theme.useToken();
     const { isMobile, isTablet, getResponsiveValue } = useResponsive();
     const { company } = useFacilityStore();
@@ -71,11 +81,23 @@ const FacilitiesListView: React.FC = () => {
     const handleCloseDrawer = () => {
         setDrawerVisible(false);
         setSelectedFacilityId(null);
+        if (initialFacilityId && navigateToRoute) {
+            navigateToRoute('facilities');
+        }
     };
 
     useEffect(() => {
         handleRefresh();
     }, [handleRefresh, filters.page, filters.pageSize]);
+
+    useEffect(() => {
+        if (!initialFacilityId) {
+            return;
+        }
+
+        setSelectedFacilityId(initialFacilityId);
+        setDrawerVisible(true);
+    }, [initialFacilityId]);
 
     const getLevelColor = (level: string) => {
         if (level?.includes('L6')) return '#722ed1';
@@ -211,14 +233,21 @@ const FacilitiesListView: React.FC = () => {
     return (
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
             {/* Page Title */}
-            <div style={{ marginBottom: 16 }}>
-                <Title level={isMobile ? 4 : 3} style={{ margin: 0, marginBottom: 2, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                    <BankOutlined style={{ opacity: 0.45, color: token.colorTextTertiary }} />
-                    Health Facilities
-                </Title>
-                <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                    Registered facilities in your organization
-                </Text>
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <div>
+                    <Title level={isMobile ? 4 : 3} style={{ margin: 0, marginBottom: 2, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                        <BankOutlined style={{ opacity: 0.45, color: token.colorTextTertiary }} />
+                        Health Facilities
+                    </Title>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                        Registered facilities in your organization
+                    </Text>
+                </div>
+                {FEATURE_ENABLED && navigateToRoute && (
+                    <Button type="primary" onClick={() => navigateToRoute('facilities/new')}>
+                        Onboard Facility
+                    </Button>
+                )}
             </div>
 
             {/* Table Section */}

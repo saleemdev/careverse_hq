@@ -24,6 +24,7 @@ import { useResponsive } from '../hooks/useResponsive';
 import useFacilityStore from '../stores/facilityStore';
 
 const { Title, Paragraph, Text } = Typography;
+const FEATURE_ENABLED = import.meta.env.VITE_ENABLE_FACILITY_ONBOARDING !== 'false';
 
 interface CompanyPermissionRequiredProps {
 	onNavigate?: (route: string, id?: string) => void;
@@ -473,6 +474,26 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 						>
 							Refresh Page
 						</Button>
+						{FEATURE_ENABLED && (
+							<Button
+								icon={<ArrowRightOutlined />}
+								size={isMobile ? 'middle' : 'large'}
+								onClick={() => onNavigate?.('facilities/new')}
+								block={isMobile}
+								style={{
+									height: isMobile ? '42px' : '46px',
+									fontSize: isMobile ? '14px' : '15px',
+									fontWeight: 600,
+									borderRadius: '12px',
+									minWidth: isMobile ? 'auto' : '190px',
+									background: 'rgba(99, 102, 241, 0.08)',
+									border: '1px solid rgba(99, 102, 241, 0.18)',
+									color: '#4f46e5',
+								}}
+							>
+								Onboard Your Facility
+							</Button>
+						)}
 						<Button
 							icon={<ArrowRightOutlined />}
 							size={isMobile ? 'middle' : 'large'}

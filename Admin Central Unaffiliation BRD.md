@@ -40,7 +40,7 @@ Submit the termination request.
 
 Upon submission: 
 
-System updates the HP's affiliation status to “Inactive” in the central registry. 
+System updates the HP's affiliation status to “Terminated” in the central registry. 
 
 The request/termination is recorded and becomes visible in the Facility Admin's view on F360. 
 

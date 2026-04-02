@@ -665,7 +665,7 @@ const AffiliationsListView: React.FC = () => {
                                     <Tag color="default" style={{ fontSize: '10px' }}>Expired</Tag>
                                 </Select.Option>
                                 <Select.Option value="Inactive">
-                                    <Tag color="default" style={{ fontSize: '10px' }}>Inactive</Tag>
+                                    <Tag color="default" style={{ fontSize: '10px' }}>Inactive (Legacy)</Tag>
                                 </Select.Option>
                                 <Select.Option value="Terminated">
                                     <Tag color="red" style={{ fontSize: '10px' }}>Terminated</Tag>
@@ -1187,7 +1187,7 @@ const AffiliationsListView: React.FC = () => {
                         )}
                     </Form.Item>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                        This will set affiliation to Inactive and deactivate the linked employee from active directory visibility.
+                        This will set affiliation to Terminated and deactivate the linked employee from active directory visibility.
                     </Text>
 
                     {terminateStep === 'otp' && (

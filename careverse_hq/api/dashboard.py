@@ -338,7 +338,7 @@ def get_affiliations(
             if status_lookup == "confirmed":
                 filters["affiliation_status"] = ["in", ["Active", "Confirmed"]]
             elif status_lookup in {"terminated", "inactive"}:
-                # Terminated affiliations are persisted as Inactive in some flows.
+                # Keep legacy Inactive records visible alongside canonical Terminated ones.
                 filters["affiliation_status"] = ["in", ["Inactive", "Terminated"]]
             else:
                 normalized_status_map = {

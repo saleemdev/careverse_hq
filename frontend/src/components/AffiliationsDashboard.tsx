@@ -62,6 +62,7 @@ const statusColors: Record<string, string> = {
     'Rejected': 'error',
     'Expired': 'default',
     'Inactive': 'default',
+    'Terminated': 'error',
 };
 
 // Employment type labels
@@ -229,6 +230,7 @@ const AffiliationsDashboard: React.FC<AffiliationsDashboardProps> = ({ navigateT
         rejected: affiliations.filter(a => a.affiliation_status === 'Rejected').length,
         expired: affiliations.filter(a => a.affiliation_status === 'Expired').length,
         inactive: affiliations.filter(a => a.affiliation_status === 'Inactive').length,
+        terminated: affiliations.filter(a => a.affiliation_status === 'Terminated').length,
     };
 
     // Filter affiliations
@@ -259,6 +261,7 @@ const AffiliationsDashboard: React.FC<AffiliationsDashboardProps> = ({ navigateT
                 return <CloseCircleOutlined style={{ color: token.colorError }} />;
             case 'Expired':
             case 'Inactive':
+            case 'Terminated':
                 return <ExclamationCircleOutlined style={{ color: token.colorTextDisabled }} />;
             default:
                 return null;
@@ -378,6 +381,7 @@ const AffiliationsDashboard: React.FC<AffiliationsDashboardProps> = ({ navigateT
                             { label: 'Rejected', value: 'Rejected' },
                             { label: 'Expired', value: 'Expired' },
                             { label: 'Inactive', value: 'Inactive' },
+                            { label: 'Terminated', value: 'Terminated' },
                         ]}
                     />
                     <Button icon={<ReloadOutlined spin={loading} />} onClick={loadAffiliations}>

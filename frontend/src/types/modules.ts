@@ -2,7 +2,7 @@
  * TypeScript Interfaces for Admin Central Modules
  */
 
-export type StatusType = 'Active' | 'Inactive' | 'Pending' | 'Approved' | 'Rejected' | 'Draft' | 'Cancelled' | 'Submitted' | 'Open' | 'Closed';
+export type StatusType = 'Active' | 'Inactive' | 'Terminated' | 'Pending' | 'Approved' | 'Rejected' | 'Draft' | 'Cancelled' | 'Submitted' | 'Open' | 'Closed';
 
 export interface BaseRecord {
     name: string;

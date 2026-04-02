@@ -7,6 +7,12 @@ from functools import lru_cache
 import frappe
 
 
+CANONICAL_TERMINATED_AFFILIATION_STATUS = "Terminated"
+LEGACY_TERMINATED_AFFILIATION_STATUSES = frozenset(
+    {"Inactive", CANONICAL_TERMINATED_AFFILIATION_STATUS}
+)
+
+
 @lru_cache(maxsize=1)
 def get_facility_affiliation_status_field():
     """
@@ -21,6 +27,26 @@ def get_facility_affiliation_status_field():
     if meta.has_field("status"):
         return "status"
     return None
+
+
+def normalize_facility_affiliation_status(status):
+    """
+    Normalize legacy terminal statuses to the canonical terminated state.
+    """
+    normalized = (status or "").strip()
+    if normalized in LEGACY_TERMINATED_AFFILIATION_STATUSES:
+        return CANONICAL_TERMINATED_AFFILIATION_STATUS
+    return normalized
+
+
+def is_terminated_facility_affiliation_status(status):
+    """
+    Return True when the status represents a terminated affiliation.
+    """
+    return (
+        normalize_facility_affiliation_status(status)
+        == CANONICAL_TERMINATED_AFFILIATION_STATUS
+    )
 
 
 def get_facility_affiliation_status(doc_or_name):

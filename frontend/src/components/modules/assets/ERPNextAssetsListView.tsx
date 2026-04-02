@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo, useState } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import {
     Table, Card, Row, Col, Statistic, Tag, Input, Space, Typography,
     Button, theme, Select, Spin, Progress,
@@ -6,9 +6,10 @@ import {
 import {
     LaptopOutlined, ToolOutlined, CheckCircleOutlined, WarningOutlined,
     SearchOutlined, ReloadOutlined, EnvironmentOutlined, BarcodeOutlined,
-    MedicineBoxOutlined, PlusOutlined, ClockCircleOutlined, FallOutlined,
+    MedicineBoxOutlined, PlusOutlined, ClockCircleOutlined, FallOutlined, UserOutlined,
 } from '@ant-design/icons';
 import useERPNextAssetStore from '../../../stores/modules/erpnextAssetStore';
+import type { AssetItem } from '../../../stores/modules/erpnextAssetStore';
 import useFacilityStore from '../../../stores/facilityStore';
 import { TableSkeleton } from '../../shared/Skeleton/Skeleton';
 import EmptyState from '../../shared/EmptyState/EmptyState';
@@ -20,7 +21,7 @@ import dayjs from 'dayjs';
 const { Text, Title } = Typography;
 
 interface Props {
-    navigateToRoute?: (route: string, id?: string) => void;
+    navigateToRoute: (route: string, id?: string) => void;
 }
 
 const ASSET_STATUSES = [
@@ -40,14 +41,11 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
     const { isMobile, getResponsiveValue } = useResponsive();
     const { availableFacilities, loading: facilitiesLoading } = useFacilityStore();
 
-    const [selectedFacilityFilter, setSelectedFacilityFilter] = useState<string[]>([]);
-    const [searchValue, setSearchValue] = useState('');
-    const [searchDebounce, setSearchDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
     const [categories, setCategories] = useState<{ name: string; asset_category_name: string }[]>([]);
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const {
-        assets, loading, total, statusAggregates, categoryAggregates,
-        dashboardLoading, filters,
+        assets, loading, total, statusAggregates, filters,
         fetchAssets, fetchDashboard, setFilters,
     } = useERPNextAssetStore();
 
@@ -60,10 +58,18 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
         });
     }, []);
 
+    useEffect(() => {
+        return () => {
+            if (searchDebounceRef.current) {
+                clearTimeout(searchDebounceRef.current);
+            }
+        };
+    }, []);
+
     const getFacilityIdsForFetch = useCallback(() => {
-        if (selectedFacilityFilter.length > 0) return selectedFacilityFilter;
+        if (filters.facilities.length > 0) return filters.facilities;
         return availableFacilities.map((f) => f.hie_id);
-    }, [selectedFacilityFilter, availableFacilities]);
+    }, [filters.facilities, availableFacilities]);
 
     const handleRefresh = useCallback(() => {
         const ids = getFacilityIdsForFetch();
@@ -73,15 +79,15 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
 
     useEffect(() => {
         handleRefresh();
-    }, [handleRefresh, filters.status, filters.category, filters.search, filters.page, filters.pageSize, selectedFacilityFilter]);
+    }, [handleRefresh, filters.status, filters.category, filters.search, filters.page, filters.pageSize, filters.facilities]);
 
     const handleSearch = (value: string) => {
-        setSearchValue(value);
-        if (searchDebounce) clearTimeout(searchDebounce);
-        const timeout = setTimeout(() => {
+        if (searchDebounceRef.current) {
+            clearTimeout(searchDebounceRef.current);
+        }
+        searchDebounceRef.current = setTimeout(() => {
             setFilters({ search: value });
         }, 400);
-        setSearchDebounce(timeout);
     };
 
     // KPI data
@@ -94,13 +100,29 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
         { title: 'DRAFT', value: statusAggregates?.draft || 0, icon: <ClockCircleOutlined />, color: '#13c2c2', variant: 'cyan' },
     ], [statusAggregates]);
 
+    const getAssignedEmployee = (record: Pick<AssetItem, 'custodian_name' | 'custodian'>) => {
+        const employeeName = (record.custodian_name || '').trim();
+        const employeeId = (record.custodian || '').trim();
+
+        if (employeeName && employeeId) {
+            return { label: employeeName, meta: employeeId };
+        }
+        if (employeeName) {
+            return { label: employeeName, meta: '' };
+        }
+        if (employeeId) {
+            return { label: employeeId, meta: '' };
+        }
+        return { label: 'Unassigned', meta: '' };
+    };
+
     const columns = [
         {
             title: 'Asset Info',
             key: 'asset',
             fixed: 'left' as const,
             width: 280,
-            render: (record: any) => (
+            render: (_: unknown, record: AssetItem) => (
                 <Space>
                     <div style={{
                         width: 40, height: 40, borderRadius: 8,
@@ -130,7 +152,7 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
             title: 'Location',
             key: 'facility',
             width: 220,
-            render: (record: any) => (
+            render: (_: unknown, record: AssetItem) => (
                 <Space align="start">
                     <EnvironmentOutlined style={{ color: token.colorTextDescription, marginTop: 3 }} />
                     <Space direction="vertical" size={0}>
@@ -141,6 +163,25 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                     </Space>
                 </Space>
             ),
+        },
+        {
+            title: 'Assigned To',
+            key: 'assigned_to',
+            width: 220,
+            render: (_: unknown, record: AssetItem) => {
+                const assigned = getAssignedEmployee(record);
+                return (
+                    <Space align="start">
+                        <UserOutlined style={{ color: token.colorTextDescription, marginTop: 3 }} />
+                        <Space direction="vertical" size={0}>
+                            <Text strong style={{ fontSize: '13px' }}>{assigned.label}</Text>
+                            {assigned.meta && (
+                                <Text type="secondary" style={{ fontSize: '11px' }}>ID: {assigned.meta}</Text>
+                            )}
+                        </Space>
+                    </Space>
+                );
+            },
         },
         {
             title: 'Status',
@@ -160,7 +201,7 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
             title: 'Current Value',
             key: 'value',
             width: 160,
-            render: (record: any) => {
+            render: (_: unknown, record: AssetItem) => {
                 const current = record.value_after_depreciation || 0;
                 const purchase = record.gross_purchase_amount || 1;
                 const pct = Math.min(100, Math.round((current / purchase) * 100));
@@ -180,10 +221,10 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
             key: 'action',
             fixed: 'right' as const,
             width: 100,
-            render: (_: any, record: any) => (
+            render: (_: unknown, record: AssetItem) => (
                 <Button
                     type="link"
-                    onClick={() => navigateToRoute?.('assets', record.name)}
+                    onClick={() => navigateToRoute('assets', record.name)}
                 >
                     View
                 </Button>
@@ -223,8 +264,8 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                             {/* Facility Filter */}
                             <Select
                                 mode="multiple"
-                                value={selectedFacilityFilter}
-                                onChange={setSelectedFacilityFilter}
+                                value={filters.facilities}
+                                onChange={(values) => setFilters({ facilities: values })}
                                 placeholder="All Facilities"
                                 allowClear
                                 loading={facilitiesLoading}
@@ -275,7 +316,7 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                             <Input
                                 placeholder="Search assets..."
                                 prefix={<SearchOutlined style={{ color: token.colorTextPlaceholder }} />}
-                                value={searchValue}
+                                value={filters.search}
                                 onChange={(e) => handleSearch(e.target.value)}
                                 style={{
                                     width: getResponsiveValue(COMPONENT_WIDTHS.searchInput),
@@ -289,7 +330,7 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                             <Button
                                 type="primary"
                                 icon={<PlusOutlined />}
-                                onClick={() => navigateToRoute?.('assets', 'new')}
+                                onClick={() => navigateToRoute('assets', 'new')}
                             >
                                 {isMobile ? '' : 'New Asset'}
                             </Button>
@@ -321,7 +362,7 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
                         type="no-data"
                         title="No Assets Found"
                         description="Create your first asset or adjust filters."
-                        onAction={() => navigateToRoute?.('assets', 'new')}
+                        onAction={() => navigateToRoute('assets', 'new')}
                         actionText="Create Asset"
                     />
                 )}

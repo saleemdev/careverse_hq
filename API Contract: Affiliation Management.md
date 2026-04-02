@@ -62,7 +62,7 @@
 
 1. Authenticate and verify the requesting user is a **Organization Owner**.
 2. Validate `affiliation_id` exists and its current status is `"Active"`.
-3. Update affiliation status to `"Inactive"`.
+3. Update affiliation status to `"Terminated"`.
 4. Record `termination_date` as today's date (UTC).
 5. Record `terminated_by` as the current authenticated user.
 6. Persist `termination_reason`.
@@ -79,7 +79,7 @@ When an affiliation is terminated, the platform automatically initiates a synchr
 
 ### 4.1 Sync Trigger
 
-The C360 sync is triggered immediately after the affiliation status is updated to `"Inactive"` (Step 9 of the process flow). It runs asynchronously after a successful termination as part of the same termination transaction.
+The C360 sync is triggered immediately after the affiliation status is updated to `"Terminated"` (Step 9 of the process flow). It runs asynchronously after a successful termination as part of the same termination transaction.
 
 ### 4.2 Sync Payload
 
@@ -106,7 +106,7 @@ The following updated affiliation data is sent to C360:
          "address":"NAIROBI KENYA",
          "keph_level":"LEVEL 2"
       },
-      "affiliation_status":"Inactive",
+      "affiliation_status":"Terminated",
       "termination_reason":"End of employment contract or fixed-term agreement expiration",
       "termination_date":"2026-02-24",
       "terminated_by":"user@example.com",
@@ -190,7 +190,7 @@ When the daily check determines that an affiliation's `end_date` is today (i.e.,
   "message": "Affiliation successfully terminated.",
   "data": {
     "affiliation_id": "aff_abc123",
-    "status": "Inactive",
+    "status": "Terminated",
     "termination_date": "2025-02-20",
     "terminated_by": {
       "user_id": "usr_xyz789",
@@ -208,7 +208,7 @@ When the daily check determines that an affiliation's `end_date` is today (i.e.,
 | `401` | Missing or invalid tokens | `"Invalid or missing x-access-token or x-sid-token."` |
 | `403` | User is not a Facility Administrator | `"You do not have permission to terminate affiliations."` |
 | `404` | Affiliation does not exist | `"Affiliation not found."` |
-| `409` | Affiliation is not currently Active | `"Affiliation cannot be terminated. Current status: 'Inactive'."` |
+| `409` | Affiliation is not currently Active | `"Affiliation cannot be terminated. Current status: 'Terminated'."` |
 | `500` | Unexpected server error | `"An unexpected error occurred. Please try again later."` |
 
 #### 400 Bad Request
@@ -253,7 +253,7 @@ When the daily check determines that an affiliation's `end_date` is today (i.e.,
 ```json
 {
   "success": false,
-  "message": "Affiliation cannot be terminated. Current status: 'Inactive'."
+  "message": "Affiliation cannot be terminated. Current status: 'Terminated'."
 }
 ```
 

@@ -69,12 +69,13 @@ def fetch_facility_hwr_fr(**kwargs):
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     try:
-        frappe.log_error(title="hwr request data",message=f"url {hfr_url} headers: {headers} Payload: {payload}")
+        frappe.log_error(
+            title="hwr request data",
+            message=f"url {hfr_url} payload_keys: {sorted(payload.keys())}",
+        )
         resp = requests.get(hfr_url, headers=headers, json=payload, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        frappe.log_error("hwr response",data)
-        
 
         # Process successful response
         message = data.get("message",None)
@@ -171,7 +172,6 @@ def fetch_facility_details(**kwargs):
 
     try:  
         facility_data = fetch_facility_hwr_fr(**kwargs)
-        frappe.log_error(title="fetch facility data result",message=facility_data)
     except Exception as e:
         return api_response(
             success=False,
@@ -275,6 +275,7 @@ def create_new_facility_v2(**kwargs):
         filters={"name": facility_id},
         pluck="name",
         limit_page_length=1,
+        ignore_permissions=True,
     )
     if existing:
         return api_response(
@@ -547,6 +548,7 @@ def create_new_facility_v2(**kwargs):
         
         org_user = frappe.get_doc("Healthcare Organization User", {'user': user_name}, ignore_permissions=True)
         org_user.organization = Organization.get('name')
+        org_user.organization_region = Region.get('name')
         org_user.save(ignore_permissions=True)
 
     # Commit transaction
@@ -556,6 +558,7 @@ def create_new_facility_v2(**kwargs):
         "user": user_name,
         "permissions": [
             {"doctype": "Healthcare Organization", "values": [Organization.get('name')]},
+            {"doctype": "Healthcare Organization Region", "values": [Region.get('name')]},
             {"doctype": "Health Facility", "values": [health_facility.name]},
             {"doctype": "Department", "values": [health_facility.department]},
         ],

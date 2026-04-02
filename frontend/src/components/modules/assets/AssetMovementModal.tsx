@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
     Modal, Form, Select, DatePicker, Button, Space, Card, Typography,
-    Alert, message, theme, Empty, Spin,
+    Alert, message, Empty, Spin,
 } from 'antd';
 import { SwapOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import useERPNextAssetStore from '../../../stores/modules/erpnextAssetStore';
@@ -18,9 +18,15 @@ interface Props {
     assetName: string;
     currentLocation: string;
     currentLocationName: string;
-    currentCustodian: string;
     currentCustodianName: string;
     company: string;
+}
+
+interface EmployeeSearchOption {
+    name: string;
+    employee_name: string;
+    designation?: string;
+    department?: string;
 }
 
 const PURPOSES = [
@@ -32,21 +38,20 @@ const PURPOSES = [
 const AssetMovementModal: React.FC<Props> = ({
     open, onClose, assetName,
     currentLocation, currentLocationName,
-    currentCustodian, currentCustodianName,
+    currentCustodianName,
     company,
 }) => {
-    const { token } = theme.useToken();
     const { isMobile } = useResponsive();
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
-    const [purpose, setPurpose] = useState('Transfer');
     const { createMovement } = useERPNextAssetStore();
     const { availableFacilities } = useFacilityStore();
 
     // Employee search for Issue purpose
-    const [employees, setEmployees] = useState<any[]>([]);
+    const [employees, setEmployees] = useState<EmployeeSearchOption[]>([]);
     const [employeeSearching, setEmployeeSearching] = useState(false);
     const employeeSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const purpose = Form.useWatch('purpose', form) || 'Transfer';
 
     const handleEmployeeSearch = useCallback((value: string) => {
         if (employeeSearchRef.current) clearTimeout(employeeSearchRef.current);
@@ -70,8 +75,8 @@ const AssetMovementModal: React.FC<Props> = ({
             const success = await createMovement({
                 asset_name: assetName,
                 purpose: values.purpose,
-                target_facility_id: values.target_facility_id,
-                to_employee: values.to_employee,
+                target_facility_id: values.purpose === 'Issue' ? undefined : values.target_facility_id,
+                to_employee: values.purpose === 'Issue' ? values.to_employee : undefined,
                 transaction_date: values.transaction_date?.format('YYYY-MM-DD HH:mm:ss'),
             });
 
@@ -82,7 +87,7 @@ const AssetMovementModal: React.FC<Props> = ({
             } else {
                 message.error('Failed to create movement');
             }
-        } catch (err) {
+        } catch {
             // validation error
         } finally {
             setSubmitting(false);
@@ -94,6 +99,18 @@ const AssetMovementModal: React.FC<Props> = ({
             title={<Space><SwapOutlined /><span>Asset Movement</span></Space>}
             open={open}
             onCancel={onClose}
+            afterOpenChange={(isOpen) => {
+                if (!isOpen) {
+                    return;
+                }
+                setEmployees([]);
+                form.setFieldsValue({
+                    purpose: 'Transfer',
+                    target_facility_id: undefined,
+                    to_employee: undefined,
+                    transaction_date: dayjs(),
+                });
+            }}
             width={isMobile ? '100%' : 700}
             style={{ top: isMobile ? 0 : 24 }}
             bodyStyle={{ padding: isMobile ? 12 : 20 }}
@@ -116,13 +133,30 @@ const AssetMovementModal: React.FC<Props> = ({
                 </Space>
             </Card>
 
-            <Form form={form} layout="vertical" initialValues={{ purpose: 'Transfer', transaction_date: dayjs() }}>
+            <Form
+                form={form}
+                layout="vertical"
+                initialValues={{ purpose: 'Transfer', transaction_date: dayjs() }}
+                onValuesChange={(changedValues) => {
+                    if (!changedValues.purpose) {
+                        return;
+                    }
+
+                    if (changedValues.purpose === 'Issue') {
+                        form.setFieldValue('target_facility_id', undefined);
+                        return;
+                    }
+
+                    form.setFieldValue('to_employee', undefined);
+                    setEmployees([]);
+                }}
+            >
                 <Form.Item
                     label="Purpose"
                     name="purpose"
                     rules={[{ required: true }]}
                 >
-                    <Select options={PURPOSES} onChange={(val) => setPurpose(val)} />
+                    <Select options={PURPOSES} />
                 </Form.Item>
 
                 {(purpose === 'Transfer' || purpose === 'Receipt') && (

@@ -14,6 +14,7 @@ import ERPNextAssetsListView from './components/modules/assets/ERPNextAssetsList
 import AssetDetailView from './components/modules/assets/AssetDetailView';
 import AssetCreateForm from './components/modules/assets/AssetCreateForm';
 import FacilitiesListView from './components/modules/facilities/FacilitiesListView';
+import FacilityOnboardingWizard from './components/modules/facilities/FacilityOnboardingWizard';
 import AffiliationsListView from './components/modules/affiliations/AffiliationsListView';
 import LicensesListView from './components/modules/licenses/LicensesListView';
 import LicenseDetailView from './components/modules/licenses/LicenseDetailView';
@@ -43,6 +44,7 @@ const ROUTE_FAVICONS: Record<string, string> = {
   affiliations: DEFAULT_FAVICON,
 };
 const ENABLE_USER_MGMT_REFACTOR = import.meta.env.VITE_ENABLE_USER_MGMT_REFACTOR !== 'false';
+const ENABLE_FACILITY_ONBOARDING = import.meta.env.VITE_ENABLE_FACILITY_ONBOARDING !== 'false';
 
 const decodeHashSegment = (segment: string): string => {
   try {
@@ -229,6 +231,11 @@ function App() {
         route = 'user-management/security';
         id = parts[1];
       } else if (
+        parts[0] === 'facilities'
+        && parts[1] === 'new'
+      ) {
+        route = 'facilities/new';
+      } else if (
         parts[0] === 'recruitment'
         && parts[1] === 'job-posts'
         && parts[2] === 'new'
@@ -263,7 +270,7 @@ function App() {
           id = parts[1];
         } else {
           // Second part is an ID
-          id = parts[1];
+          id = parts.slice(1).join('/');
         }
       }
 
@@ -408,7 +415,10 @@ function App() {
         return <ERPNextAssetsListView navigateToRoute={navigateToRoute} />;
 
       case 'facilities':
-        return <FacilitiesListView />;
+        return <FacilitiesListView navigateToRoute={navigateToRoute} initialFacilityId={currentDetailId} />;
+
+      case 'facilities/new':
+        return <FacilityOnboardingWizard navigateToRoute={navigateToRoute} standalone={accessPolicy.mode === 'none'} />;
 
       // Attendance routes (Under Construction)
       case 'attendance':
@@ -623,6 +633,14 @@ function App() {
       return (
         <ConfigProvider theme={themeConfig} locale={enUS}>
           <ProfilePage navigateToRoute={navigateToRoute} showStandaloneHeader />
+        </ConfigProvider>
+      );
+    }
+
+    if (ENABLE_FACILITY_ONBOARDING && currentRoute === 'facilities/new') {
+      return (
+        <ConfigProvider theme={themeConfig} locale={enUS}>
+          <FacilityOnboardingWizard navigateToRoute={navigateToRoute} standalone />
         </ConfigProvider>
       );
     }

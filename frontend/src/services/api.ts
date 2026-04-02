@@ -12,6 +12,170 @@ interface ApiResponse<T = any> {
     error?: string;
 }
 
+export interface FacilityOnboardingRegionOption {
+    name: string;
+    region_name: string;
+    parent_organization?: string | null;
+    company?: string | null;
+}
+
+export interface FacilityOnboardingReferenceData {
+    regions: FacilityOnboardingRegionOption[];
+    public_owner_types: string[];
+}
+
+export interface FacilityOnboardingLookupPayload {
+    facility_id?: string;
+    registration_number?: string;
+}
+
+export interface FacilityOnboardingOtpRequestPayload extends FacilityOnboardingLookupPayload {
+    delivery_mode?: 'sms' | 'email';
+}
+
+export interface FacilityOnboardingFacilityPreview {
+    facility_id?: string | null;
+    facility_name?: string | null;
+    facility_code?: string | null;
+    registration_number?: string | null;
+    facility_type?: string | null;
+    facility_level?: string | null;
+    operational_status?: string | null;
+    county?: string | null;
+    sub_county?: string | null;
+    facility_owner_type?: string | null;
+    facility_owner?: string | null;
+}
+
+export interface FacilityOnboardingOwnerMatch {
+    matched: boolean;
+    identification_number?: string | null;
+    identification_type?: string | null;
+    full_name?: string | null;
+}
+
+export interface FacilityOnboardingOtpSession {
+    otp_id: string;
+    channel: 'sms' | 'email';
+    masked_destination: string;
+    expires_in_seconds: number;
+    resend_cooldown_seconds: number;
+}
+
+export interface FacilityOnboardingLookupResult {
+    facility_preview: FacilityOnboardingFacilityPreview;
+    already_onboarded?: {
+        name: string;
+        facility_name?: string | null;
+        hie_id?: string | null;
+        matched_on?: string | null;
+    } | null;
+    owner_match: FacilityOnboardingOwnerMatch;
+    owner_id_present: boolean;
+    can_start_verification: boolean;
+    message?: string | null;
+}
+
+export interface FacilityOnboardingOtpStartResult {
+    facility_preview: FacilityOnboardingFacilityPreview;
+    otp_session: FacilityOnboardingOtpSession;
+    owner_match: FacilityOnboardingOwnerMatch;
+}
+
+export interface FacilityOnboardingFacilityDetails {
+    facility_fid?: string | null;
+    facility_name?: string | null;
+    facility_type?: string | null;
+    registration_number?: string | null;
+    facility_category?: string | null;
+    facility_level?: string | null;
+    facility_code?: string | null;
+    operational_status?: string | null;
+}
+
+export interface FacilityOnboardingAdminDetails {
+    first_name?: string | null;
+    middle_name?: string | null;
+    last_name?: string | null;
+    id_number?: string | null;
+    phone_number?: string | null;
+    email?: string | null;
+    gender?: string | null;
+    date_of_birth?: string | null;
+    identification_type?: string | null;
+}
+
+export interface FacilityOnboardingLicenseDetails {
+    current_license_number?: string | null;
+    current_license_type?: string | null;
+    current_license_expiry_date?: string | null;
+    regulatory_body?: string | null;
+    license_renewal_duration?: string | number | null;
+    current_renewal_date?: string | null;
+}
+
+export interface FacilityOnboardingAdditionalDefaults {
+    organization_owner_type?: string | null;
+    organization_owner?: string | null;
+    organization_owner_kra_pin?: string | null;
+    physical_address?: string | null;
+    email_address?: string | null;
+    number_of_beds?: number | string | null;
+    latitude?: string | null;
+    longitude?: string | null;
+    county?: string | null;
+    sub_county?: string | null;
+    ward?: string | null;
+    constituency?: string | null;
+    maximum_bed_allocation?: number | string | null;
+    open_whole_day?: boolean | number | null;
+    open_public_holiday?: boolean | number | null;
+    open_weekends?: boolean | number | null;
+    open_late_night?: boolean | number | null;
+    owner_board_registration_number?: string | null;
+    owner_current_license_number?: string | null;
+    region?: string | null;
+}
+
+export interface FacilityOwnerOtpVerificationResult {
+    facility_details: FacilityOnboardingFacilityDetails;
+    admin_details: FacilityOnboardingAdminDetails;
+    license_details: FacilityOnboardingLicenseDetails;
+    additional_defaults: FacilityOnboardingAdditionalDefaults;
+    verification: {
+        expires_in_seconds: number;
+    };
+}
+
+export interface FacilityOnboardingContact {
+    contact_name: string;
+    phone_number: string;
+}
+
+export interface FacilityOnboardingBank {
+    bank_name: string;
+    branch_name?: string;
+    account_name?: string;
+    account_number: string;
+    purpose?: string;
+}
+
+export interface FacilityOnboardingSubmitPayload {
+    facility_id: string;
+    additional_details: FacilityOnboardingAdditionalDefaults;
+    contacts: FacilityOnboardingContact[];
+    banks: FacilityOnboardingBank[];
+}
+
+export interface FacilityOnboardingSubmitResult {
+    facility_docname: string;
+    facility_name: string;
+    facility_hie_id: string;
+    organization: string;
+    region: string;
+    department: string;
+}
+
 const isCsrfErrorResponse = (response: Response, result: any): boolean => {
     const payload = JSON.stringify(result || {});
     const hasCsrfSignal = payload.includes('CSRFTokenError') || payload.includes('Invalid Request');
@@ -149,6 +313,7 @@ export const callFrappePostMethod = async <T = any>(
     methodName: string,
     args: Record<string, any>
 ): Promise<ApiResponse<T>> => {
+    const FRAPPE_CALL_TIMEOUT_MS = 12000;
     const isCsrfText = (value: any): boolean => {
         const raw = JSON.stringify(value || {});
         return raw.includes('CSRFTokenError') || raw.includes('Invalid Request');
@@ -159,33 +324,68 @@ export const callFrappePostMethod = async <T = any>(
 
     if ((window as any).frappe?.call) {
         const deskResult = await new Promise<ApiResponse<T>>((resolve) => {
+            let settled = false;
+            const finish = (result: ApiResponse<T>) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                clearTimeout(timeoutHandle);
+                resolve(result);
+            };
+            const timeoutHandle = window.setTimeout(() => {
+                finish({
+                    success: false,
+                    error: 'Request timeout via Frappe bridge. Retrying over direct API.',
+                    data: { __frappe_bridge_timeout: true } as any,
+                });
+            }, FRAPPE_CALL_TIMEOUT_MS);
+
             (window as any).frappe.call({
                 method: methodName,
                 type: 'POST',
                 args,
                 callback: (r: any) => {
+                    const responseStatus = r?.status;
+                    const payload = r?.message ?? r;
+
                     if (r?.exc) {
                         // exc is a Python traceback string; try to extract the
                         // last meaningful line, or fall back to the payload message.
-                        const payload = r?.message ?? r;
                         const excMsg = (typeof payload === 'object' && payload !== null && typeof payload.message === 'string')
                             ? payload.message
-                            : 'Request failed.';
-                        resolve({ success: false, error: excMsg, data: r as any });
+                            : (typeof r?.message === 'string' ? r.message : 'Request failed.');
+                        finish({ success: false, error: excMsg, data: r as any });
                         return;
                     }
-                    const payload = r?.message ?? r;
-                    if (payload?.status === 'error') {
-                        resolve({ success: false, error: payload?.message || 'Request failed.', data: payload });
+
+                    if (responseStatus === 'error') {
+                        const errorMessage =
+                            typeof r?.message === 'string'
+                                ? r.message
+                                : (typeof payload === 'object' && payload !== null && typeof payload.message === 'string')
+                                    ? payload.message
+                                    : 'Request failed.';
+                        finish({ success: false, error: errorMessage, message: errorMessage, data: r as any });
                         return;
                     }
+
+                    if (typeof payload === 'object' && payload?.status === 'error') {
+                        const errorMessage =
+                            typeof payload?.message === 'string'
+                                ? payload.message
+                                : 'Request failed.';
+                        finish({ success: false, error: errorMessage, message: errorMessage, data: payload });
+                        return;
+                    }
+
                     // Prefer r.data when server returns { status, data, message }; else payload.data or payload
                     const data = (r?.data !== undefined && r?.data !== null)
                         ? r.data
                         : (typeof payload === 'object' && payload?.data !== undefined)
                             ? payload.data
                             : payload;
-                    resolve({ success: true, data });
+                    finish({ success: true, data });
                 },
                 error: (err: any) => {
                     // err can be an XHR response, parsed JSON, or Error object.
@@ -195,10 +395,15 @@ export const callFrappePostMethod = async <T = any>(
                         (typeof raw === 'object' && raw !== null && typeof raw.message === 'string')
                             ? raw.message
                             : (typeof raw === 'string' ? raw : 'Request failed.');
-                    resolve({ success: false, error: errMsg, data: err as any });
+                    finish({ success: false, error: errMsg, data: err as any });
                 },
             });
         });
+
+        // If the Desk bridge hangs, force fallback to direct HTTP call.
+        if (!deskResult.success && (deskResult.data as any)?.__frappe_bridge_timeout) {
+            return apiCall<T>('POST', `/api/method/${methodName}`, args);
+        }
 
         // Universal CSRF retry: if frappe.call failed due to stale token,
         // fall back to apiCall which refreshes the token from the server and retries.
@@ -692,6 +897,32 @@ export const facilitiesApi = {
 
         return response;
     }
+};
+
+export const facilityOnboardingApi = {
+    getReferenceData: async (): Promise<ApiResponse<FacilityOnboardingReferenceData>> => {
+        return frappeCall('careverse_hq.api.health_facility_onboarding.get_reference_data');
+    },
+    lookupFacility: async (
+        payload: FacilityOnboardingLookupPayload
+    ): Promise<ApiResponse<FacilityOnboardingLookupResult>> => {
+        return callFrappePostMethod('careverse_hq.api.health_facility_onboarding.lookup_facility', payload);
+    },
+    startOwnerVerification: async (
+        payload: FacilityOnboardingOtpRequestPayload
+    ): Promise<ApiResponse<FacilityOnboardingOtpStartResult>> => {
+        return callFrappePostMethod('careverse_hq.api.health_facility_onboarding.start_owner_verification', payload);
+    },
+    verifyOwnerOtp: async (
+        payload: { facility_id: string; otp_id: string; otp_code: string }
+    ): Promise<ApiResponse<FacilityOwnerOtpVerificationResult>> => {
+        return callFrappePostMethod('careverse_hq.api.health_facility_onboarding.verify_owner_otp', payload);
+    },
+    completeOnboarding: async (
+        payload: FacilityOnboardingSubmitPayload
+    ): Promise<ApiResponse<FacilityOnboardingSubmitResult>> => {
+        return callFrappePostMethod('careverse_hq.api.health_facility_onboarding.complete_onboarding', payload);
+    },
 };
 
 // Affiliations API - Facility Affiliations management
@@ -1266,6 +1497,10 @@ export const erpnextAssetsApi = {
         return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_asset', data);
     },
 
+    updateAsset: async (data: Record<string, any>): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.update_asset', data);
+    },
+
     submitAsset: async (assetName: string): Promise<ApiResponse> => {
         return callFrappePostMethod('careverse_hq.api.erpnext_assets.submit_asset', { asset_name: assetName });
     },
@@ -1343,6 +1578,38 @@ export const erpnextAssetsApi = {
 
     getUserCompanies: async (): Promise<ApiResponse> => {
         return frappeCall('careverse_hq.api.erpnext_assets.get_user_companies');
+    },
+
+    getFinanceBooks: async (search?: string): Promise<ApiResponse> => {
+        const q: Record<string, any> = {};
+        if (search) q.search = search;
+        return frappeCall('careverse_hq.api.erpnext_assets.get_finance_books', q);
+    },
+
+    searchPurchaseReceiptsForAsset: async (
+        itemCode: string,
+        company?: string,
+        search?: string,
+        excludeAssetName?: string,
+    ): Promise<ApiResponse> => {
+        const q: Record<string, any> = { item_code: itemCode };
+        if (company) q.company = company;
+        if (search) q.search = search;
+        if (excludeAssetName) q.exclude_asset_name = excludeAssetName;
+        return frappeCall('careverse_hq.api.erpnext_assets.search_purchase_receipts_for_asset', q);
+    },
+
+    searchPurchaseInvoicesForAsset: async (
+        itemCode: string,
+        company?: string,
+        search?: string,
+        excludeAssetName?: string,
+    ): Promise<ApiResponse> => {
+        const q: Record<string, any> = { item_code: itemCode };
+        if (company) q.company = company;
+        if (search) q.search = search;
+        if (excludeAssetName) q.exclude_asset_name = excludeAssetName;
+        return frappeCall('careverse_hq.api.erpnext_assets.search_purchase_invoices_for_asset', q);
     },
 
     searchEmployees: async (search: string, company?: string): Promise<ApiResponse> => {

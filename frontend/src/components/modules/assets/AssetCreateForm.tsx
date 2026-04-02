@@ -1,14 +1,38 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Card, Steps, Form, Input, Select, DatePicker, InputNumber, Switch,
-    Button, Space, Typography, Descriptions, Alert, message, theme,
-    Divider, Modal, Tag, Empty, Spin, Row, Col, Result, Tooltip,
+    Alert,
+    Button,
+    Card,
+    Col,
+    DatePicker,
+    Empty,
+    Form,
+    Input,
+    InputNumber,
+    Modal,
+    Result,
+    Row,
+    Select,
+    Space,
+    Spin,
+    Switch,
+    Tag,
+    Tooltip,
+    Typography,
+    message,
+    theme,
 } from 'antd';
+import type { FormProps } from 'antd';
 import {
-    ArrowLeftOutlined, CheckCircleOutlined, PlusOutlined,
-    SearchOutlined, AppstoreOutlined, InfoCircleOutlined,
-    ExclamationCircleOutlined,
+    ArrowLeftOutlined,
+    AppstoreOutlined,
+    CheckCircleOutlined,
+    InfoCircleOutlined,
+    PlusOutlined,
+    SearchOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import useERPNextAssetStore from '../../../stores/modules/erpnextAssetStore';
 import useFacilityStore from '../../../stores/facilityStore';
 import { erpnextAssetsApi } from '../../../services/api';
@@ -17,66 +41,158 @@ import { useResponsive } from '../../../hooks/useResponsive';
 const { Title, Text, Paragraph } = Typography;
 
 interface Props {
-    navigateToRoute?: (route: string, id?: string) => void;
+    navigateToRoute: (route: string, id?: string) => void;
 }
-
-const DEPRECIATION_METHODS = [
-    { value: 'Straight Line', label: 'Straight Line — equal amount each period' },
-    { value: 'Double Declining Balance', label: 'Double Declining — higher early, lower later' },
-    { value: 'Written Down Value', label: 'Written Down Value — fixed % of remaining value' },
-];
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Create Item Modal — for when the item doesn't exist yet
-// ═══════════════════════════════════════════════════════════════════════════
 
 interface CreateItemModalProps {
     open: boolean;
     onClose: () => void;
     onCreated: (item: { item_code: string; item_name: string; asset_category: string; item_group: string }) => void;
-    categories: any[];
+    categories: Array<{ name: string; asset_category_name: string }>;
     initialSearch?: string;
 }
+
+interface AssetCategoryOption {
+    name: string;
+    asset_category_name: string;
+}
+
+interface ItemGroupOption {
+    name: string;
+    item_group_name: string;
+    parent_item_group?: string;
+}
+
+interface CompanyOption {
+    name: string;
+    company_name: string;
+    abbr: string;
+}
+
+interface DepartmentOption {
+    name: string;
+    department_name: string;
+    company?: string;
+}
+
+interface EmployeeOption {
+    name: string;
+    employee_name: string;
+    designation?: string;
+    department?: string;
+    company?: string;
+}
+
+interface AssetItemSearchOption {
+    item_code: string;
+    item_name?: string;
+    item_group?: string;
+    asset_category?: string;
+    description?: string;
+}
+
+interface PurchaseDocumentOption {
+    name: string;
+    posting_date: string;
+    company: string;
+    supplier?: string;
+    item_name?: string;
+    item_qty: number;
+    item_rate: number;
+    item_amount: number;
+    linked_asset_qty?: number;
+    available_asset_qty?: number;
+    doctype: string;
+    desk_url: string;
+}
+
+interface CreateItemFormValues {
+    item_code?: string;
+    item_name: string;
+    item_group: string;
+    asset_category: string;
+    stock_uom?: string;
+    description?: string;
+}
+
+interface AssetCreateFormValues {
+    asset_name: string;
+    item_code: string;
+    asset_category?: string;
+    company: string;
+    facility_id: string;
+    department?: string;
+    custodian?: string;
+    purchase_date?: Dayjs;
+    available_for_use_date?: Dayjs;
+    gross_purchase_amount: number;
+    is_existing_asset: boolean;
+    purchase_receipt?: string;
+    purchase_invoice?: string;
+}
+
+type AssetCreateFormFinishFailed = NonNullable<FormProps<AssetCreateFormValues>['onFinishFailed']>;
+
+interface ConfirmationDialogState {
+    title: string;
+    content: string;
+    okText?: string;
+    cancelText?: string;
+    okDanger?: boolean;
+    resolve: (confirmed: boolean) => void;
+}
+
+const parseCurrencyInput = (value: string | undefined) => {
+    const normalized = (value || '').replace(/,/g, '').trim();
+    if (!normalized) {
+        return undefined;
+    }
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? undefined : parsed;
+};
 
 const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCreated, categories, initialSearch }) => {
     const { isMobile } = useResponsive();
     const { token } = theme.useToken();
-    const [form] = Form.useForm();
+    const [form] = Form.useForm<CreateItemFormValues>();
     const [submitting, setSubmitting] = useState(false);
-    const [itemGroups, setItemGroups] = useState<any[]>([]);
+    const [itemGroups, setItemGroups] = useState<ItemGroupOption[]>([]);
     const [groupsLoading, setGroupsLoading] = useState(false);
     const [error, setError] = useState('');
     const [usesNamingSeries, setUsesNamingSeries] = useState<boolean | null>(null);
 
     useEffect(() => {
-        if (open) {
-            setError('');
-            setGroupsLoading(true);
-            Promise.all([
-                erpnextAssetsApi.getItemGroups(),
-                erpnextAssetsApi.getItemNamingConfig(),
-            ]).then(([groupsRes, namingRes]) => {
-                if (groupsRes.success) {
-                    setItemGroups(groupsRes.data?.items || []);
-                } else {
-                    setError(groupsRes.error || 'Failed to load item groups.');
-                }
-                if (namingRes.success) {
-                    setUsesNamingSeries(namingRes.data?.item_naming_by === 'Naming Series');
-                } else {
-                    // Default to naming series = false so item_code field shows
-                    setUsesNamingSeries(false);
-                }
-                setGroupsLoading(false);
-            }).catch(() => {
-                setError('Network error loading form data.');
-                setGroupsLoading(false);
-            });
-            if (initialSearch) {
-                form.setFieldsValue({ item_name: initialSearch });
-            }
+        if (!open) {
+            return;
         }
-    }, [open, initialSearch]);
+
+        setError('');
+        setGroupsLoading(true);
+        Promise.all([
+            erpnextAssetsApi.getItemGroups(),
+            erpnextAssetsApi.getItemNamingConfig(),
+        ]).then(([groupsRes, namingRes]) => {
+            if (groupsRes.success) {
+                setItemGroups(groupsRes.data?.items || []);
+            } else {
+                setError(groupsRes.error || 'Failed to load item groups.');
+            }
+
+            if (namingRes.success) {
+                setUsesNamingSeries(namingRes.data?.item_naming_by === 'Naming Series');
+            } else {
+                setUsesNamingSeries(false);
+            }
+        }).catch(() => {
+            setError('Network error loading form data.');
+            setUsesNamingSeries(false);
+        }).finally(() => setGroupsLoading(false));
+
+        form.resetFields();
+        if (initialSearch) {
+            form.setFieldValue('item_name', initialSearch);
+        }
+    }, [form, initialSearch, open]);
 
     const handleCreate = async () => {
         try {
@@ -84,35 +200,33 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCrea
             setSubmitting(true);
             setError('');
 
-            const payload: Record<string, any> = {
+            const payload: Record<string, unknown> = {
                 item_name: values.item_name,
                 item_group: values.item_group,
                 asset_category: values.asset_category,
                 stock_uom: values.stock_uom || 'Nos',
                 description: values.description || '',
             };
-            // Only send item_code when naming is manual
+
             if (!usesNamingSeries && values.item_code) {
                 payload.item_code = values.item_code;
             }
 
-            const res = await erpnextAssetsApi.createFixedAssetItem(payload);
-
-            if (res.success) {
-                message.success(`Item "${res.data?.item_name}" created successfully`);
+            const response = await erpnextAssetsApi.createFixedAssetItem(payload);
+            if (response.success) {
+                message.success(`Item "${response.data?.item_name}" created successfully`);
                 onCreated({
-                    item_code: res.data?.item_code,
-                    item_name: res.data?.item_name,
-                    asset_category: res.data?.asset_category,
+                    item_code: response.data?.item_code,
+                    item_name: response.data?.item_name,
+                    asset_category: response.data?.asset_category,
                     item_group: values.item_group,
                 });
-                form.resetFields();
                 onClose();
             } else {
-                setError(res.message || res.error || 'Failed to create item. Please check the details and try again.');
+                setError(response.message || response.error || 'Failed to create item. Please check the details and try again.');
             }
         } catch {
-            // form validation — handled by antd
+            // antd validation handles field feedback
         } finally {
             setSubmitting(false);
         }
@@ -125,7 +239,13 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCrea
             onCancel={onClose}
             width={isMobile ? '100%' : 640}
             style={{ top: isMobile ? 0 : 24 }}
-            styles={{ body: { padding: isMobile ? 12 : 20, maxHeight: isMobile ? 'calc(100vh - 150px)' : undefined, overflowY: isMobile ? 'auto' : undefined } }}
+            styles={{
+                body: {
+                    padding: isMobile ? 12 : 20,
+                    maxHeight: isMobile ? 'calc(100vh - 150px)' : undefined,
+                    overflowY: isMobile ? 'auto' : undefined,
+                },
+            }}
             destroyOnClose
             footer={[
                 <Button key="cancel" onClick={onClose}>Cancel</Button>,
@@ -144,16 +264,21 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCrea
                     <div>
                         <Text strong style={{ display: 'block' }}>What is an Item?</Text>
                         <Text type="secondary" style={{ fontSize: 13 }}>
-                            An Item represents a <strong>type</strong> of asset — like "Lenovo ThinkPad X1 Carbon 32GB".
-                            You can create many individual asset records from one item (one per physical unit you own).
+                            An item is the asset model or type. You create one asset record per physical unit after this step.
                         </Text>
                     </div>
                 </Space>
             </Card>
 
             {error && (
-                <Alert type="error" message={error} showIcon closable onClose={() => setError('')}
-                    style={{ marginBottom: 16 }} />
+                <Alert
+                    type="error"
+                    message={error}
+                    showIcon
+                    closable
+                    onClose={() => setError('')}
+                    style={{ marginBottom: 16 }}
+                />
             )}
 
             <Form form={form} layout="vertical" validateTrigger="onBlur">
@@ -162,7 +287,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCrea
                         label="Item Code"
                         name="item_code"
                         rules={[{ required: true, message: 'A unique code is required' }]}
-                        tooltip="Unique identifier used in purchase orders and reports (e.g. LENOVO-X1-GEN11)"
+                        tooltip="Unique identifier used in purchases and reports."
                     >
                         <Input placeholder="e.g. LENOVO-X1-GEN11" />
                     </Form.Item>
@@ -172,7 +297,6 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCrea
                     label="Item Name"
                     name="item_name"
                     rules={[{ required: true, message: 'A descriptive name is required' }]}
-                    tooltip="Human-readable name shown everywhere"
                 >
                     <Input placeholder="e.g. Lenovo ThinkPad X1 Carbon Gen 11" />
                 </Form.Item>
@@ -183,17 +307,18 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCrea
                             label="Item Group"
                             name="item_group"
                             rules={[{ required: true, message: 'Select a classification group' }]}
-                            tooltip="How this item is classified (e.g. IT Equipment, Medical Devices, Furniture)"
                         >
                             <Select
                                 placeholder={groupsLoading ? 'Loading...' : 'Select group'}
                                 loading={groupsLoading}
                                 showSearch
                                 optionFilterProp="children"
-                                notFoundContent={groupsLoading ? <Spin size="small" /> : <Empty description="No groups found" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                                notFoundContent={groupsLoading
+                                    ? <Spin size="small" />
+                                    : <Empty description="No groups found" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
                             >
-                                {itemGroups.map((g) => (
-                                    <Select.Option key={g.name} value={g.name}>{g.item_group_name}</Select.Option>
+                                {itemGroups.map((group) => (
+                                    <Select.Option key={group.name} value={group.name}>{group.item_group_name}</Select.Option>
                                 ))}
                             </Select>
                         </Form.Item>
@@ -202,25 +327,28 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCrea
                         <Form.Item
                             label="Asset Category"
                             name="asset_category"
-                            rules={[{ required: true, message: 'Determines depreciation and accounting rules' }]}
-                            tooltip="Controls how depreciation is calculated and which GL accounts are used"
+                            rules={[{ required: true, message: 'Select an asset category' }]}
+                            tooltip="This drives ERPNext accounting and depreciation defaults."
                         >
                             <Select
                                 placeholder="Select category"
                                 showSearch
                                 optionFilterProp="children"
-                                notFoundContent={categories.length === 0 ? <Empty description="No categories. Create one in ERPNext first." image={Empty.PRESENTED_IMAGE_SIMPLE} /> : undefined}
+                                notFoundContent={categories.length === 0
+                                    ? <Empty description="No categories found" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                                    : undefined}
                             >
-                                {categories.map((c) => (
-                                    <Select.Option key={c.name} value={c.name}>{c.asset_category_name}</Select.Option>
+                                {categories.map((category) => (
+                                    <Select.Option key={category.name} value={category.name}>
+                                        {category.asset_category_name}
+                                    </Select.Option>
                                 ))}
                             </Select>
                         </Form.Item>
                     </Col>
                 </Row>
 
-                <Form.Item label="Unit of Measure" name="stock_uom" initialValue="Nos"
-                    tooltip="How individual units are counted. Almost always 'Nos' for fixed assets.">
+                <Form.Item label="Unit of Measure" name="stock_uom" initialValue="Nos">
                     <Select style={{ width: 200 }}>
                         <Select.Option value="Nos">Nos (Number)</Select.Option>
                         <Select.Option value="Unit">Unit</Select.Option>
@@ -229,84 +357,112 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({ open, onClose, onCrea
                 </Form.Item>
 
                 <Form.Item label="Description" name="description">
-                    <Input.TextArea rows={2} placeholder="Optional specs or notes about this item type" maxLength={500} showCount />
+                    <Input.TextArea rows={2} placeholder="Optional notes about this item type" maxLength={500} showCount />
                 </Form.Item>
             </Form>
         </Modal>
     );
 };
 
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Main Asset Create Form
-// ═══════════════════════════════════════════════════════════════════════════
-
 const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
     const { token } = theme.useToken();
     const { isMobile } = useResponsive();
-    const [form] = Form.useForm();
-    const [currentStep, setCurrentStep] = useState(0);
-    const [submitting, setSubmitting] = useState(false);
-    const [calcDepreciation, setCalcDepreciation] = useState(false);
-    const [createdAssetName, setCreatedAssetName] = useState<string | null>(null);
+    const [form] = Form.useForm<AssetCreateFormValues>();
     const { createAsset } = useERPNextAssetStore();
     const { availableFacilities } = useFacilityStore();
 
-    // Item search
-    const [itemSearchResults, setItemSearchResults] = useState<any[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [createdAssetName, setCreatedAssetName] = useState<string | null>(null);
+
+    const [itemSearchResults, setItemSearchResults] = useState<AssetItemSearchOption[]>([]);
     const [itemSearching, setItemSearching] = useState(false);
     const [itemSearchError, setItemSearchError] = useState(false);
-    const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [selectedItem, setSelectedItem] = useState<AssetItemSearchOption | null>(null);
     const [createItemModalOpen, setCreateItemModalOpen] = useState(false);
     const [lastSearchTerm, setLastSearchTerm] = useState('');
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const purchaseReceiptSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const purchaseInvoiceSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Reference data
-    const [categories, setCategories] = useState<any[]>([]);
-    const [companies, setCompanies] = useState<any[]>([]);
-    const [departments, setDepartments] = useState<any[]>([]);
-    const [employees, setEmployees] = useState<any[]>([]);
+    const [categories, setCategories] = useState<AssetCategoryOption[]>([]);
+    const [companies, setCompanies] = useState<CompanyOption[]>([]);
+    const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+    const [employees, setEmployees] = useState<EmployeeOption[]>([]);
     const [refDataLoading, setRefDataLoading] = useState(true);
+    const [purchaseReceiptOptions, setPurchaseReceiptOptions] = useState<PurchaseDocumentOption[]>([]);
+    const [purchaseInvoiceOptions, setPurchaseInvoiceOptions] = useState<PurchaseDocumentOption[]>([]);
+    const [purchaseReceiptSearching, setPurchaseReceiptSearching] = useState(false);
+    const [purchaseInvoiceSearching, setPurchaseInvoiceSearching] = useState(false);
+    const [selectedPurchaseReceipt, setSelectedPurchaseReceipt] = useState<PurchaseDocumentOption | null>(null);
+    const [selectedPurchaseInvoice, setSelectedPurchaseInvoice] = useState<PurchaseDocumentOption | null>(null);
+    const [confirmationDialog, setConfirmationDialog] = useState<ConfirmationDialogState | null>(null);
 
-    // Load reference data
+    const selectedCompany = Form.useWatch('company', form);
+    const isExistingAsset = Form.useWatch('is_existing_asset', form);
+    const selectedItemCode = Form.useWatch('item_code', form);
+
     useEffect(() => {
         Promise.all([
             erpnextAssetsApi.getCategories(),
             erpnextAssetsApi.getUserCompanies(),
         ]).then(([catRes, compRes]) => {
-            if (catRes.success) setCategories(catRes.data?.items || []);
-            if (compRes.success) setCompanies(compRes.data?.items || []);
-            setRefDataLoading(false);
-        }).catch(() => setRefDataLoading(false));
+            if (catRes.success) {
+                setCategories(catRes.data?.items || []);
+            }
+            if (compRes.success) {
+                setCompanies(compRes.data?.items || []);
+            }
+        }).finally(() => setRefDataLoading(false));
     }, []);
 
-    // Load departments when company changes
-    const selectedCompany = Form.useWatch('company', form);
     useEffect(() => {
-        if (selectedCompany) {
-            erpnextAssetsApi.getDepartments(selectedCompany).then((res) => {
-                if (res.success) setDepartments(res.data?.items || []);
-            });
-        } else {
-            setDepartments([]);
-        }
-    }, [selectedCompany]);
+        setEmployees([]);
+        form.setFieldsValue({
+            department: undefined,
+            custodian: undefined,
+        });
 
-    // Item search with debounce
+        if (!selectedCompany) {
+            setDepartments([]);
+            return;
+        }
+
+        erpnextAssetsApi.getDepartments(selectedCompany).then((response) => {
+            if (response.success) {
+                setDepartments(response.data?.items || []);
+            }
+        });
+    }, [form, selectedCompany]);
+
+    useEffect(() => {
+        setPurchaseReceiptOptions([]);
+        setPurchaseInvoiceOptions([]);
+        setSelectedPurchaseReceipt(null);
+        setSelectedPurchaseInvoice(null);
+        form.setFieldsValue({
+            purchase_receipt: undefined,
+            purchase_invoice: undefined,
+        });
+    }, [form, selectedCompany, selectedItemCode]);
+
     const handleItemSearch = useCallback((value: string) => {
         setLastSearchTerm(value);
-        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        if (searchDebounceRef.current) {
+            clearTimeout(searchDebounceRef.current);
+        }
+
         if (!value || value.length < 2) {
             setItemSearchResults([]);
             setItemSearchError(false);
             return;
         }
+
         setItemSearching(true);
         searchDebounceRef.current = setTimeout(async () => {
             try {
-                const res = await erpnextAssetsApi.searchFixedAssetItems(value);
-                if (res.success) {
-                    setItemSearchResults(res.data?.items || []);
+                const response = await erpnextAssetsApi.searchFixedAssetItems(value);
+                if (response.success) {
+                    setItemSearchResults(response.data?.items || []);
                     setItemSearchError(false);
                 } else {
                     setItemSearchResults([]);
@@ -315,95 +471,210 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
             } catch {
                 setItemSearchResults([]);
                 setItemSearchError(true);
+            } finally {
+                setItemSearching(false);
             }
-            setItemSearching(false);
-        }, 350);
+        }, 300);
     }, []);
 
-    // Employee search with debounce
     const employeeSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleEmployeeSearch = useCallback((value: string) => {
-        if (employeeSearchRef.current) clearTimeout(employeeSearchRef.current);
-        if (!value || value.length < 2) return;
+        if (employeeSearchRef.current) {
+            clearTimeout(employeeSearchRef.current);
+        }
+        if (!value || value.length < 2) {
+            return;
+        }
+
         employeeSearchRef.current = setTimeout(async () => {
-            const res = await erpnextAssetsApi.searchEmployees(value, selectedCompany);
-            if (res.success) setEmployees(res.data?.items || []);
-        }, 350);
+            const response = await erpnextAssetsApi.searchEmployees(value, selectedCompany);
+            if (response.success) {
+                setEmployees(response.data?.items || []);
+            }
+        }, 300);
     }, [selectedCompany]);
 
-    const handleItemSelect = (itemCode: string) => {
-        const item = itemSearchResults.find((i) => i.item_code === itemCode);
-        if (item) {
-            setSelectedItem(item);
-            form.setFieldsValue({ item_code: item.item_code, asset_category: item.asset_category });
+    const handlePurchaseReceiptSearch = useCallback((value: string) => {
+        if (purchaseReceiptSearchRef.current) {
+            clearTimeout(purchaseReceiptSearchRef.current);
         }
+
+        if (!selectedItemCode || !selectedCompany) {
+            setPurchaseReceiptOptions([]);
+            return;
+        }
+
+        setPurchaseReceiptSearching(true);
+        purchaseReceiptSearchRef.current = setTimeout(async () => {
+            try {
+                const response = await erpnextAssetsApi.searchPurchaseReceiptsForAsset(selectedItemCode, selectedCompany, value);
+                setPurchaseReceiptOptions(response.success ? (response.data?.items || []) : []);
+            } finally {
+                setPurchaseReceiptSearching(false);
+            }
+        }, 300);
+    }, [selectedCompany, selectedItemCode]);
+
+    const handlePurchaseInvoiceSearch = useCallback((value: string) => {
+        if (purchaseInvoiceSearchRef.current) {
+            clearTimeout(purchaseInvoiceSearchRef.current);
+        }
+
+        if (!selectedItemCode || !selectedCompany) {
+            setPurchaseInvoiceOptions([]);
+            return;
+        }
+
+        setPurchaseInvoiceSearching(true);
+        purchaseInvoiceSearchRef.current = setTimeout(async () => {
+            try {
+                const response = await erpnextAssetsApi.searchPurchaseInvoicesForAsset(selectedItemCode, selectedCompany, value);
+                setPurchaseInvoiceOptions(response.success ? (response.data?.items || []) : []);
+            } finally {
+                setPurchaseInvoiceSearching(false);
+            }
+        }, 300);
+    }, [selectedCompany, selectedItemCode]);
+
+    const applySelectedPurchaseDocument = useCallback((document: PurchaseDocumentOption, fieldName: 'purchase_receipt' | 'purchase_invoice') => {
+        const otherField = fieldName === 'purchase_receipt' ? 'purchase_invoice' : 'purchase_receipt';
+        form.setFieldsValue({
+            [fieldName]: document.name,
+            [otherField]: undefined,
+            purchase_date: document.posting_date ? dayjs(document.posting_date) : undefined,
+            gross_purchase_amount: document.item_rate || undefined,
+        });
+    }, [form]);
+
+    const requestConfirmation = useCallback((options: Omit<ConfirmationDialogState, 'resolve'>) => (
+        new Promise<boolean>((resolve) => {
+            setConfirmationDialog({ ...options, resolve });
+        })
+    ), []);
+
+    const resolveConfirmation = useCallback((confirmed: boolean) => {
+        setConfirmationDialog((current) => {
+            if (current) {
+                current.resolve(confirmed);
+            }
+            return null;
+        });
+    }, []);
+
+    const handlePurchaseReceiptSelect = (name: string) => {
+        const document = purchaseReceiptOptions.find((entry) => entry.name === name) || null;
+        setSelectedPurchaseReceipt(document);
+        setSelectedPurchaseInvoice(null);
+        setPurchaseInvoiceOptions([]);
+        if (document) {
+            applySelectedPurchaseDocument(document, 'purchase_receipt');
+        }
+    };
+
+    const handlePurchaseInvoiceSelect = (name: string) => {
+        const document = purchaseInvoiceOptions.find((entry) => entry.name === name) || null;
+        setSelectedPurchaseInvoice(document);
+        setSelectedPurchaseReceipt(null);
+        setPurchaseReceiptOptions([]);
+        if (document) {
+            applySelectedPurchaseDocument(document, 'purchase_invoice');
+        }
+    };
+
+    const handleItemSelect = (itemCode: string) => {
+        const item = itemSearchResults.find((entry) => entry.item_code === itemCode);
+        if (!item) {
+            return;
+        }
+
+        setSelectedItem(item);
+        form.setFieldsValue({
+            item_code: item.item_code,
+            asset_category: item.asset_category,
+        });
     };
 
     const handleItemCreated = (item: { item_code: string; item_name: string; asset_category: string; item_group: string }) => {
         setSelectedItem(item);
-        form.setFieldsValue({ item_code: item.item_code, asset_category: item.asset_category });
-    };
-
-    const clearSelectedItem = () => {
-        Modal.confirm({
-            title: 'Change item type?',
-            content: 'The asset category will be reset. Other fields you entered will be kept.',
-            onOk: () => {
-                setSelectedItem(null);
-                form.setFieldsValue({ item_code: '', asset_category: '' });
-                setItemSearchResults([]);
-            },
+        form.setFieldsValue({
+            item_code: item.item_code,
+            asset_category: item.asset_category,
         });
     };
 
-    // Wizard navigation
-    const steps = [
-        { title: 'Item & Asset' },
-        { title: 'Location' },
-        { title: 'Purchase' },
-        { title: 'Depreciation' },
-        { title: 'Review' },
-    ];
+    const clearSelectedItem = () => {
+        requestConfirmation({
+            title: 'Change item type?',
+            content: 'The selected item will be cleared. Asset details you already entered will stay.',
+            okText: 'Change Item',
+            cancelText: 'Keep Item',
+        }).then((confirmed) => {
+            if (!confirmed) {
+                return;
+            }
 
-    const next = async () => {
-        try {
-            const stepFields: Record<number, string[]> = {
-                0: ['asset_name', 'item_code', 'company'],
-                1: ['facility_id'],
-                2: ['purchase_date', 'gross_purchase_amount'],
-                3: calcDepreciation ? ['depreciation_method', 'total_number_of_depreciations', 'frequency_of_depreciation'] : [],
-            };
-            const fields = stepFields[currentStep] || [];
-            if (fields.length) await form.validateFields(fields);
-            setCurrentStep(currentStep + 1);
-        } catch {
-            message.warning('Please fill in the required fields before continuing.');
-        }
-    };
-
-    const prev = () => setCurrentStep(currentStep - 1);
-
-    const handleBackToAssets = () => {
-        const values = form.getFieldsValue(true);
-        const hasData = values.asset_name || values.item_code || values.company;
-        if (hasData) {
-            Modal.confirm({
-                title: 'Discard changes?',
-                content: 'You have unsaved data. Are you sure you want to leave?',
-                okText: 'Leave',
-                okType: 'danger',
-                onOk: () => navigateToRoute?.('assets'),
+            setSelectedItem(null);
+            setItemSearchResults([]);
+            setPurchaseReceiptOptions([]);
+            setPurchaseInvoiceOptions([]);
+            setSelectedPurchaseReceipt(null);
+            setSelectedPurchaseInvoice(null);
+            form.setFieldsValue({
+                item_code: '',
+                asset_category: '',
+                purchase_receipt: undefined,
+                purchase_invoice: undefined,
             });
-        } else {
-            navigateToRoute?.('assets');
+        });
+    };
+
+    const handleBackToAssets = async () => {
+        const values = form.getFieldsValue(true);
+        const hasData = values.asset_name || values.item_code || values.company || values.facility_id;
+
+        if (!hasData) {
+            navigateToRoute('assets');
+            return;
+        }
+
+        const leave = await requestConfirmation({
+            title: 'Discard draft details?',
+            content: 'You have unsaved asset details. Leave without saving?',
+            okText: 'Leave',
+            cancelText: 'Stay',
+            okDanger: true,
+        });
+        if (leave) {
+            navigateToRoute('assets');
         }
     };
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (values: AssetCreateFormValues) => {
+        if (!values.is_existing_asset && !values.purchase_receipt && !values.purchase_invoice) {
+            message.error('Link a Purchase Receipt or Purchase Invoice when the asset is not existing.');
+            return;
+        }
+
+        if (values.purchase_receipt && values.purchase_invoice) {
+            message.error('Link either a Purchase Receipt or a Purchase Invoice, not both.');
+            return;
+        }
+
+        if (values.is_existing_asset) {
+            const confirmed = await requestConfirmation({
+                title: 'Confirm asset source',
+                content: 'Use Existing Asset only when this unit was already owned or already in service before this record. Use New Purchase when it must remain linked to a Purchase Receipt or Purchase Invoice.',
+                okText: 'Use Existing Asset',
+                cancelText: 'Review',
+            });
+            if (!confirmed) {
+                return;
+            }
+        }
+
         setSubmitting(true);
         try {
-            const values = form.getFieldsValue(true);
-            const data: Record<string, any> = {
+            const payload: Record<string, unknown> = {
                 asset_name: values.asset_name,
                 item_code: values.item_code,
                 company: values.company,
@@ -415,60 +686,73 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                 is_existing_asset: values.is_existing_asset ? 1 : 0,
                 custodian: values.custodian,
                 department: values.department,
-                calculate_depreciation: calcDepreciation ? 1 : 0,
+                purchase_receipt: values.is_existing_asset ? '' : values.purchase_receipt,
+                purchase_invoice: values.is_existing_asset ? '' : values.purchase_invoice,
+                calculate_depreciation: 0,
             };
-            if (calcDepreciation) {
-                data.depreciation_method = values.depreciation_method;
-                data.total_number_of_depreciations = values.total_number_of_depreciations;
-                data.frequency_of_depreciation = values.frequency_of_depreciation;
-                data.expected_value_after_useful_life = values.expected_value_after_useful_life || 0;
-                data.depreciation_start_date = values.depreciation_start_date?.format('YYYY-MM-DD');
-            }
 
-            const result = await createAsset(data);
+            const result = await createAsset(payload);
             if (result.success && result.name) {
                 setCreatedAssetName(result.name);
             } else {
-                message.error(result.error || 'Failed to create asset. Please check all fields and try again.');
+                message.error(result.error || 'Failed to create asset. Please review the fields and try again.');
             }
-        } catch {
-            message.error('Unexpected error. Please try again.');
         } finally {
             setSubmitting(false);
         }
     };
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Success state
-    // ═══════════════════════════════════════════════════════════════════════
+    const handleSubmitFailed: AssetCreateFormFinishFailed = ({ errorFields }) => {
+        const hasItemError = errorFields.some((field) => field.name.includes('item_code'));
+        if (hasItemError) {
+            message.error('Select or create an item before saving the asset draft.');
+            return;
+        }
+
+        if (errorFields.length > 0) {
+            form.scrollToField(errorFields[0].name);
+            message.error('Complete the required asset details and try again.');
+        }
+    };
+
+    const handleSaveAssetDraftClick = () => {
+        form.submit();
+    };
+
     if (createdAssetName) {
         return (
-            <div style={{ padding: isMobile ? '16px' : '24px', maxWidth: 600, margin: '0 auto' }}>
+            <div style={{ padding: isMobile ? '16px' : '24px', maxWidth: 680, margin: '0 auto' }}>
                 <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
                     <Result
                         status="success"
-                        title="Asset Created"
+                        title="Asset Draft Saved"
                         subTitle={
                             <Space direction="vertical" size={4} style={{ textAlign: 'center' }}>
-                                <Text>Asset <Tag color="blue">{createdAssetName}</Tag> has been created as a <Tag>Draft</Tag>.</Text>
-                                <Text type="secondary">Submit the asset from its detail page to activate depreciation and GL entries.</Text>
+                                <Text>Asset <Tag color="blue">{createdAssetName}</Tag> has been created as a draft.</Text>
+                                <Text type="secondary">
+                                    Open it to add depreciation, finance-book setup, purchase traceability, maintenance team, and then submit when ready.
+                                </Text>
                             </Space>
                         }
                         extra={[
-                            <Button type="primary" key="view" onClick={() => navigateToRoute?.('assets', createdAssetName)}>
-                                View Asset
+                            <Button type="primary" key="view" onClick={() => navigateToRoute('assets', createdAssetName)}>
+                                Open Asset
                             </Button>,
                             <Button key="another" onClick={() => {
                                 setCreatedAssetName(null);
-                                setCurrentStep(0);
                                 setSelectedItem(null);
-                                setCalcDepreciation(false);
+                                setItemSearchResults([]);
+                                setPurchaseReceiptOptions([]);
+                                setPurchaseInvoiceOptions([]);
+                                setSelectedPurchaseReceipt(null);
+                                setSelectedPurchaseInvoice(null);
                                 form.resetFields();
+                                form.setFieldValue('is_existing_asset', true);
                             }}>
-                                Create Another
+                                Add Another Asset
                             </Button>,
-                            <Button key="list" onClick={() => navigateToRoute?.('assets')}>
-                                Back to List
+                            <Button key="list" onClick={() => navigateToRoute('assets')}>
+                                Back to Assets
                             </Button>,
                         ]}
                     />
@@ -477,401 +761,418 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
         );
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Step renderers
-    // ═══════════════════════════════════════════════════════════════════════
-
-    const renderStep = () => {
-        switch (currentStep) {
-            // ─── Step 0: Item & Asset ────────────────────────────────────
-            case 0:
-                return (
-                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                        {/* Item Selection */}
-                        <Card
-                            size="small"
-                            style={{ borderRadius: 10, background: token.colorFillQuaternary }}
-                            bodyStyle={{ padding: isMobile ? 12 : 16 }}
-                        >
-                            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Space>
-                                        <AppstoreOutlined style={{ color: token.colorPrimary }} />
-                                        <Text strong>Item Type</Text>
-                                        <Tooltip title="An Item represents the product model (e.g. 'Lenovo ThinkPad X1'). Multiple asset records can be created from one item — one per physical unit.">
-                                            <InfoCircleOutlined style={{ color: token.colorTextDescription, cursor: 'help' }} />
-                                        </Tooltip>
-                                    </Space>
-                                    {selectedItem && (
-                                        <Button type="link" size="small" onClick={clearSelectedItem}>Change</Button>
-                                    )}
-                                </div>
-
-                                {!selectedItem ? (
-                                    <>
-                                        <Paragraph type="secondary" style={{ fontSize: 13, margin: 0 }}>
-                                            Search for an existing item, or create a new one if it doesn't exist.
-                                        </Paragraph>
-
-                                        <Select
-                                            showSearch
-                                            placeholder="Type to search items... (min 2 characters)"
-                                            filterOption={false}
-                                            onSearch={handleItemSearch}
-                                            onSelect={handleItemSelect}
-                                            loading={itemSearching}
-                                            notFoundContent={
-                                                itemSearching ? (
-                                                    <div style={{ textAlign: 'center', padding: 16 }}><Spin size="small" /><br /><Text type="secondary">Searching...</Text></div>
-                                                ) : itemSearchError ? (
-                                                    <Alert type="error" message="Search failed. Check your connection." showIcon />
-                                                ) : lastSearchTerm.length < 2 ? (
-                                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Type at least 2 characters to search" />
-                                                ) : (
-                                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`No items matching "${lastSearchTerm}"`}>
-                                                        <Button type="primary" size="small" icon={<PlusOutlined />}
-                                                            onClick={() => setCreateItemModalOpen(true)}>
-                                                            Create "{lastSearchTerm}" as new item
-                                                        </Button>
-                                                    </Empty>
-                                                )
-                                            }
-                                            style={{ width: '100%' }}
-                                            suffixIcon={<SearchOutlined />}
-                                            dropdownRender={(menu) => (
-                                                <>
-                                                    {menu}
-                                                    <Divider style={{ margin: '4px 0' }} />
-                                                    <div style={{ padding: '4px 8px 8px' }}>
-                                                        <Button type="text" icon={<PlusOutlined />} onClick={() => setCreateItemModalOpen(true)} block>
-                                                            Create new fixed asset item
-                                                        </Button>
-                                                    </div>
-                                                </>
-                                            )}
-                                        >
-                                            {itemSearchResults.map((item) => (
-                                                <Select.Option key={item.item_code} value={item.item_code}>
-                                                    <div style={{ padding: '4px 0' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                            <Text strong>{item.item_name || item.item_code}</Text>
-                                                            <Tag style={{ marginLeft: 8 }}>{item.asset_category}</Tag>
-                                                        </div>
-                                                        <Text type="secondary" style={{ fontSize: 12 }}>
-                                                            {item.item_code} &bull; {item.item_group}
-                                                            {item.description && ` &bull; ${item.description.substring(0, 60)}...`}
-                                                        </Text>
-                                                    </div>
-                                                </Select.Option>
-                                            ))}
-                                        </Select>
-                                    </>
-                                ) : (
-                                    <Card size="small" style={{ borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <Space direction="vertical" size={4}>
-                                                <Text strong style={{ fontSize: 15 }}>{selectedItem.item_name || selectedItem.item_code}</Text>
-                                                <Space wrap size={4}>
-                                                    <Tag color="blue">{selectedItem.item_code}</Tag>
-                                                    {selectedItem.asset_category && <Tag color="purple">{selectedItem.asset_category}</Tag>}
-                                                    {selectedItem.item_group && <Tag>{selectedItem.item_group}</Tag>}
-                                                </Space>
-                                                {selectedItem.description && (
-                                                    <Text type="secondary" style={{ fontSize: 12 }}>{selectedItem.description}</Text>
-                                                )}
-                                            </Space>
-                                            <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: 20 }} />
-                                        </div>
-                                    </Card>
-                                )}
-                            </Space>
-                        </Card>
-
-                        <Form.Item name="item_code" rules={[{ required: true, message: 'Select or create an item type first' }]} hidden><Input /></Form.Item>
-                        <Form.Item name="asset_category" hidden><Input /></Form.Item>
-
-                        <Divider style={{ margin: '4px 0' }} />
-
-                        {/* Asset fields */}
-                        <Text strong style={{ fontSize: 14 }}>
-                            Asset Details
-                            <Tooltip title="These fields are specific to this physical unit — not the item type above.">
-                                <InfoCircleOutlined style={{ marginLeft: 6, color: token.colorTextDescription }} />
-                            </Tooltip>
-                        </Text>
-
-                        <Form.Item
-                            label="Asset Name"
-                            name="asset_name"
-                            rules={[{ required: true, message: 'Name this specific asset unit' }]}
-                            tooltip="A unique name for THIS physical unit (e.g. 'CT Scanner #3 — Radiology Wing')"
-                        >
-                            <Input placeholder="e.g. CT Scanner #3 — Radiology Wing" />
-                        </Form.Item>
-
-                        <Form.Item
-                            label="Company"
-                            name="company"
-                            rules={[{ required: true, message: 'Select the owning company' }]}
-                        >
-                            <Select
-                                placeholder={refDataLoading ? 'Loading...' : 'Select company'}
-                                loading={refDataLoading}
-                                showSearch
-                                optionFilterProp="children"
-                                notFoundContent={companies.length === 0 && !refDataLoading
-                                    ? <Empty description="No companies accessible" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                                    : undefined}
-                            >
-                                {companies.map((c) => (
-                                    <Select.Option key={c.name} value={c.name}>
-                                        {c.company_name} ({c.abbr})
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </Form.Item>
-                    </Space>
-                );
-
-            // ─── Step 1: Location & Assignment ───────────────────────────
-            case 1:
-                return (
-                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                        <Form.Item
-                            label="Facility"
-                            name="facility_id"
-                            rules={[{ required: true, message: 'Select the facility where this asset will be located' }]}
-                        >
-                            <Select placeholder="Select facility" showSearch optionFilterProp="children"
-                                notFoundContent={availableFacilities.length === 0
-                                    ? <Empty description="No facilities accessible" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                                    : undefined}>
-                                {availableFacilities.map((f) => (
-                                    <Select.Option key={f.hie_id} value={f.hie_id}>{f.facility_name}</Select.Option>
-                                ))}
-                            </Select>
-                        </Form.Item>
-
-                        <Form.Item label="Department" name="department">
-                            <Select
-                                placeholder={departments.length === 0 ? 'Select company first' : 'Select department (optional)'}
-                                allowClear
-                                showSearch
-                                optionFilterProp="children"
-                                disabled={departments.length === 0}
-                            >
-                                {departments.map((d) => (
-                                    <Select.Option key={d.name} value={d.name}>{d.department_name}</Select.Option>
-                                ))}
-                            </Select>
-                        </Form.Item>
-
-                        <Form.Item
-                            label="Custodian"
-                            name="custodian"
-                            tooltip="The employee responsible for this asset"
-                        >
-                            <Select
-                                placeholder="Search by name..."
-                                showSearch
-                                filterOption={false}
-                                onSearch={handleEmployeeSearch}
-                                allowClear
-                                notFoundContent={<Empty description="Type to search employees" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-                            >
-                                {employees.map((e) => (
-                                    <Select.Option key={e.name} value={e.name}>
-                                        <div>
-                                            <Text strong>{e.employee_name}</Text>
-                                            <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
-                                                {e.name} &bull; {e.designation || e.department || ''}
-                                            </Text>
-                                        </div>
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                        </Form.Item>
-                    </Space>
-                );
-
-            // ─── Step 2: Purchase ────────────────────────────────────────
-            case 2:
-                return (
-                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                        <Form.Item name="is_existing_asset" valuePropName="checked" label="Is Existing Asset?"
-                            tooltip="Check this if you're registering an asset that was already in use before this system">
-                            <Switch />
-                        </Form.Item>
-                        <Row gutter={16}>
-                            <Col xs={24} sm={12}>
-                                <Form.Item label="Purchase Date" name="purchase_date" rules={[{ required: true }]}>
-                                    <DatePicker style={{ width: '100%' }} />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} sm={12}>
-                                <Form.Item label="Available-for-use Date" name="available_for_use_date"
-                                    tooltip="When this asset was/will be put into service. Required before submitting.">
-                                    <DatePicker style={{ width: '100%' }} />
-                                </Form.Item>
-                            </Col>
-                        </Row>
-                        <Form.Item label="Gross Purchase Amount" name="gross_purchase_amount" rules={[{ required: true }]}>
-                            <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="0.00"
-                                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                                parser={(value) => value?.replace(/,/g, '') as unknown as number} />
-                        </Form.Item>
-                    </Space>
-                );
-
-            // ─── Step 3: Depreciation ────────────────────────────────────
-            case 3:
-                return (
-                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                        <Card size="small" style={{ borderRadius: 10, background: token.colorFillQuaternary }} bodyStyle={{ padding: 12 }}>
-                            <Space>
-                                <Switch checked={calcDepreciation} onChange={setCalcDepreciation} />
-                                <div>
-                                    <Text strong>Enable Depreciation</Text>
-                                    <br />
-                                    <Text type="secondary" style={{ fontSize: 12 }}>
-                                        Track the declining value of this asset over its useful life.
-                                    </Text>
-                                </div>
-                            </Space>
-                        </Card>
-
-                        {calcDepreciation && (
-                            <>
-                                <Form.Item label="Depreciation Method" name="depreciation_method" rules={[{ required: true }]}>
-                                    <Select options={DEPRECIATION_METHODS} />
-                                </Form.Item>
-                                <Row gutter={16}>
-                                    <Col xs={24} sm={12}>
-                                        <Form.Item label="Total Depreciations" name="total_number_of_depreciations" rules={[{ required: true }]}
-                                            tooltip="How many depreciation entries over the asset's useful life">
-                                            <InputNumber style={{ width: '100%' }} min={1} placeholder="e.g. 5" />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col xs={24} sm={12}>
-                                        <Form.Item label="Frequency (months)" name="frequency_of_depreciation" rules={[{ required: true }]}
-                                            tooltip="Months between each depreciation entry">
-                                            <InputNumber style={{ width: '100%' }} min={1} placeholder="e.g. 12" />
-                                        </Form.Item>
-                                    </Col>
-                                </Row>
-                                <Row gutter={16}>
-                                    <Col xs={24} sm={12}>
-                                        <Form.Item label="Salvage Value" name="expected_value_after_useful_life"
-                                            tooltip="Estimated value at end of useful life">
-                                            <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="0.00" />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col xs={24} sm={12}>
-                                        <Form.Item label="Depreciation Start Date" name="depreciation_start_date">
-                                            <DatePicker style={{ width: '100%' }} />
-                                        </Form.Item>
-                                    </Col>
-                                </Row>
-                            </>
-                        )}
-
-                        {!calcDepreciation && (
-                            <Alert type="info" showIcon message="You can enable depreciation later from the asset detail page." />
-                        )}
-                    </Space>
-                );
-
-            // ─── Step 4: Review ──────────────────────────────────────────
-            case 4: {
-                const v = form.getFieldsValue(true);
-                const facilityName = availableFacilities.find((f) => f.hie_id === v.facility_id)?.facility_name || v.facility_id;
-                const companyName = companies.find((c) => c.name === v.company)?.company_name || v.company;
-                const deptName = departments.find((d) => d.name === v.department)?.department_name || v.department;
-                const empName = employees.find((e) => e.name === v.custodian)?.employee_name || v.custodian;
-
-                return (
-                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                        {/* Item summary */}
-                        <Card size="small" style={{ borderRadius: 10, background: token.colorFillQuaternary }} bodyStyle={{ padding: 12 }}>
-                            <Space>
-                                <AppstoreOutlined style={{ color: token.colorPrimary }} />
-                                <Text strong>Item: </Text>
-                                <Text>{selectedItem?.item_name || v.item_code}</Text>
-                                <Tag color="blue">{v.item_code}</Tag>
-                                {v.asset_category && <Tag color="purple">{v.asset_category}</Tag>}
-                            </Space>
-                        </Card>
-
-                        <Descriptions bordered size="small" column={isMobile ? 1 : 2} title="Asset Details">
-                            <Descriptions.Item label="Asset Name">{v.asset_name}</Descriptions.Item>
-                            <Descriptions.Item label="Company">{companyName}</Descriptions.Item>
-                            <Descriptions.Item label="Facility">{facilityName}</Descriptions.Item>
-                            <Descriptions.Item label="Department">{deptName || '—'}</Descriptions.Item>
-                            <Descriptions.Item label="Custodian">{empName || '—'}</Descriptions.Item>
-                            <Descriptions.Item label="Existing Asset?">{v.is_existing_asset ? 'Yes' : 'No'}</Descriptions.Item>
-                        </Descriptions>
-
-                        <Descriptions bordered size="small" column={isMobile ? 1 : 2} title="Purchase & Valuation">
-                            <Descriptions.Item label="Purchase Date">{v.purchase_date?.format('DD MMM YYYY') || '—'}</Descriptions.Item>
-                            <Descriptions.Item label="Available-for-use">{v.available_for_use_date?.format('DD MMM YYYY') || '—'}</Descriptions.Item>
-                            <Descriptions.Item label="Purchase Amount">{v.gross_purchase_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '—'}</Descriptions.Item>
-                            <Descriptions.Item label="Depreciation">{calcDepreciation ? v.depreciation_method : 'Disabled'}</Descriptions.Item>
-                            {calcDepreciation && (
-                                <>
-                                    <Descriptions.Item label="Depreciations">{v.total_number_of_depreciations} periods</Descriptions.Item>
-                                    <Descriptions.Item label="Frequency">Every {v.frequency_of_depreciation} months</Descriptions.Item>
-                                    <Descriptions.Item label="Salvage Value">{v.expected_value_after_useful_life?.toLocaleString() || '0'}</Descriptions.Item>
-                                    <Descriptions.Item label="Start Date">{v.depreciation_start_date?.format('DD MMM YYYY') || 'Auto'}</Descriptions.Item>
-                                </>
-                            )}
-                        </Descriptions>
-
-                        <Alert
-                            type="info"
-                            showIcon
-                            icon={<ExclamationCircleOutlined />}
-                            message="Asset will be created as Draft"
-                            description="After creation, open the asset and click 'Submit' to activate it. Submission triggers depreciation scheduling and GL entries."
-                        />
-                    </Space>
-                );
-            }
-
-            default:
-                return null;
-        }
-    };
-
     return (
-        <div style={{ padding: isMobile ? '16px' : '24px', maxWidth: 800, margin: '0 auto' }}>
+        <div style={{ padding: isMobile ? '16px' : '24px', maxWidth: 920, margin: '0 auto' }}>
             <Button icon={<ArrowLeftOutlined />} onClick={handleBackToAssets} style={{ marginBottom: 16 }}>
                 Back to Assets
             </Button>
 
             <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-                <Title level={4} style={{ marginBottom: 24 }}>Create New Asset</Title>
+                <Space direction="vertical" size={20} style={{ width: '100%' }}>
+                    <div>
+                        <Title level={4} style={{ marginBottom: 8 }}>Add Asset</Title>
+                        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                            Select the item, record the basic asset details, and save the draft. Existing asset is on by default so purchase receipt and purchase invoice stay out of the way unless you explicitly switch to a new purchase flow.
+                        </Paragraph>
+                    </div>
 
-                <Steps current={currentStep} items={steps} style={{ marginBottom: 32 }} size={isMobile ? 'small' : 'default'} />
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="Fast path"
+                        description="1. Select item. 2. Confirm the basic asset details. 3. Save the draft. Depreciation, finance book setup, and other technical details can be completed later from the asset page."
+                    />
 
-                <Form form={form} layout="vertical" validateTrigger="onBlur">
-                    {renderStep()}
-                </Form>
+                    <Form
+                        form={form}
+                        layout="vertical"
+                        validateTrigger="onBlur"
+                        initialValues={{ is_existing_asset: true }}
+                        onFinish={handleSubmit}
+                        onFinishFailed={handleSubmitFailed}
+                    >
+                        <Space direction="vertical" size={20} style={{ width: '100%' }}>
+                            <Card
+                                size="small"
+                                style={{ borderRadius: 10, background: token.colorFillQuaternary }}
+                                bodyStyle={{ padding: isMobile ? 12 : 16 }}
+                            >
+                                <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Space>
+                                            <AppstoreOutlined style={{ color: token.colorPrimary }} />
+                                            <Text strong>Item Type</Text>
+                                            <Tooltip title="The item is the asset model or product type. One asset record represents one physical unit.">
+                                                <InfoCircleOutlined style={{ color: token.colorTextDescription, cursor: 'help' }} />
+                                            </Tooltip>
+                                        </Space>
+                                        {selectedItem && (
+                                            <Button type="link" size="small" onClick={clearSelectedItem}>Change</Button>
+                                        )}
+                                    </div>
 
-                <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
-                    {currentStep > 0 ? <Button onClick={prev}>Previous</Button> : <div />}
-                    {currentStep < steps.length - 1 ? (
-                        <Button type="primary" onClick={next}>Next</Button>
-                    ) : (
-                        <Button
-                            type="primary"
-                            icon={<CheckCircleOutlined />}
-                            loading={submitting}
-                            onClick={handleSubmit}
-                        >
-                            Create Asset
-                        </Button>
-                    )}
-                </div>
+                                    {!selectedItem ? (
+                                        <>
+                                            <Paragraph type="secondary" style={{ fontSize: 13, margin: 0 }}>
+                                                Search for the fixed asset item you want. If it does not exist yet, create it here first.
+                                            </Paragraph>
+
+                                            <Select
+                                                showSearch
+                                                placeholder="Search fixed asset items... (minimum 2 characters)"
+                                                filterOption={false}
+                                                onSearch={handleItemSearch}
+                                                onSelect={handleItemSelect}
+                                                loading={itemSearching}
+                                                suffixIcon={<SearchOutlined />}
+                                                notFoundContent={
+                                                    itemSearching ? (
+                                                        <div style={{ textAlign: 'center', padding: 16 }}>
+                                                            <Spin size="small" />
+                                                            <br />
+                                                            <Text type="secondary">Searching items...</Text>
+                                                        </div>
+                                                    ) : itemSearchError ? (
+                                                        <Alert type="error" message="Item search failed. Try again." showIcon />
+                                                    ) : lastSearchTerm.length < 2 ? (
+                                                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Type at least 2 characters to search" />
+                                                    ) : (
+                                                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`No item matches "${lastSearchTerm}"`}>
+                                                            <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setCreateItemModalOpen(true)}>
+                                                                Create "{lastSearchTerm}" as a new item
+                                                            </Button>
+                                                        </Empty>
+                                                    )
+                                                }
+                                                dropdownRender={(menu) => (
+                                                    <>
+                                                        {menu}
+                                                        <div style={{ padding: '8px 8px 4px' }}>
+                                                            <Button type="text" icon={<PlusOutlined />} block onClick={() => setCreateItemModalOpen(true)}>
+                                                                Create new fixed asset item
+                                                            </Button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                                style={{ width: '100%' }}
+                                            >
+                                                {itemSearchResults.map((item) => (
+                                                    <Select.Option key={item.item_code} value={item.item_code}>
+                                                        <div style={{ padding: '4px 0' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                <Text strong>{item.item_name || item.item_code}</Text>
+                                                                {item.asset_category && <Tag style={{ marginLeft: 8 }}>{item.asset_category}</Tag>}
+                                                            </div>
+                                                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                                                {item.item_code} • {item.item_group}
+                                                            </Text>
+                                                        </div>
+                                                    </Select.Option>
+                                                ))}
+                                            </Select>
+                                        </>
+                                    ) : (
+                                        <Card size="small" style={{ borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <Space direction="vertical" size={4}>
+                                                    <Text strong style={{ fontSize: 15 }}>{selectedItem.item_name || selectedItem.item_code}</Text>
+                                                    <Space wrap size={4}>
+                                                        <Tag color="blue">{selectedItem.item_code}</Tag>
+                                                        {selectedItem.asset_category && <Tag color="purple">{selectedItem.asset_category}</Tag>}
+                                                        {selectedItem.item_group && <Tag>{selectedItem.item_group}</Tag>}
+                                                    </Space>
+                                                </Space>
+                                                <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: 20 }} />
+                                            </div>
+                                        </Card>
+                                    )}
+                                </Space>
+                            </Card>
+
+                            <Form.Item
+                                name="item_code"
+                                hidden
+                                rules={[{ required: true, message: 'Select or create an item first' }]}
+                            >
+                                <Input />
+                            </Form.Item>
+                            <Form.Item name="asset_category" hidden>
+                                <Input />
+                            </Form.Item>
+
+                            <Card size="small" title="Basic Asset Details" style={{ borderRadius: 10 }}>
+                                <Row gutter={16}>
+                                    <Col xs={24} sm={12}>
+                                        <Form.Item
+                                            label="Asset Name"
+                                            name="asset_name"
+                                            rules={[{ required: true, message: 'Name this asset unit' }]}
+                                            tooltip="This is the unique name for the physical unit you are adding."
+                                        >
+                                            <Input placeholder="e.g. CT Scanner #3 - Radiology Wing" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} sm={12}>
+                                        <Form.Item
+                                            label="Company"
+                                            name="company"
+                                            rules={[{ required: true, message: 'Select the owning company' }]}
+                                        >
+                                            <Select
+                                                placeholder={refDataLoading ? 'Loading companies...' : 'Select company'}
+                                                loading={refDataLoading}
+                                                showSearch
+                                                optionFilterProp="children"
+                                                notFoundContent={companies.length === 0 && !refDataLoading
+                                                    ? <Empty description="No companies accessible" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                                                    : undefined}
+                                            >
+                                                {companies.map((company) => (
+                                                    <Select.Option key={company.name} value={company.name}>
+                                                        {company.company_name} ({company.abbr})
+                                                    </Select.Option>
+                                                ))}
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                <Row gutter={16}>
+                                    <Col xs={24} sm={12}>
+                                        <Form.Item
+                                            label="Facility"
+                                            name="facility_id"
+                                            rules={[{ required: true, message: 'Select the facility where this asset sits' }]}
+                                        >
+                                            <Select
+                                                placeholder="Select facility"
+                                                showSearch
+                                                optionFilterProp="children"
+                                                notFoundContent={availableFacilities.length === 0
+                                                    ? <Empty description="No facilities accessible" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                                                    : undefined}
+                                            >
+                                                {availableFacilities.map((facility) => (
+                                                    <Select.Option key={facility.hie_id} value={facility.hie_id}>
+                                                        {facility.facility_name}
+                                                    </Select.Option>
+                                                ))}
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} sm={12}>
+                                        <Form.Item label="Department" name="department">
+                                            <Select
+                                                placeholder={departments.length === 0 ? 'Select company first' : 'Select department (optional)'}
+                                                allowClear
+                                                showSearch
+                                                optionFilterProp="children"
+                                                disabled={departments.length === 0}
+                                            >
+                                                {departments.map((department) => (
+                                                    <Select.Option key={department.name} value={department.name}>
+                                                        {department.department_name}
+                                                    </Select.Option>
+                                                ))}
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                <Form.Item label="Custodian" name="custodian" tooltip="The employee currently responsible for the asset.">
+                                    <Select
+                                        placeholder="Search employee name..."
+                                        showSearch
+                                        filterOption={false}
+                                        onSearch={handleEmployeeSearch}
+                                        allowClear
+                                        notFoundContent={<Empty description="Type 2+ characters to search employees" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                                    >
+                                        {employees.map((employee) => (
+                                            <Select.Option key={employee.name} value={employee.name}>
+                                                <div>
+                                                    <Text strong>{employee.employee_name}</Text>
+                                                    <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                                                        {employee.name} • {employee.designation || employee.department || ''}
+                                                    </Text>
+                                                </div>
+                                            </Select.Option>
+                                        ))}
+                                    </Select>
+                                </Form.Item>
+                            </Card>
+
+                            <Card size="small" title="Source and Value" style={{ borderRadius: 10 }}>
+                                <Form.Item
+                                    label="Existing Asset"
+                                    name="is_existing_asset"
+                                    valuePropName="checked"
+                                    tooltip="Use for assets already owned or already in service."
+                                >
+                                    <Switch checkedChildren="Existing" unCheckedChildren="New Purchase" />
+                                </Form.Item>
+                                <Paragraph type="secondary" style={{ marginTop: -8 }}>
+                                    Use Existing Asset for assets already owned or already in service. Use New Purchase to link a submitted Purchase Receipt or Purchase Invoice.
+                                </Paragraph>
+
+                                <Row gutter={16}>
+                                    <Col xs={24} sm={12}>
+                                        <Form.Item
+                                            label="Purchase Date"
+                                            name="purchase_date"
+                                            rules={[{ required: true, message: 'Purchase date is required' }]}
+                                        >
+                                            <DatePicker style={{ width: '100%' }} />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} sm={12}>
+                                        <Form.Item
+                                            label="Available-for-use Date"
+                                            name="available_for_use_date"
+                                            tooltip="You can leave this empty now and fill it in later before submitting the asset."
+                                        >
+                                            <DatePicker style={{ width: '100%' }} />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                <Form.Item
+                                    label="Asset Value"
+                                    name="gross_purchase_amount"
+                                    rules={[{ required: true, message: 'Asset value is required' }]}
+                                >
+                                    <InputNumber
+                                        style={{ width: '100%' }}
+                                        min={0}
+                                        precision={2}
+                                        placeholder="0.00"
+                                        formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                                        parser={parseCurrencyInput}
+                                    />
+                                </Form.Item>
+
+                                {!isExistingAsset && (
+                                    <>
+                                        <Alert
+                                            type="warning"
+                                            showIcon
+                                            style={{ marginBottom: 16 }}
+                                            message="New purchase flow"
+                                            description="Select one submitted purchase document for this item. The asset value and purchase date will be pulled from that document so the draft matches ERPNext asset rules."
+                                        />
+                                        <Row gutter={16}>
+                                            <Col xs={24} sm={12}>
+                                                <Form.Item
+                                                    label="Purchase Receipt"
+                                                    name="purchase_receipt"
+                                                    extra="Use this when the asset came in through stock receipt."
+                                                >
+                                                    <Select
+                                                        showSearch
+                                                        allowClear
+                                                        disabled={!selectedItemCode || !selectedCompany}
+                                                        placeholder={!selectedItemCode || !selectedCompany
+                                                            ? 'Select item and company first'
+                                                            : 'Search submitted Purchase Receipts'}
+                                                        filterOption={false}
+                                                        onSearch={handlePurchaseReceiptSearch}
+                                                        onSelect={handlePurchaseReceiptSelect}
+                                                        onClear={() => setSelectedPurchaseReceipt(null)}
+                                                        loading={purchaseReceiptSearching}
+                                                        notFoundContent={purchaseReceiptSearching
+                                                            ? <Spin size="small" />
+                                                            : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No matching Purchase Receipts" />}
+                                                        options={purchaseReceiptOptions.map((document) => ({
+                                                            value: document.name,
+                                                            label: `${document.name} • ${document.supplier || 'No supplier'} • ${dayjs(document.posting_date).format('DD MMM YYYY')} • ${document.available_asset_qty ?? document.item_qty} available`,
+                                                        }))}
+                                                    />
+                                                </Form.Item>
+                                                {selectedPurchaseReceipt && (
+                                                    <Alert
+                                                        type="info"
+                                                        showIcon
+                                                        message={`Receipt ${selectedPurchaseReceipt.name} selected`}
+                                                        description={
+                                                            <Space direction="vertical" size={0}>
+                                                                <Text type="secondary">
+                                                                    Qty {selectedPurchaseReceipt.item_qty} • Available for asset creation {selectedPurchaseReceipt.available_asset_qty ?? selectedPurchaseReceipt.item_qty} • Unit value {selectedPurchaseReceipt.item_rate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                                </Text>
+                                                                <a href={selectedPurchaseReceipt.desk_url} target="_blank" rel="noreferrer">Open Purchase Receipt</a>
+                                                            </Space>
+                                                        }
+                                                    />
+                                                )}
+                                            </Col>
+                                            <Col xs={24} sm={12}>
+                                                <Form.Item
+                                                    label="Purchase Invoice"
+                                                    name="purchase_invoice"
+                                                    extra="Use this instead when the invoice is the source document."
+                                                >
+                                                    <Select
+                                                        showSearch
+                                                        allowClear
+                                                        disabled={!selectedItemCode || !selectedCompany}
+                                                        placeholder={!selectedItemCode || !selectedCompany
+                                                            ? 'Select item and company first'
+                                                            : 'Search submitted stock Purchase Invoices'}
+                                                        filterOption={false}
+                                                        onSearch={handlePurchaseInvoiceSearch}
+                                                        onSelect={handlePurchaseInvoiceSelect}
+                                                        onClear={() => setSelectedPurchaseInvoice(null)}
+                                                        loading={purchaseInvoiceSearching}
+                                                        notFoundContent={purchaseInvoiceSearching
+                                                            ? <Spin size="small" />
+                                                            : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No matching Purchase Invoices" />}
+                                                        options={purchaseInvoiceOptions.map((document) => ({
+                                                            value: document.name,
+                                                            label: `${document.name} • ${document.supplier || 'No supplier'} • ${dayjs(document.posting_date).format('DD MMM YYYY')} • ${document.available_asset_qty ?? document.item_qty} available`,
+                                                        }))}
+                                                    />
+                                                </Form.Item>
+                                                {selectedPurchaseInvoice && (
+                                                    <Alert
+                                                        type="info"
+                                                        showIcon
+                                                        message={`Invoice ${selectedPurchaseInvoice.name} selected`}
+                                                        description={
+                                                            <Space direction="vertical" size={0}>
+                                                                <Text type="secondary">
+                                                                    Qty {selectedPurchaseInvoice.item_qty} • Available for asset creation {selectedPurchaseInvoice.available_asset_qty ?? selectedPurchaseInvoice.item_qty} • Unit value {selectedPurchaseInvoice.item_rate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                                </Text>
+                                                                <a href={selectedPurchaseInvoice.desk_url} target="_blank" rel="noreferrer">Open Purchase Invoice</a>
+                                                            </Space>
+                                                        }
+                                                    />
+                                                )}
+                                            </Col>
+                                        </Row>
+                                    </>
+                                )}
+                            </Card>
+
+                            <Alert
+                                type="success"
+                                showIcon
+                                message="Asset draft ready"
+                                description="Core asset details will be saved now. Purchase traceability, depreciation, finance books, and maintenance setup can be completed later from the asset record."
+                            />
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <Button
+                                    type="primary"
+                                    htmlType="button"
+                                    onClick={handleSaveAssetDraftClick}
+                                    icon={<CheckCircleOutlined />}
+                                    loading={submitting}
+                                >
+                                    Save Asset Draft
+                                </Button>
+                            </div>
+                        </Space>
+                    </Form>
+                </Space>
             </Card>
 
             <CreateItemModal
@@ -881,6 +1182,19 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                 categories={categories}
                 initialSearch={lastSearchTerm}
             />
+
+            <Modal
+                open={Boolean(confirmationDialog)}
+                title={confirmationDialog?.title}
+                onOk={() => resolveConfirmation(true)}
+                onCancel={() => resolveConfirmation(false)}
+                okText={confirmationDialog?.okText || 'Confirm'}
+                cancelText={confirmationDialog?.cancelText || 'Cancel'}
+                okButtonProps={confirmationDialog?.okDanger ? { danger: true } : undefined}
+                destroyOnClose
+            >
+                <Paragraph style={{ marginBottom: 0 }}>{confirmationDialog?.content}</Paragraph>
+            </Modal>
         </div>
     );
 };

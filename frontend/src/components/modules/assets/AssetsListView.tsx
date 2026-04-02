@@ -24,7 +24,8 @@ import {
     ReloadOutlined,
     EnvironmentOutlined,
     BarcodeOutlined,
-    MedicineBoxOutlined
+    MedicineBoxOutlined,
+    UserOutlined
 } from '@ant-design/icons';
 import useAssetStore from '../../../stores/modules/assetStore';
 import useFacilityStore from '../../../stores/facilityStore';
@@ -93,6 +94,30 @@ const AssetsListView: React.FC = () => {
         }
     };
 
+    const asText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+
+    const getAssignedEmployee = (record: Record<string, unknown>) => {
+        const employeeName =
+            asText(record.custodian_name) ||
+            asText(record.assigned_employee_name) ||
+            asText(record.employee_name);
+        const employeeId =
+            asText(record.custodian) ||
+            asText(record.assigned_to) ||
+            asText(record.employee);
+
+        if (employeeName && employeeId) {
+            return { label: employeeName, meta: employeeId };
+        }
+        if (employeeName) {
+            return { label: employeeName, meta: '' };
+        }
+        if (employeeId) {
+            return { label: employeeId, meta: '' };
+        }
+        return { label: 'Unassigned', meta: '' };
+    };
+
     const columns = [
         {
             title: 'Device Info',
@@ -151,6 +176,27 @@ const AssetsListView: React.FC = () => {
                             {facilityId && (
                                 <Text type="secondary" style={{ fontSize: '11px' }}>
                                     ID: {facilityId}
+                                </Text>
+                            )}
+                        </Space>
+                    </Space>
+                );
+            }
+        },
+        {
+            title: 'Assigned To',
+            key: 'assigned_to',
+            width: 220,
+            render: (_: unknown, record: Record<string, unknown>) => {
+                const assigned = getAssignedEmployee(record);
+                return (
+                    <Space align="start">
+                        <UserOutlined style={{ color: token.colorTextDescription, marginTop: 3 }} />
+                        <Space direction="vertical" size={0}>
+                            <Text strong style={{ fontSize: '13px' }}>{assigned.label}</Text>
+                            {assigned.meta && (
+                                <Text type="secondary" style={{ fontSize: '11px' }}>
+                                    ID: {assigned.meta}
                                 </Text>
                             )}
                         </Space>

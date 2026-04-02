@@ -16,16 +16,23 @@ import frappe
 import pyotp
 from frappe import _
 from frappe.core.doctype.sms_settings.sms_settings import send_sms
-from frappe.utils.file_manager import save_file
 from frappe.utils import cint, getdate, today
+from frappe.utils.file_manager import save_file
 from frappe.twofactor import get_otpsecret_for_, get_rendered_otp_message
 
+from .facility_affiliation_status import (
+    CANONICAL_TERMINATED_AFFILIATION_STATUS,
+    is_terminated_facility_affiliation_status,
+)
 from .response import api_response
 
 TERMINATION_OTP_TTL_SECONDS = 300
 TERMINATION_OTP_MAX_ATTEMPTS = 5
 TERMINATION_OTP_DIGITS = 5
 TERMINATION_OTP_RESEND_COOLDOWN_SECONDS = 30
+TERMINATION_NOTIFICATION_TYPE = "Affiliation Termination"
+TERMINATION_NOTIFICATION_TITLE = "Affiliation Termination"
+TERMINATION_NOTIFICATION_SUBJECT = "Affiliation Termination Notice"
 
 
 def _parse_documents(value: Optional[Any]) -> List[str]:
@@ -130,6 +137,303 @@ def _get_user_mobile(user: str) -> str:
     """OTP destination is always the currently logged-in user's mobile."""
     user_mobile = _normalize_phone(frappe.db.get_value("User", user, "mobile_no") or "")
     return user_mobile
+
+
+def _ensure_select_option(doctype: str, fieldname: str, option: str) -> Optional[str]:
+    """Ensure an option exists in DocField/Custom Field metadata."""
+    for meta_doctype in ("DocField", "Custom Field"):
+        filters = {"fieldname": fieldname}
+        filters["parent" if meta_doctype == "DocField" else "dt"] = doctype
+        field_name = frappe.db.get_value(
+            meta_doctype,
+            filters,
+            "name",
+        )
+        if not field_name:
+            continue
+
+        current_options = frappe.db.get_value(meta_doctype, field_name, "options") or ""
+        option_rows = [row.strip() for row in current_options.splitlines() if row.strip()]
+        if option in option_rows:
+            return "\n".join(option_rows)
+
+        option_rows.append(option)
+        next_options = "\n".join(option_rows)
+        frappe.db.set_value(
+            meta_doctype,
+            field_name,
+            "options",
+            next_options,
+            update_modified=False,
+        )
+        frappe.clear_cache(doctype=doctype)
+        return next_options
+
+    return None
+
+
+def _ensure_terminated_status_metadata(affiliation_doc=None, hp_doc=None) -> None:
+    """Allow Terminated in runtime metadata before saving affected docs."""
+    facility_options = _ensure_select_option(
+        "Facility Affiliation",
+        "affiliation_status",
+        CANONICAL_TERMINATED_AFFILIATION_STATUS,
+    )
+    if (
+        affiliation_doc
+        and facility_options
+        and affiliation_doc.meta.has_field("affiliation_status")
+    ):
+        affiliation_doc.meta.get_field("affiliation_status").options = facility_options
+
+    professional_options = _ensure_select_option(
+        "Professional Affiliation",
+        "affiliation_status",
+        CANONICAL_TERMINATED_AFFILIATION_STATUS,
+    )
+    if not professional_options or not hp_doc:
+        return
+
+    for row in hp_doc.get("professional_affiliations") or []:
+        if row.meta.has_field("affiliation_status"):
+            row.meta.get_field("affiliation_status").options = professional_options
+
+
+def _build_termination_document_payloads(documents: List[str]) -> List[dict[str, str]]:
+    payload = []
+    for index, reference in enumerate(documents or [], start=1):
+        ref = (reference or "").strip()
+        if not ref:
+            continue
+        payload.append(
+            {
+                "document_id": ref,
+                "document_category": "Facility Affiliation",
+                "document_type": "Termination Supporting Document",
+                "document_number": str(index),
+                "attachment": ref,
+            }
+        )
+    return payload
+
+
+def _get_facility_name(affiliation_doc) -> str:
+    facility_name = frappe.db.get_value(
+        "Health Facility",
+        affiliation_doc.get("health_facility"),
+        "facility_name",
+    )
+    return facility_name or affiliation_doc.get("health_facility") or "the facility"
+
+
+def _build_termination_notification_content(
+    facility_name: str,
+    termination_reason: str,
+    *,
+    health_professional_name: Optional[str] = None,
+    for_admin: bool = False,
+) -> str:
+    if for_admin:
+        subject_name = health_professional_name or "The health professional"
+        return (
+            f"{subject_name} was unaffiliated from {facility_name}. "
+            f"Reason: {termination_reason}"
+        )
+    return f"You have been unaffiliated from {facility_name}. Reason: {termination_reason}"
+
+
+def _create_web_notification_safe(
+    recipient_user: Optional[str],
+    title: str,
+    content: str,
+) -> None:
+    recipient = (recipient_user or "").strip()
+    if not recipient:
+        return
+
+    try:
+        from healthpro_erp.healthpro_erp.doctype.webapp_notification.webapp_notification import (
+            _create_notification,
+        )
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            "Termination Notification Import Error",
+        )
+        return
+
+    try:
+        _create_notification(
+            recipient_user=recipient,
+            sender_user=frappe.session.user,
+            sender_type="User",
+            notification_type=TERMINATION_NOTIFICATION_TYPE,
+            priority="High",
+            is_actionable="Informational",
+            title=title,
+            content=content,
+        )
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"Termination Web Notification Error ({recipient})",
+        )
+
+
+def _send_mobile_termination_notification_safe(
+    registration_number: Optional[str],
+    facility_name: str,
+    termination_reason: str,
+    affiliation_name: str,
+) -> None:
+    registration_id = (registration_number or "").strip()
+    if not registration_id:
+        return
+
+    fcm_token = frappe.db.get_value(
+        "Notification Subscription",
+        {"puid": registration_id},
+        "fcm_token",
+    )
+    if not fcm_token:
+        return
+
+    try:
+        from healthpro_erp.api.healthpro_mobile_app.mobile_notifications import (
+            send_firebase_notification,
+        )
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            "Termination Mobile Notification Import Error",
+        )
+        return
+
+    try:
+        send_firebase_notification(
+            subject=TERMINATION_NOTIFICATION_SUBJECT,
+            fcm_token=fcm_token,
+            title=TERMINATION_NOTIFICATION_TITLE,
+            body=_build_termination_notification_content(
+                facility_name,
+                termination_reason,
+            ),
+            data={
+                "affiliation_id": affiliation_name,
+                "affiliation_status": CANONICAL_TERMINATED_AFFILIATION_STATUS,
+            },
+        )
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"Termination Mobile Notification Error ({registration_id})",
+        )
+
+
+def _dispatch_termination_notifications(affiliation_doc, termination_reason: str) -> None:
+    facility_name = _get_facility_name(affiliation_doc)
+    hp_name = affiliation_doc.get("health_professional_name") or "Health Professional"
+
+    health_professional = None
+    health_professional_name = (affiliation_doc.get("health_professional") or "").strip()
+    if health_professional_name and frappe.db.exists(
+        "Health Professional",
+        health_professional_name,
+    ):
+        try:
+            health_professional = frappe.get_doc(
+                "Health Professional",
+                health_professional_name,
+            )
+        except Exception:
+            frappe.log_error(
+                frappe.get_traceback(),
+                f"Termination Health Professional Load Error ({health_professional_name})",
+            )
+
+    health_professional_user = (
+        (health_professional.get("user") if health_professional else None)
+        or affiliation_doc.get("user")
+    )
+    if health_professional_user:
+        _create_web_notification_safe(
+            health_professional_user,
+            TERMINATION_NOTIFICATION_TITLE,
+            _build_termination_notification_content(
+                facility_name,
+                termination_reason,
+            ),
+        )
+
+    _send_mobile_termination_notification_safe(
+        health_professional.get("registration_number") if health_professional else None,
+        facility_name,
+        termination_reason,
+        affiliation_doc.name,
+    )
+
+    admin_recipients = {
+        user
+        for user in {
+            affiliation_doc.get("requested_by"),
+            affiliation_doc.get("terminated_by"),
+            frappe.session.user,
+        }
+        if (user or "").strip()
+    }
+    admin_recipients.discard(health_professional_user)
+
+    admin_content = _build_termination_notification_content(
+        facility_name,
+        termination_reason,
+        health_professional_name=hp_name,
+        for_admin=True,
+    )
+    for recipient in admin_recipients:
+        _create_web_notification_safe(
+            recipient,
+            TERMINATION_NOTIFICATION_TITLE,
+            admin_content,
+        )
+
+
+def _enqueue_termination_c360_sync(
+    affiliation_doc,
+    termination_reason: str,
+    termination_date,
+    documents: List[str],
+) -> None:
+    try:
+        from healthpro_erp.api.health_worker_onboarding_apis import (
+            update_sync_affiliation_to_c360,
+        )
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            "Termination C360 Sync Import Error",
+        )
+        return
+
+    try:
+        frappe.enqueue(
+            update_sync_affiliation_to_c360,
+            queue="default",
+            timeout=300,
+            facility_affiliation_doc=affiliation_doc,
+            update_fields={
+                "affiliation_status": CANONICAL_TERMINATED_AFFILIATION_STATUS,
+                "termination_reason": termination_reason,
+                "termination_date": termination_date.isoformat(),
+                "terminated_by": frappe.session.user,
+                "termination_documents": _build_termination_document_payloads(documents),
+            },
+            is_async=True,
+        )
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"Termination C360 Sync Queue Error ({affiliation_doc.name})",
+        )
 
 
 def _verify_termination_otp(user: str, affiliation_id: str, otp_id: str, otp_code: str) -> Optional[str]:
@@ -366,13 +670,13 @@ def terminate_affiliation(
         current_status = (affiliation_doc.get("affiliation_status") or "").strip()
         allowed_statuses = {"Active", "Confirmed"}
 
-        if current_status == "Inactive":
+        if is_terminated_facility_affiliation_status(current_status):
             return api_response(
                 success=True,
-                message="Affiliation is already inactive.",
+                message="Affiliation is already terminated.",
                 data={
                     "affiliation_id": affiliation_doc.name,
-                    "status": "Inactive",
+                    "status": CANONICAL_TERMINATED_AFFILIATION_STATUS,
                     "termination_date": str(affiliation_doc.get("termination_date") or today()),
                     "terminated_by": affiliation_doc.get("terminated_by") or frappe.session.user,
                     "employee_id": affiliation_doc.get("employee"),
@@ -402,9 +706,18 @@ def terminate_affiliation(
             )
 
         today_value = getdate(today())
+        hp_doc = None
+        hp_name = affiliation_doc.get("health_professional")
+        if hp_name and frappe.db.exists("Health Professional", hp_name):
+            hp_doc = frappe.get_doc("Health Professional", hp_name)
+
+        _ensure_terminated_status_metadata(
+            affiliation_doc=affiliation_doc,
+            hp_doc=hp_doc,
+        )
 
         # Core status transition
-        affiliation_doc.affiliation_status = "Inactive"
+        affiliation_doc.affiliation_status = CANONICAL_TERMINATED_AFFILIATION_STATUS
         _set_if_field(affiliation_doc, "termination_reason", termination_reason)
         _set_if_field(affiliation_doc, "termination_date", today_value)
         _set_if_field(affiliation_doc, "terminated_by", frappe.session.user)
@@ -439,13 +752,19 @@ def terminate_affiliation(
             employee_status = employee_updates["status"]
 
         # Update Health Professional child affiliation row where possible.
-        hp_name = affiliation_doc.get("health_professional")
-        if hp_name and frappe.db.exists("Health Professional", hp_name):
-            hp_doc = frappe.get_doc("Health Professional", hp_name)
+        if hp_doc:
             for row in hp_doc.get("professional_affiliations") or []:
                 if row.get("facility_affiliation") == affiliation_doc.name and row.meta.has_field("affiliation_status"):
-                    row.affiliation_status = "Inactive"
+                    row.affiliation_status = CANONICAL_TERMINATED_AFFILIATION_STATUS
             hp_doc.save()
+
+        _dispatch_termination_notifications(affiliation_doc, termination_reason)
+        _enqueue_termination_c360_sync(
+            affiliation_doc,
+            termination_reason,
+            today_value,
+            documents,
+        )
 
         frappe.db.commit()
 

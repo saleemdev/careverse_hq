@@ -35,6 +35,7 @@ const FULL_ACCESS_ROUTES = [
     'health-professionals',
     'assets',
     'facilities',
+    'facilities/new',
     'affiliations',
     'add-affiliation',
     'bulk-upload',
@@ -63,7 +64,7 @@ const FULL_ACCESS_ROUTES = [
     'recruitment/candidates',
 ] as const;
 
-const NO_ACCESS_ALLOWED_ROUTES = [COMPANY_PERMISSION_ROUTE, 'profile'] as const;
+const NO_ACCESS_ALLOWED_ROUTES = [COMPANY_PERMISSION_ROUTE, 'profile', 'facilities/new'] as const;
 
 export const getAccessPolicy = (mode: AccessMode): AccessPolicy => {
     switch (mode) {

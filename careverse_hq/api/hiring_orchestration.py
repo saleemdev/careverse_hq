@@ -21,7 +21,10 @@ import json
 import frappe
 from frappe.utils import now_datetime, add_days
 
-from .facility_affiliation_status import get_facility_affiliation_status
+from .facility_affiliation_status import (
+    CANONICAL_TERMINATED_AFFILIATION_STATUS,
+    get_facility_affiliation_status,
+)
 from .single_affiliation import create_single_affiliation
 from .utils import api_response
 
@@ -308,7 +311,7 @@ def check_hire_status(job_offer_id):
         hire_status = "Candidate Rejected Affiliation"
     elif aff_status in ("Expired",):
         hire_status = "Confirmation Timed Out"
-    elif aff_status in ("Inactive",):
+    elif aff_status in ("Inactive", CANONICAL_TERMINATED_AFFILIATION_STATUS):
         hire_status = "Affiliation Deactivated"
     else:
         hire_status = f"Unknown ({aff_status})"
