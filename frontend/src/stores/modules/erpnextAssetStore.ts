@@ -156,6 +156,9 @@ export interface AssetFinanceBook {
     rate_of_depreciation?: number;
 }
 
+type MutationResult = { success: boolean; error?: string; warning?: string };
+type CreateAssetResult = { success: boolean; name?: string; error?: string; warning?: string };
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -164,16 +167,19 @@ interface ERPNextAssetStore {
     // List
     assets: AssetItem[];
     loading: boolean;
+    listError: string | null;
     total: number;
     statusAggregates: StatusAggregates | null;
     categoryAggregates: CategoryAggregate[];
     dashboardLoading: boolean;
+    dashboardError: string | null;
     filters: AssetFilters;
 
     // Detail
     selectedAsset: AssetDetail | null;
     selectedAssetLoading: boolean;
     activeAssetName: string | null;
+    detailError: string | null;
     maintenanceData: { tasks: MaintenanceTask[]; logs: MaintenanceLog[] } | null;
     repairRecords: RepairRecord[];
     movementRecords: MovementRecord[];
@@ -186,27 +192,51 @@ interface ERPNextAssetStore {
     resetFilters: () => void;
 
     // Detail actions
-    fetchAssetDetail: (name: string) => Promise<void>;
+    fetchAssetDetail: (name: string) => Promise<boolean>;
     clearSelectedAsset: () => void;
-    fetchMaintenanceData: (name: string) => Promise<void>;
-    fetchRepairs: (name: string) => Promise<void>;
-    fetchMovements: (name: string) => Promise<void>;
-    fetchDepreciation: (name: string) => Promise<void>;
+    fetchMaintenanceData: (name: string) => Promise<boolean>;
+    fetchRepairs: (name: string) => Promise<boolean>;
+    fetchMovements: (name: string) => Promise<boolean>;
+    fetchDepreciation: (name: string) => Promise<boolean>;
+    refreshAssetBundle: (name: string) => Promise<boolean>;
 
     // Mutations
-    createAsset: (data: Record<string, unknown>) => Promise<{ success: boolean; name?: string; error?: string }>;
-    updateAsset: (name: string, data: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
-    submitAsset: (name: string) => Promise<boolean>;
-    createMaintenanceRequest: (data: Record<string, unknown>) => Promise<boolean>;
-    completeMaintenanceLog: (data: Record<string, unknown>) => Promise<boolean>;
-    createRepairRequest: (data: Record<string, unknown>) => Promise<boolean>;
-    completeRepair: (data: Record<string, unknown>) => Promise<boolean>;
-    createMovement: (data: Record<string, unknown>) => Promise<boolean>;
+    createAsset: (data: Record<string, unknown>) => Promise<CreateAssetResult>;
+    updateAsset: (name: string, data: Record<string, unknown>) => Promise<MutationResult>;
+    submitAsset: (name: string) => Promise<MutationResult>;
+    createMaintenanceRequest: (data: Record<string, unknown>) => Promise<MutationResult>;
+    completeMaintenanceLog: (data: Record<string, unknown>) => Promise<MutationResult>;
+    createRepairRequest: (data: Record<string, unknown>) => Promise<MutationResult>;
+    completeRepair: (data: Record<string, unknown>) => Promise<MutationResult>;
+    createMovement: (data: Record<string, unknown>) => Promise<MutationResult>;
 }
 
 const getErrorMessage = (error: unknown, fallback: string) => (
     error instanceof Error ? error.message : fallback
 );
+
+const delay = async (milliseconds: number) => new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+});
+
+const reconcileAssetByName = async (assetName: string, attempts = 3): Promise<boolean> => {
+    const normalizedName = assetName.trim();
+    if (!normalizedName) {
+        return false;
+    }
+
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const response = await erpnextAssetsApi.getAssetDetail(normalizedName);
+        if (response.success) {
+            return true;
+        }
+        if (attempt < attempts - 1) {
+            await delay(450);
+        }
+    }
+
+    return false;
+};
 
 const DEFAULT_FILTERS: AssetFilters = {
     page: 1,
@@ -231,16 +261,19 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     // List state
     assets: [],
     loading: false,
+    listError: null,
     total: 0,
     statusAggregates: null,
     categoryAggregates: [],
     dashboardLoading: false,
+    dashboardError: null,
     filters: { ...DEFAULT_FILTERS },
 
     // Detail state
     selectedAsset: null,
     selectedAssetLoading: false,
     activeAssetName: null,
+    detailError: null,
     maintenanceData: null,
     repairRecords: [],
     movementRecords: [],
@@ -252,7 +285,7 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
 
     fetchAssets: async (facilityIds) => {
         const requestSeq = ++assetsFetchSeq;
-        set({ loading: true });
+        set({ loading: true, listError: null });
         const { filters } = get();
         try {
             const response = await erpnextAssetsApi.getAssetsList({
@@ -270,10 +303,24 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
                 set({
                     assets: response.data?.items || [],
                     total: response.data?.total_count || 0,
+                    listError: null,
+                });
+            } else {
+                set({
+                    assets: [],
+                    total: 0,
+                    listError: response.error || response.message || 'Failed to fetch assets',
                 });
             }
         } catch (error) {
             console.error('Failed to fetch assets', error);
+            if (requestSeq === assetsFetchSeq) {
+                set({
+                    assets: [],
+                    total: 0,
+                    listError: getErrorMessage(error, 'Failed to fetch assets'),
+                });
+            }
         } finally {
             if (requestSeq === assetsFetchSeq) {
                 set({ loading: false });
@@ -283,7 +330,7 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
 
     fetchDashboard: async (facilityIds) => {
         const requestSeq = ++dashboardFetchSeq;
-        set({ dashboardLoading: true });
+        set({ dashboardLoading: true, dashboardError: null });
         const { filters } = get();
         try {
             const response = await erpnextAssetsApi.getDashboard({
@@ -296,10 +343,24 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
                 set({
                     statusAggregates: response.data?.status_aggregates || null,
                     categoryAggregates: response.data?.category_aggregates || [],
+                    dashboardError: null,
+                });
+            } else {
+                set({
+                    statusAggregates: null,
+                    categoryAggregates: [],
+                    dashboardError: response.error || response.message || 'Failed to fetch dashboard',
                 });
             }
         } catch (error) {
             console.error('Failed to fetch dashboard', error);
+            if (requestSeq === dashboardFetchSeq) {
+                set({
+                    statusAggregates: null,
+                    categoryAggregates: [],
+                    dashboardError: getErrorMessage(error, 'Failed to fetch dashboard'),
+                });
+            }
         } finally {
             if (requestSeq === dashboardFetchSeq) {
                 set({ dashboardLoading: false });
@@ -323,22 +384,31 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
 
     fetchAssetDetail: async (name) => {
         const requestSeq = ++detailFetchSeq;
-        set({ selectedAssetLoading: true, activeAssetName: name });
+        set({ selectedAssetLoading: true, activeAssetName: name, detailError: null });
         try {
             const response = await erpnextAssetsApi.getAssetDetail(name);
             if (requestSeq !== detailFetchSeq || get().activeAssetName !== name) {
-                return;
+                return false;
             }
             if (response.success) {
-                set({ selectedAsset: response.data });
+                set({ selectedAsset: response.data, detailError: null });
+                return true;
             } else {
-                set({ selectedAsset: null });
+                set({
+                    selectedAsset: null,
+                    detailError: response.error || response.message || 'Failed to load asset details',
+                });
+                return false;
             }
         } catch (error) {
             console.error('Failed to fetch asset detail', error);
             if (requestSeq === detailFetchSeq && get().activeAssetName === name) {
-                set({ selectedAsset: null });
+                set({
+                    selectedAsset: null,
+                    detailError: getErrorMessage(error, 'Failed to load asset details'),
+                });
             }
+            return false;
         } finally {
             if (requestSeq === detailFetchSeq && get().activeAssetName === name) {
                 set({ selectedAssetLoading: false });
@@ -351,6 +421,7 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
             selectedAsset: null,
             activeAssetName: null,
             selectedAssetLoading: false,
+            detailError: null,
             maintenanceData: null,
             repairRecords: [],
             movementRecords: [],
@@ -364,9 +435,12 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
             const response = await erpnextAssetsApi.getMaintenanceSchedule(name);
             if (response.success && requestSeq === maintenanceFetchSeq && get().activeAssetName === name) {
                 set({ maintenanceData: response.data });
+                return true;
             }
+            return Boolean(response.success);
         } catch (error) {
             console.error('Failed to fetch maintenance', error);
+            return false;
         }
     },
 
@@ -376,9 +450,12 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
             const response = await erpnextAssetsApi.getRepairs(name);
             if (response.success && requestSeq === repairsFetchSeq && get().activeAssetName === name) {
                 set({ repairRecords: response.data?.items || [] });
+                return true;
             }
+            return Boolean(response.success);
         } catch (error) {
             console.error('Failed to fetch repairs', error);
+            return false;
         }
     },
 
@@ -388,9 +465,12 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
             const response = await erpnextAssetsApi.getMovements(name);
             if (response.success && requestSeq === movementsFetchSeq && get().activeAssetName === name) {
                 set({ movementRecords: response.data?.items || [] });
+                return true;
             }
+            return Boolean(response.success);
         } catch (error) {
             console.error('Failed to fetch movements', error);
+            return false;
         }
     },
 
@@ -400,10 +480,24 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
             const response = await erpnextAssetsApi.getDepreciationSummary(name);
             if (response.success && requestSeq === depreciationFetchSeq && get().activeAssetName === name) {
                 set({ depreciationSummary: response.data });
+                return true;
             }
+            return Boolean(response.success);
         } catch (error) {
             console.error('Failed to fetch depreciation', error);
+            return false;
         }
+    },
+
+    refreshAssetBundle: async (name) => {
+        const detailOk = await get().fetchAssetDetail(name);
+        const [maintenanceOk, repairsOk, movementsOk, depreciationOk] = await Promise.all([
+            get().fetchMaintenanceData(name),
+            get().fetchRepairs(name),
+            get().fetchMovements(name),
+            get().fetchDepreciation(name),
+        ]);
+        return detailOk && maintenanceOk && repairsOk && movementsOk && depreciationOk;
     },
 
     // -----------------------------------------------------------------------
@@ -414,7 +508,16 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
         try {
             const response = await erpnextAssetsApi.createAsset(data);
             const timedOut = !response.success && Boolean((response.data as { __request_timeout?: boolean } | undefined)?.__request_timeout);
+            const requestedAssetName = typeof data.asset_name === 'string' ? data.asset_name.trim() : '';
             if (timedOut) {
+                const reconciled = await reconcileAssetByName(requestedAssetName);
+                if (reconciled) {
+                    return {
+                        success: true,
+                        name: requestedAssetName,
+                        warning: 'Save response timed out, but the asset draft was created.',
+                    };
+                }
                 return {
                     success: false,
                     error: 'Save request timed out. Confirm whether the draft was created before trying again.',
@@ -438,19 +541,33 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
             const response = await erpnextAssetsApi.updateAsset({ asset_name: name, ...data });
             const timedOut = !response.success && Boolean((response.data as { __request_timeout?: boolean } | undefined)?.__request_timeout);
             if (timedOut) {
+                const reconciled = await reconcileAssetByName(name);
+                if (reconciled) {
+                    const refreshed = await get().refreshAssetBundle(name);
+                    if (!refreshed) {
+                        return {
+                            success: true,
+                            warning: 'Update completed, but the latest data could not be refreshed. Reload to verify.',
+                        };
+                    }
+                    return {
+                        success: true,
+                        warning: 'Update response timed out, but the asset appears to be updated.',
+                    };
+                }
                 return {
                     success: false,
                     error: 'Update request timed out. Reload the asset before attempting another update.',
                 };
             }
             if (response.success) {
-                await Promise.all([
-                    get().fetchAssetDetail(name),
-                    get().fetchDepreciation(name),
-                    get().fetchMovements(name),
-                    get().fetchMaintenanceData(name),
-                    get().fetchRepairs(name),
-                ]);
+                const refreshed = await get().refreshAssetBundle(name);
+                if (!refreshed) {
+                    return {
+                        success: true,
+                        warning: 'Asset updated, but the latest data could not be fully refreshed. Reload and verify the current state.',
+                    };
+                }
                 return { success: true };
             }
             return { success: false, error: response.error || response.message || 'Failed to update asset' };
@@ -463,76 +580,138 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
     submitAsset: async (name) => {
         try {
             const response = await erpnextAssetsApi.submitAsset(name);
-            if (response.success) {
-                // Refresh detail
-                get().fetchAssetDetail(name);
-                return true;
+            const timedOut = !response.success && Boolean((response.data as { __request_timeout?: boolean } | undefined)?.__request_timeout);
+            if (timedOut) {
+                const reconciled = await reconcileAssetByName(name);
+                if (reconciled) {
+                    const refreshed = await get().refreshAssetBundle(name);
+                    if (!refreshed) {
+                        return {
+                            success: true,
+                            warning: 'Submit completed, but the latest data could not be refreshed. Reload to verify current status.',
+                        };
+                    }
+                    return {
+                        success: true,
+                        warning: 'Submit response timed out, but the asset appears to be submitted.',
+                    };
+                }
             }
-            return false;
-        } catch (error) {
+            if (response.success) {
+                const refreshed = await get().refreshAssetBundle(name);
+                if (!refreshed) {
+                    return {
+                        success: true,
+                        warning: 'Asset submitted, but the latest details could not be refreshed. Reload and confirm the status.',
+                    };
+                }
+                return { success: true };
+            }
+            return { success: false, error: response.error || response.message || 'Failed to submit asset' };
+        } catch (error: unknown) {
             console.error('Failed to submit asset', error);
-            return false;
+            return { success: false, error: getErrorMessage(error, 'Unexpected error submitting asset') };
         }
     },
 
     createMaintenanceRequest: async (data) => {
         try {
             const response = await erpnextAssetsApi.createMaintenanceRequest(data);
-            if (response.success && data.asset_name) {
-                get().fetchMaintenanceData(data.asset_name);
+            if (response.success) {
+                const assetName = typeof data.asset_name === 'string' ? data.asset_name : null;
+                if (assetName) {
+                    const refreshed = await get().fetchMaintenanceData(assetName);
+                    if (!refreshed) {
+                        return {
+                            success: true,
+                            warning: 'Maintenance scheduled, but the latest schedule could not be refreshed. Reload the asset view.',
+                        };
+                    }
+                }
+                return { success: true };
             }
-            return response.success;
-        } catch (error) {
+            return { success: false, error: response.error || response.message || 'Failed to create maintenance schedule' };
+        } catch (error: unknown) {
             console.error('Failed to create maintenance', error);
-            return false;
+            return { success: false, error: getErrorMessage(error, 'Unexpected error creating maintenance schedule') };
         }
     },
 
     completeMaintenanceLog: async (data) => {
         try {
             const response = await erpnextAssetsApi.completeMaintenanceLog(data);
-            return response.success;
-        } catch (error) {
+            if (response.success) {
+                return { success: true };
+            }
+            return { success: false, error: response.error || response.message || 'Failed to complete maintenance log' };
+        } catch (error: unknown) {
             console.error('Failed to complete maintenance log', error);
-            return false;
+            return { success: false, error: getErrorMessage(error, 'Unexpected error completing maintenance log') };
         }
     },
 
     createRepairRequest: async (data) => {
         try {
             const response = await erpnextAssetsApi.createRepairRequest(data);
-            if (response.success && data.asset_name) {
-                get().fetchRepairs(data.asset_name);
-                get().fetchAssetDetail(data.asset_name);
+            if (response.success) {
+                const assetName = typeof data.asset_name === 'string' ? data.asset_name : null;
+                if (assetName) {
+                    const [repairsOk, detailOk] = await Promise.all([
+                        get().fetchRepairs(assetName),
+                        get().fetchAssetDetail(assetName),
+                    ]);
+                    if (!repairsOk || !detailOk) {
+                        return {
+                            success: true,
+                            warning: 'Repair request was created, but the asset view could not be refreshed. Reload and confirm the latest status.',
+                        };
+                    }
+                }
+                return { success: true };
             }
-            return response.success;
-        } catch (error) {
+            return { success: false, error: response.error || response.message || 'Failed to create repair request' };
+        } catch (error: unknown) {
             console.error('Failed to create repair', error);
-            return false;
+            return { success: false, error: getErrorMessage(error, 'Unexpected error creating repair request') };
         }
     },
 
     completeRepair: async (data) => {
         try {
             const response = await erpnextAssetsApi.completeRepair(data);
-            return response.success;
-        } catch (error) {
+            if (response.success) {
+                return { success: true };
+            }
+            return { success: false, error: response.error || response.message || 'Failed to complete repair' };
+        } catch (error: unknown) {
             console.error('Failed to complete repair', error);
-            return false;
+            return { success: false, error: getErrorMessage(error, 'Unexpected error completing repair') };
         }
     },
 
     createMovement: async (data) => {
         try {
             const response = await erpnextAssetsApi.createMovement(data);
-            if (response.success && data.asset_name) {
-                get().fetchMovements(data.asset_name);
-                get().fetchAssetDetail(data.asset_name);
+            if (response.success) {
+                const assetName = typeof data.asset_name === 'string' ? data.asset_name : null;
+                if (assetName) {
+                    const [movementsOk, detailOk] = await Promise.all([
+                        get().fetchMovements(assetName),
+                        get().fetchAssetDetail(assetName),
+                    ]);
+                    if (!movementsOk || !detailOk) {
+                        return {
+                            success: true,
+                            warning: 'Movement was completed, but the asset view could not be refreshed. Reload and confirm the latest status.',
+                        };
+                    }
+                }
+                return { success: true };
             }
-            return response.success;
-        } catch (error) {
+            return { success: false, error: response.error || response.message || 'Failed to create movement' };
+        } catch (error: unknown) {
             console.error('Failed to create movement', error);
-            return false;
+            return { success: false, error: getErrorMessage(error, 'Unexpected error creating movement') };
         }
     },
 }));

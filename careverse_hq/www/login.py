@@ -2,9 +2,18 @@
 import frappe
 from frappe import _
 from frappe.utils.oauth import get_oauth2_providers
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 no_cache = True  # CRITICAL: Disable caching for auth pages
+
+
+def _is_oidc_authorize_redirect(redirect_to: str | None) -> bool:
+	if not redirect_to:
+		return False
+	return (
+		"/api/method/frappe.integrations.oauth2.authorize" in redirect_to
+		or "/api/method/careverse_hq.api.oidc_provider.authorize" in redirect_to
+	)
 
 def get_context(context):
 	"""Setup context for custom login page"""
@@ -44,8 +53,10 @@ def get_context(context):
 	context.login_label = f" {_('or')} ".join(login_label)
 	context.login_name_placeholder = login_label[0]
 
-	# Social login providers (Google, Microsoft, Custom)
-	context.provider_logins = get_oauth2_providers()
+	# In provider-side OIDC flow, suppress social-login buttons by policy.
+	is_oidc_flow = _is_oidc_authorize_redirect(redirect_to)
+	context.is_oidc_login_flow = int(is_oidc_flow)
+	context.provider_logins = [] if is_oidc_flow else get_oauth2_providers()
 
 	# LDAP settings (if enabled)
 	from frappe.integrations.doctype.ldap_settings.ldap_settings import LDAPSettings
@@ -70,7 +81,7 @@ def sanitize_redirect(redirect_url):
 	if parsed_redirect.scheme or parsed_redirect.netloc:
 		if parsed_request.netloc != parsed_redirect.netloc:
 			frappe.local.flags.redirect_location = "/"
-			frappe.throw(_("Invalid redirect URL"), frappe.InvalidStatusError)
+			frappe.throw(_("We couldn't verify that sign-in link. Please start again from your app."), frappe.InvalidStatusError)
 			return None
 
 	# Only allow internal paths

@@ -56,45 +56,55 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
     const { isMobile } = useResponsive();
 
     const {
-        selectedAsset, selectedAssetLoading,
+        selectedAsset, selectedAssetLoading, detailError,
         maintenanceData, repairRecords, movementRecords, depreciationSummary,
-        fetchAssetDetail, clearSelectedAsset,
-        fetchMaintenanceData, fetchRepairs, fetchMovements, fetchDepreciation,
+        refreshAssetBundle, clearSelectedAsset,
         submitAsset,
     } = useERPNextAssetStore();
 
+    const [loadedAssetId, setLoadedAssetId] = useState<string | null>(null);
     const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
     const [repairModalOpen, setRepairModalOpen] = useState(false);
     const [movementModalOpen, setMovementModalOpen] = useState(false);
     const [draftSetupOpen, setDraftSetupOpen] = useState(false);
+    const detailAttempted = loadedAssetId === assetId;
+
+    const navigateToAssetsList = () => {
+        navigateToRoute('assets');
+    };
 
     useEffect(() => {
-        fetchAssetDetail(assetId);
-        fetchMaintenanceData(assetId);
-        fetchRepairs(assetId);
-        fetchMovements(assetId);
-        fetchDepreciation(assetId);
-        return () => clearSelectedAsset();
+        let isActive = true;
+        void (async () => {
+            await refreshAssetBundle(assetId);
+            if (isActive) {
+                setLoadedAssetId(assetId);
+            }
+        })();
+        return () => {
+            isActive = false;
+            clearSelectedAsset();
+        };
     }, [
         assetId,
         clearSelectedAsset,
-        fetchAssetDetail,
-        fetchDepreciation,
-        fetchMaintenanceData,
-        fetchMovements,
-        fetchRepairs,
+        refreshAssetBundle,
     ]);
 
     const handleSubmit = async () => {
-        const success = await submitAsset(assetId);
-        if (success) {
-            message.success('Asset submitted successfully');
+        const result = await submitAsset(assetId);
+        if (result.success) {
+            if (result.warning) {
+                message.warning(result.warning);
+            } else {
+                message.success('Asset submitted successfully');
+            }
         } else {
-            message.error('Failed to submit asset');
+            message.error(result.error || 'Failed to submit asset');
         }
     };
 
-    if (selectedAssetLoading) {
+    if (selectedAssetLoading || !detailAttempted) {
         return (
             <div style={{ padding: 24, textAlign: 'center' }}>
                 <Spin size="large" />
@@ -103,14 +113,18 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
     }
 
     if (!selectedAsset) {
+        const hasPermissionIssue = /permission/i.test(detailError || '');
         return (
             <div style={{ padding: isMobile ? '16px' : '24px' }}>
                 <Result
-                    status="404"
-                    title="Asset Not Available"
-                    subTitle="This asset could not be loaded. It may not exist, or you may not have access to it."
+                    status={hasPermissionIssue ? '403' : 'warning'}
+                    title={hasPermissionIssue ? 'Access Denied' : 'Asset Not Available'}
+                    subTitle={
+                        detailError
+                            || `Asset ${assetId} could not be loaded. It may not exist, or your session may not be allowed to access it.`
+                    }
                     extra={
-                        <Button type="primary" onClick={() => navigateToRoute('assets')}>
+                        <Button type="primary" onClick={navigateToAssetsList}>
                             Back to Assets
                         </Button>
                     }
@@ -355,7 +369,7 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
             {/* Back button */}
             <Button
                 icon={<ArrowLeftOutlined />}
-                onClick={() => navigateToRoute('assets')}
+                onClick={navigateToAssetsList}
                 style={{ marginBottom: 16 }}
             >
                 Back to Assets

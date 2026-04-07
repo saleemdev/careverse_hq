@@ -383,11 +383,18 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const purchaseReceiptSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const purchaseInvoiceSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const employeeSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const itemSearchRequestSeqRef = useRef(0);
+    const departmentsRequestSeqRef = useRef(0);
+    const employeeSearchRequestSeqRef = useRef(0);
+    const purchaseReceiptRequestSeqRef = useRef(0);
+    const purchaseInvoiceRequestSeqRef = useRef(0);
 
     const [categories, setCategories] = useState<AssetCategoryOption[]>([]);
     const [companies, setCompanies] = useState<CompanyOption[]>([]);
     const [departments, setDepartments] = useState<DepartmentOption[]>([]);
     const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+    const [employeeSearching, setEmployeeSearching] = useState(false);
     const [refDataLoading, setRefDataLoading] = useState(true);
     const [purchaseReceiptOptions, setPurchaseReceiptOptions] = useState<PurchaseDocumentOption[]>([]);
     const [purchaseInvoiceOptions, setPurchaseInvoiceOptions] = useState<PurchaseDocumentOption[]>([]);
@@ -400,6 +407,21 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
     const selectedCompany = Form.useWatch('company', form);
     const isExistingAsset = Form.useWatch('is_existing_asset', form);
     const selectedItemCode = Form.useWatch('item_code', form);
+
+    useEffect(() => () => {
+        if (searchDebounceRef.current) {
+            clearTimeout(searchDebounceRef.current);
+        }
+        if (employeeSearchRef.current) {
+            clearTimeout(employeeSearchRef.current);
+        }
+        if (purchaseReceiptSearchRef.current) {
+            clearTimeout(purchaseReceiptSearchRef.current);
+        }
+        if (purchaseInvoiceSearchRef.current) {
+            clearTimeout(purchaseInvoiceSearchRef.current);
+        }
+    }, []);
 
     useEffect(() => {
         Promise.all([
@@ -416,6 +438,7 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
     }, []);
 
     useEffect(() => {
+        const requestSeq = ++departmentsRequestSeqRef.current;
         setEmployees([]);
         form.setFieldsValue({
             department: undefined,
@@ -428,20 +451,44 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
         }
 
         erpnextAssetsApi.getDepartments(selectedCompany).then((response) => {
+            if (requestSeq !== departmentsRequestSeqRef.current || form.getFieldValue('company') !== selectedCompany) {
+                return;
+            }
             if (response.success) {
                 setDepartments(response.data?.items || []);
+            } else {
+                setDepartments([]);
+            }
+        }).catch(() => {
+            if (requestSeq === departmentsRequestSeqRef.current && form.getFieldValue('company') === selectedCompany) {
+                setDepartments([]);
             }
         });
     }, [form, selectedCompany]);
 
     useEffect(() => {
+        purchaseReceiptRequestSeqRef.current += 1;
+        purchaseInvoiceRequestSeqRef.current += 1;
+        if (purchaseReceiptSearchRef.current) {
+            clearTimeout(purchaseReceiptSearchRef.current);
+        }
+        if (purchaseInvoiceSearchRef.current) {
+            clearTimeout(purchaseInvoiceSearchRef.current);
+        }
         setPurchaseReceiptOptions([]);
         setPurchaseInvoiceOptions([]);
         setSelectedPurchaseReceipt(null);
         setSelectedPurchaseInvoice(null);
+        const hadLinkedPurchaseDocument = Boolean(
+            form.getFieldValue('purchase_receipt') || form.getFieldValue('purchase_invoice')
+        );
         form.setFieldsValue({
             purchase_receipt: undefined,
             purchase_invoice: undefined,
+            ...(hadLinkedPurchaseDocument ? {
+                purchase_date: undefined,
+                gross_purchase_amount: undefined,
+            } : {}),
         });
     }, [form, selectedCompany, selectedItemCode]);
 
@@ -452,15 +499,21 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
         }
 
         if (!value || value.length < 2) {
+            itemSearchRequestSeqRef.current += 1;
             setItemSearchResults([]);
             setItemSearchError(false);
+            setItemSearching(false);
             return;
         }
 
+        const requestSeq = ++itemSearchRequestSeqRef.current;
         setItemSearching(true);
         searchDebounceRef.current = setTimeout(async () => {
             try {
                 const response = await erpnextAssetsApi.searchFixedAssetItems(value);
+                if (requestSeq !== itemSearchRequestSeqRef.current) {
+                    return;
+                }
                 if (response.success) {
                     setItemSearchResults(response.data?.items || []);
                     setItemSearchError(false);
@@ -469,30 +522,49 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                     setItemSearchError(true);
                 }
             } catch {
+                if (requestSeq !== itemSearchRequestSeqRef.current) {
+                    return;
+                }
                 setItemSearchResults([]);
                 setItemSearchError(true);
             } finally {
-                setItemSearching(false);
+                if (requestSeq === itemSearchRequestSeqRef.current) {
+                    setItemSearching(false);
+                }
             }
         }, 300);
     }, []);
 
-    const employeeSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleEmployeeSearch = useCallback((value: string) => {
         if (employeeSearchRef.current) {
             clearTimeout(employeeSearchRef.current);
         }
         if (!value || value.length < 2) {
+            employeeSearchRequestSeqRef.current += 1;
+            setEmployees([]);
+            setEmployeeSearching(false);
             return;
         }
 
+        const requestSeq = ++employeeSearchRequestSeqRef.current;
+        setEmployeeSearching(true);
         employeeSearchRef.current = setTimeout(async () => {
-            const response = await erpnextAssetsApi.searchEmployees(value, selectedCompany);
-            if (response.success) {
-                setEmployees(response.data?.items || []);
+            const companyAtRequest = selectedCompany;
+            try {
+                const response = await erpnextAssetsApi.searchEmployees(value, companyAtRequest);
+                if (
+                    requestSeq === employeeSearchRequestSeqRef.current
+                    && form.getFieldValue('company') === companyAtRequest
+                ) {
+                    setEmployees(response.success ? (response.data?.items || []) : []);
+                }
+            } finally {
+                if (requestSeq === employeeSearchRequestSeqRef.current) {
+                    setEmployeeSearching(false);
+                }
             }
         }, 300);
-    }, [selectedCompany]);
+    }, [form, selectedCompany]);
 
     const handlePurchaseReceiptSearch = useCallback((value: string) => {
         if (purchaseReceiptSearchRef.current) {
@@ -500,20 +572,33 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
         }
 
         if (!selectedItemCode || !selectedCompany) {
+            purchaseReceiptRequestSeqRef.current += 1;
             setPurchaseReceiptOptions([]);
             return;
         }
 
+        const requestSeq = ++purchaseReceiptRequestSeqRef.current;
         setPurchaseReceiptSearching(true);
         purchaseReceiptSearchRef.current = setTimeout(async () => {
+            const companyAtRequest = selectedCompany;
+            const itemCodeAtRequest = selectedItemCode;
             try {
-                const response = await erpnextAssetsApi.searchPurchaseReceiptsForAsset(selectedItemCode, selectedCompany, value);
+                const response = await erpnextAssetsApi.searchPurchaseReceiptsForAsset(itemCodeAtRequest, companyAtRequest, value);
+                if (
+                    requestSeq !== purchaseReceiptRequestSeqRef.current
+                    || form.getFieldValue('company') !== companyAtRequest
+                    || form.getFieldValue('item_code') !== itemCodeAtRequest
+                ) {
+                    return;
+                }
                 setPurchaseReceiptOptions(response.success ? (response.data?.items || []) : []);
             } finally {
-                setPurchaseReceiptSearching(false);
+                if (requestSeq === purchaseReceiptRequestSeqRef.current) {
+                    setPurchaseReceiptSearching(false);
+                }
             }
         }, 300);
-    }, [selectedCompany, selectedItemCode]);
+    }, [form, selectedCompany, selectedItemCode]);
 
     const handlePurchaseInvoiceSearch = useCallback((value: string) => {
         if (purchaseInvoiceSearchRef.current) {
@@ -521,20 +606,33 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
         }
 
         if (!selectedItemCode || !selectedCompany) {
+            purchaseInvoiceRequestSeqRef.current += 1;
             setPurchaseInvoiceOptions([]);
             return;
         }
 
+        const requestSeq = ++purchaseInvoiceRequestSeqRef.current;
         setPurchaseInvoiceSearching(true);
         purchaseInvoiceSearchRef.current = setTimeout(async () => {
+            const companyAtRequest = selectedCompany;
+            const itemCodeAtRequest = selectedItemCode;
             try {
-                const response = await erpnextAssetsApi.searchPurchaseInvoicesForAsset(selectedItemCode, selectedCompany, value);
+                const response = await erpnextAssetsApi.searchPurchaseInvoicesForAsset(itemCodeAtRequest, companyAtRequest, value);
+                if (
+                    requestSeq !== purchaseInvoiceRequestSeqRef.current
+                    || form.getFieldValue('company') !== companyAtRequest
+                    || form.getFieldValue('item_code') !== itemCodeAtRequest
+                ) {
+                    return;
+                }
                 setPurchaseInvoiceOptions(response.success ? (response.data?.items || []) : []);
             } finally {
-                setPurchaseInvoiceSearching(false);
+                if (requestSeq === purchaseInvoiceRequestSeqRef.current) {
+                    setPurchaseInvoiceSearching(false);
+                }
             }
         }, 300);
-    }, [selectedCompany, selectedItemCode]);
+    }, [form, selectedCompany, selectedItemCode]);
 
     const applySelectedPurchaseDocument = useCallback((document: PurchaseDocumentOption, fieldName: 'purchase_receipt' | 'purchase_invoice') => {
         const otherField = fieldName === 'purchase_receipt' ? 'purchase_invoice' : 'purchase_receipt';
@@ -551,6 +649,34 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
             setConfirmationDialog({ ...options, resolve });
         })
     ), []);
+
+    const navigateToAssetsList = useCallback(() => {
+        navigateToRoute('assets');
+    }, [navigateToRoute]);
+
+    const hasUnsavedDraftData = useCallback(() => {
+        if (createdAssetName) {
+            return false;
+        }
+        const values = form.getFieldsValue(true);
+        return Boolean(
+            selectedItem
+            || selectedPurchaseReceipt
+            || selectedPurchaseInvoice
+            || values.asset_name
+            || values.item_code
+            || values.company
+            || values.facility_id
+            || values.department
+            || values.custodian
+            || values.purchase_date
+            || values.available_for_use_date
+            || values.gross_purchase_amount
+            || values.purchase_receipt
+            || values.purchase_invoice
+            || values.is_existing_asset === false
+        );
+    }, [createdAssetName, form, selectedItem, selectedPurchaseInvoice, selectedPurchaseReceipt]);
 
     const resolveConfirmation = useCallback((confirmed: boolean) => {
         setConfirmationDialog((current) => {
@@ -624,16 +750,17 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                 asset_category: '',
                 purchase_receipt: undefined,
                 purchase_invoice: undefined,
+                purchase_date: undefined,
+                gross_purchase_amount: undefined,
             });
         });
     };
 
     const handleBackToAssets = async () => {
-        const values = form.getFieldsValue(true);
-        const hasData = values.asset_name || values.item_code || values.company || values.facility_id;
+        const hasData = hasUnsavedDraftData();
 
         if (!hasData) {
-            navigateToRoute('assets');
+            navigateToAssetsList();
             return;
         }
 
@@ -645,7 +772,7 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
             okDanger: true,
         });
         if (leave) {
-            navigateToRoute('assets');
+            navigateToAssetsList();
         }
     };
 
@@ -693,6 +820,9 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
 
             const result = await createAsset(payload);
             if (result.success && result.name) {
+                if (result.warning) {
+                    message.warning(result.warning);
+                }
                 setCreatedAssetName(result.name);
             } else {
                 message.error(result.error || 'Failed to create asset. Please review the fields and try again.');
@@ -751,7 +881,7 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                             }}>
                                 Add Another Asset
                             </Button>,
-                            <Button key="list" onClick={() => navigateToRoute('assets')}>
+                            <Button key="list" onClick={navigateToAssetsList}>
                                 Back to Assets
                             </Button>,
                         ]}
@@ -985,8 +1115,13 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                                         showSearch
                                         filterOption={false}
                                         onSearch={handleEmployeeSearch}
+                                        loading={employeeSearching}
                                         allowClear
-                                        notFoundContent={<Empty description="Type 2+ characters to search employees" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                                        notFoundContent={
+                                            employeeSearching
+                                                ? <Spin size="small" />
+                                                : <Empty description="Type 2+ characters to search employees" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                                        }
                                     >
                                         {employees.map((employee) => (
                                             <Select.Option key={employee.name} value={employee.name}>
@@ -1077,7 +1212,13 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                                                         filterOption={false}
                                                         onSearch={handlePurchaseReceiptSearch}
                                                         onSelect={handlePurchaseReceiptSelect}
-                                                        onClear={() => setSelectedPurchaseReceipt(null)}
+                                                        onClear={() => {
+                                                            setSelectedPurchaseReceipt(null);
+                                                            form.setFieldsValue({
+                                                                purchase_date: undefined,
+                                                                gross_purchase_amount: undefined,
+                                                            });
+                                                        }}
                                                         loading={purchaseReceiptSearching}
                                                         notFoundContent={purchaseReceiptSearching
                                                             ? <Spin size="small" />
@@ -1108,7 +1249,7 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                                                 <Form.Item
                                                     label="Purchase Invoice"
                                                     name="purchase_invoice"
-                                                    extra="Use this instead when the invoice is the source document."
+                                                    extra="Use this instead when the invoice is the source purchase document."
                                                 >
                                                     <Select
                                                         showSearch
@@ -1116,11 +1257,17 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                                                         disabled={!selectedItemCode || !selectedCompany}
                                                         placeholder={!selectedItemCode || !selectedCompany
                                                             ? 'Select item and company first'
-                                                            : 'Search submitted stock Purchase Invoices'}
+                                                            : 'Search submitted Purchase Invoices'}
                                                         filterOption={false}
                                                         onSearch={handlePurchaseInvoiceSearch}
                                                         onSelect={handlePurchaseInvoiceSelect}
-                                                        onClear={() => setSelectedPurchaseInvoice(null)}
+                                                        onClear={() => {
+                                                            setSelectedPurchaseInvoice(null);
+                                                            form.setFieldsValue({
+                                                                purchase_date: undefined,
+                                                                gross_purchase_amount: undefined,
+                                                            });
+                                                        }}
                                                         loading={purchaseInvoiceSearching}
                                                         notFoundContent={purchaseInvoiceSearching
                                                             ? <Spin size="small" />
@@ -1175,7 +1322,7 @@ const AssetCreateForm: React.FC<Props> = ({ navigateToRoute }) => {
                 </Space>
             </Card>
 
-            <CreateItemModal
+                <CreateItemModal
                 open={createItemModalOpen}
                 onClose={() => setCreateItemModalOpen(false)}
                 onCreated={handleItemCreated}

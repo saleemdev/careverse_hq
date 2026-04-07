@@ -38,7 +38,7 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 
 	const handleUserMenuClick = ({ key }: { key: string }) => {
 		if (key === 'logout') {
-			logout();
+			void logout();
 			return;
 		}
 		if (key === 'switch-desk') {
@@ -518,7 +518,7 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 							type="text"
 							icon={<LogoutOutlined />}
 							size={isMobile ? 'middle' : 'large'}
-							onClick={() => logout()}
+							onClick={() => { void logout(); }}
 							block={isMobile}
 							style={{
 								height: isMobile ? '42px' : '46px',

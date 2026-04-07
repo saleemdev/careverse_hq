@@ -71,7 +71,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     };
 
     const handleLogout = () => {
-        logout();
+        void logout();
     };
 
     // Auto-collapse on tablet
@@ -143,11 +143,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             'recruitment/candidates': 'Recruitment Desk',
             licenses: 'Licenses',
             'leave-summary': 'Leave Applications',
-            attendance: 'Attendance',
+            attendance: 'Shift Management',
+            'late-arrivals': 'Attendance Exceptions',
             'e-contracting': 'eContracting',
             'user-management': 'User Management',
             'user-management/new': 'Create User',
             'user-management/security': 'User Security',
+            'oidc-apps': 'OIDC Apps',
             'create-user': 'Create User',
             'edit-user': 'Edit User',
             profile: 'My Profile',
@@ -161,7 +163,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             ? 'bulk-upload'
             : currentRoute.startsWith('recruitment')
                 ? 'recruitment'
-                : currentRoute;
+                : currentRoute === 'late-arrivals'
+                    ? 'attendance'
+                    : currentRoute;
 
     // Sidebar logo
     const renderLogo = () => (

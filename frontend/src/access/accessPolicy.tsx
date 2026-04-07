@@ -1,5 +1,6 @@
 import type { ItemType } from 'antd/es/menu/interface';
 import {
+    ApiOutlined,
     AppstoreOutlined,
     AuditOutlined,
     CalendarOutlined,
@@ -50,6 +51,7 @@ const FULL_ACCESS_ROUTES = [
     'user-management',
     'user-management/new',
     'user-management/security',
+    'oidc-apps',
     'create-user',
     'edit-user',
     'profile',
@@ -162,7 +164,7 @@ export const getMenuItemsForMode = (menuMode: MenuMode): ItemType[] => {
                 {
                     key: 'attendance',
                     icon: <ClockCircleOutlined />,
-                    label: 'Attendance Records',
+                    label: 'Shift Management',
                 },
                 {
                     key: 'e-contracting',
@@ -185,6 +187,11 @@ export const getMenuItemsForMode = (menuMode: MenuMode): ItemType[] => {
                     key: 'user-management',
                     icon: <TeamOutlined />,
                     label: 'User Management',
+                },
+                {
+                    key: 'oidc-apps',
+                    icon: <ApiOutlined />,
+                    label: 'OIDC Apps',
                 },
             ],
         },

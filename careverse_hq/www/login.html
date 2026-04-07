@@ -244,6 +244,16 @@
         .hdr { margin-bottom: 2rem; }
         .hdr h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; }
         .hdr p { color: var(--text-muted); font-size: 13px; line-height: 1.4; }
+        .oidc-flow-note {
+            margin-top: 10px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(22, 119, 255, 0.22);
+            background: rgba(22, 119, 255, 0.06);
+            color: #1d4ed8;
+            font-size: 12px;
+            line-height: 1.4;
+        }
 
         .fs { display: none; }
         .fs.on { display: block; animation: fi 0.2s ease; }
@@ -525,7 +535,12 @@
 
                 <div class="hdr">
                     <h1>Welcome back</h1>
-                    <p>Sign in to access your {{ app_name }} dashboard</p>
+                    <p>Sign in to continue to {{ app_name }}.</p>
+                    {% if is_oidc_login_flow %}
+                    <div class="oidc-flow-note">
+                        You're signing in to continue. Use your Health Professional account.
+                    </div>
+                    {% endif %}
                 </div>
 
                 <div id="statusMsg" class="sm">
@@ -600,7 +615,7 @@
                     var pwd = pwdEl.value;
 
                     if (!usr || !pwd) {
-                        msgText.textContent = 'Please enter both email and password';
+                        msgText.textContent = 'Enter both your sign-in ID and password.';
                         statusMsg.className = 'sm';
                         statusMsg.style.display = 'flex';
                         return;
@@ -622,12 +637,12 @@
                         var data = await response.json();
 
                         if (response.ok && (data.message === 'Logged In' || data.message === 'No App')) {
-                            msgText.textContent = 'Success! Redirecting...';
+                            msgText.textContent = 'Signed in. Redirecting...';
                             statusMsg.className = 'sm ok';
                             statusMsg.style.display = 'flex';
                             window.location.href = data.redirect_to || config.redirectTo;
                         } else {
-                            var em = 'Invalid credentials. Please try again.';
+                            var em = 'Email/username or password is incorrect.';
                             if (data._server_messages) {
                                 try {
                                     var m = JSON.parse(data._server_messages);
@@ -636,6 +651,22 @@
                                         em = msg.replace(/<[^>]*>/g, '');
                                     }
                                 } catch(x) {}
+                            }
+                            var rawLower = (em || '').toLowerCase();
+                            var revealsSystemDetails = [
+                                'traceback',
+                                'doesnotexisterror',
+                                'permissionerror',
+                                'doctype',
+                                'sql',
+                                'oauth',
+                                'exception',
+                                'frappe'
+                            ].some(function(token) {
+                                return rawLower.indexOf(token) !== -1;
+                            });
+                            if (revealsSystemDetails) {
+                                em = 'We could not complete sign-in. Please try again or contact support.';
                             }
                             msgText.textContent = em;
                             statusMsg.className = 'sm';

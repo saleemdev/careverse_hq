@@ -162,7 +162,8 @@ scheduler_events = {
 		],
 		# Check for expired hiring affiliations daily at midnight
 		"0 0 * * *": [
-			"careverse_hq.api.hiring_orchestration.check_expired_hiring_affiliations"
+			"careverse_hq.api.hiring_orchestration.check_expired_hiring_affiliations",
+			"careverse_hq.api.oidc_identity.backfill_subject_stability",
 		],
 		# Send hiring confirmation reminders every 6 hours
 		"0 */6 * * *": [
@@ -190,6 +191,11 @@ scheduler_events = {
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "careverse_hq.event.get_events"
 # }
+override_whitelisted_methods = {
+	# Keep Frappe OAuth implementation intact; only wrap entrypoints for policy checks.
+	"frappe.integrations.oauth2.authorize": "careverse_hq.api.oidc_provider.authorize",
+	"frappe.integrations.oauth2.get_token": "careverse_hq.api.oidc_provider.get_token",
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

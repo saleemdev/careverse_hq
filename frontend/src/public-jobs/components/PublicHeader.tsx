@@ -15,17 +15,15 @@ const buildInitials = (name?: string, email?: string): string => {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
-const logoutUser = async (): Promise<void> => {
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (window.csrf_token) {
-    headers['X-Frappe-CSRF-Token'] = window.csrf_token;
-  }
-
+const logoutUser = async (csrfToken?: string): Promise<void> => {
   try {
     await fetch('/api/method/logout', {
       method: 'POST',
-      credentials: 'same-origin',
-      headers,
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {}),
+      },
     });
   } catch {
     // Ignore network errors and continue with redirect.
@@ -57,7 +55,7 @@ export function PublicHeader({ boot }: Props) {
                 <a className="pj-btn pj-btn-ghost" href={boot.adminCentralLink}>Back to Admin Central</a>
               ) : null}
               <a className="pj-btn pj-btn-ghost" href={boot.profileLink}>My Profile</a>
-              <button type="button" className="pj-user-chip" onClick={() => { void logoutUser(); }}>
+              <button type="button" className="pj-user-chip" onClick={() => { void logoutUser(boot.csrfToken); }}>
                 <span className="pj-user-avatar">{boot.userInitials || initials}</span>
                 <span className="pj-user-meta">
                   <span className="pj-user-name">{boot.userFullName || boot.userEmail || 'Signed in user'}</span>

@@ -12377,14 +12377,15 @@ const sg = (i, s) => {
   if (f.length === 0) return "CV";
   const d = f.split(/\s+/).filter(Boolean);
   return d.length === 1 ? d[0].slice(0, 2).toUpperCase() : (d[0][0] + d[d.length - 1][0]).toUpperCase();
-}, rg = async () => {
-  const i = { Accept: "application/json" };
-  window.csrf_token && (i["X-Frappe-CSRF-Token"] = window.csrf_token);
+}, rg = async (i) => {
   try {
     await fetch("/api/method/logout", {
       method: "POST",
-      credentials: "same-origin",
-      headers: i
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        ...i ? { "X-Frappe-CSRF-Token": i } : {}
+      }
     });
   } catch (s) {
   }
@@ -12404,7 +12405,7 @@ function og({ boot: i }) {
       i.hasAdminAccess ? /* @__PURE__ */ h.jsx("a", { className: "pj-btn pj-btn-ghost", href: i.adminCentralLink, children: "Back to Admin Central" }) : null,
       /* @__PURE__ */ h.jsx("a", { className: "pj-btn pj-btn-ghost", href: i.profileLink, children: "My Profile" }),
       /* @__PURE__ */ h.jsxs("button", { type: "button", className: "pj-user-chip", onClick: () => {
-        rg();
+        rg(i.csrfToken);
       }, children: [
         /* @__PURE__ */ h.jsx("span", { className: "pj-user-avatar", children: i.userInitials || s }),
         /* @__PURE__ */ h.jsxs("span", { className: "pj-user-meta", children: [

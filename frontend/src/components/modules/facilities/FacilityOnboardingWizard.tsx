@@ -4,6 +4,7 @@ import {
     Button,
     Card,
     Col,
+    Collapse,
     Descriptions,
     Divider,
     Empty,
@@ -38,6 +39,8 @@ import {
     facilityOnboardingApi,
 } from '../../../services/api';
 import type {
+    ApiErrorPayload,
+    ApiResponse,
     FacilityOnboardingAdditionalDefaults,
     FacilityOnboardingBank,
     FacilityOnboardingContact,
@@ -75,6 +78,16 @@ interface WizardFormValues {
     banks?: FacilityOnboardingBank[];
 }
 
+interface StepErrorState {
+    step: number;
+    title: string;
+    message: string;
+    statusCode?: number;
+    sourceLabel?: string;
+    technicalMessage?: string;
+    debugTraceback?: string;
+}
+
 const FEATURE_ENABLED = import.meta.env.VITE_ENABLE_FACILITY_ONBOARDING !== 'false';
 
 const toSwitchValue = (value: boolean | number | string | null | undefined): boolean => {
@@ -91,6 +104,13 @@ const compactValue = (value: unknown): string => {
     return String(value);
 };
 
+const formatCountdown = (seconds: number): string => {
+    const safeSeconds = Math.max(0, seconds);
+    const minutes = Math.floor(safeSeconds / 60);
+    const remainingSeconds = safeSeconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
 const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
     navigateToRoute,
     standalone = false,
@@ -98,13 +118,26 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
     const { token } = theme.useToken();
     const { isMobile } = useResponsive();
     const [form] = Form.useForm<WizardFormValues>();
+    const lookupMode = Form.useWatch('lookup_mode', form) || 'facility_id';
     const [modal, contextHolder] = Modal.useModal();
     const { accessMode, loadCompanyAndFacilities } = useFacilityStore();
 
     const [currentStep, setCurrentStep] = useState(0);
-    const [referenceData, setReferenceData] = useState<{ regions: any[]; public_owner_types: string[] }>({
+    const [referenceData, setReferenceData] = useState<{
+        regions: any[];
+        public_owner_types: string[];
+        organization_context?: {
+            organization_id?: string | null;
+            organization_name?: string | null;
+            company_names?: string[];
+            organization_region?: string | null;
+            organization_region_name?: string | null;
+            default_region?: string | null;
+        };
+    }>({
         regions: [],
         public_owner_types: [],
+        organization_context: undefined,
     });
     const [referenceLoading, setReferenceLoading] = useState(true);
     const [lookupResult, setLookupResult] = useState<(FacilityOnboardingLookupResult & { otp_session?: FacilityOnboardingOtpSession | null }) | null>(null);
@@ -115,6 +148,9 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
     const [verifyingOtp, setVerifyingOtp] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [resendCooldown, setResendCooldown] = useState(0);
+    const [otpExpiresIn, setOtpExpiresIn] = useState(0);
+    const [verificationExpiresIn, setVerificationExpiresIn] = useState(0);
+    const [stepError, setStepError] = useState<StepErrorState | null>(null);
 
     const steps = [
         { title: 'Find Facility' },
@@ -138,11 +174,28 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                 setReferenceData({
                     regions: response.data.regions || [],
                     public_owner_types: response.data.public_owner_types || [],
+                    organization_context: response.data.organization_context,
                 });
+                if (response.data.organization_context?.default_region) {
+                    form.setFieldValue('region', response.data.organization_context.default_region);
+                }
+                setStepError(null);
+            } else {
+                setStepError(buildStepError(
+                    0,
+                    'Unable to load onboarding setup',
+                    response,
+                    'Unable to load facility onboarding reference data.',
+                ));
             }
             setReferenceLoading(false);
         }).catch(() => {
             if (!active) return;
+            setStepError({
+                step: 0,
+                title: 'Unable to load onboarding setup',
+                message: 'Unable to load facility onboarding reference data.',
+            });
             setReferenceLoading(false);
         });
 
@@ -169,13 +222,172 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         return () => window.clearInterval(timer);
     }, [resendCooldown]);
 
+    useEffect(() => {
+        if (otpExpiresIn <= 0) {
+            return;
+        }
+
+        const timer = window.setInterval(() => {
+            setOtpExpiresIn((current) => {
+                if (current <= 1) {
+                    window.clearInterval(timer);
+                    return 0;
+                }
+                return current - 1;
+            });
+        }, 1000);
+
+        return () => window.clearInterval(timer);
+    }, [otpExpiresIn]);
+
+    useEffect(() => {
+        if (verificationExpiresIn <= 0) {
+            return;
+        }
+
+        const timer = window.setInterval(() => {
+            setVerificationExpiresIn((current) => {
+                if (current <= 1) {
+                    window.clearInterval(timer);
+                    return 0;
+                }
+                return current - 1;
+            });
+        }, 1000);
+
+        return () => window.clearInterval(timer);
+    }, [verificationExpiresIn]);
+
     const currentOwnerType = verificationResult?.additional_defaults?.organization_owner_type || '';
     const isPublicFacility = referenceData.public_owner_types.includes(currentOwnerType.trim().toUpperCase());
     const hasDraft = currentStep > 0 || !!lookupResult || !!verificationResult || form.isFieldsTouched(true);
     const backRoute = standalone ? 'company-permissions' : 'facilities';
+    const currentOrganizationName = referenceData.organization_context?.organization_name || null;
+    const currentOrganizationRegionName = referenceData.organization_context?.organization_region_name || null;
+    const canContinueToVerification = Boolean(
+        lookupResult?.facility_preview?.facility_id
+        && lookupResult?.can_start_verification
+        && !lookupResult?.already_onboarded
+    );
+    const verificationExpired = Boolean(verificationResult && verificationExpiresIn <= 0);
+
+    const extractApiErrorPayload = (response: ApiResponse<any>): ApiErrorPayload | undefined => {
+        const candidate = response.data;
+        if (candidate && typeof candidate === 'object') {
+            return candidate as ApiErrorPayload;
+        }
+        return undefined;
+    };
+
+    const buildStepError = (
+        step: number,
+        title: string,
+        response: ApiResponse<any>,
+        fallbackMessage: string,
+    ): StepErrorState => {
+        const payload = extractApiErrorPayload(response);
+        const details = payload?.details;
+        return {
+            step,
+            title,
+            message: response.error || response.message || payload?.message || fallbackMessage,
+            statusCode: payload?.status_code || details?.status_code,
+            sourceLabel: details?.source_label,
+            technicalMessage: details?.technical_message,
+            debugTraceback: details?.debug_traceback,
+        };
+    };
+
+    const renderStepError = () => {
+        if (!stepError || stepError.step !== currentStep) {
+            return null;
+        }
+
+        const hasExpandedDetails = Boolean(
+            stepError.sourceLabel || stepError.statusCode || stepError.technicalMessage || stepError.debugTraceback,
+        );
+
+        return (
+            <Alert
+                type="error"
+                showIcon
+                message={stepError.title}
+                description={(
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                        <Text>{stepError.message}</Text>
+                        {hasExpandedDetails && (
+                            <Collapse
+                                ghost
+                                size="small"
+                                items={[
+                                    {
+                                        key: 'details',
+                                        label: 'Show more',
+                                        children: (
+                                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                                                {stepError.sourceLabel && (
+                                                    <Text>
+                                                        <Text strong>Source:</Text> {stepError.sourceLabel}
+                                                    </Text>
+                                                )}
+                                                {stepError.statusCode && (
+                                                    <Text>
+                                                        <Text strong>HTTP status:</Text> {stepError.statusCode}
+                                                    </Text>
+                                                )}
+                                                {stepError.technicalMessage && (
+                                                    <div>
+                                                        <Text strong>Technical details</Text>
+                                                        <div
+                                                            style={{
+                                                                marginTop: 6,
+                                                                padding: 10,
+                                                                borderRadius: 8,
+                                                                background: token.colorFillTertiary,
+                                                                whiteSpace: 'pre-wrap',
+                                                                wordBreak: 'break-word',
+                                                            }}
+                                                        >
+                                                            <Text>{stepError.technicalMessage}</Text>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {stepError.debugTraceback && (
+                                                    <div>
+                                                        <Text strong>Stack trace</Text>
+                                                        <div
+                                                            style={{
+                                                                marginTop: 6,
+                                                                padding: 10,
+                                                                borderRadius: 8,
+                                                                background: token.colorFillTertiary,
+                                                                maxHeight: 220,
+                                                                overflow: 'auto',
+                                                                whiteSpace: 'pre-wrap',
+                                                                wordBreak: 'break-word',
+                                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            {stepError.debugTraceback}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </Space>
+                                        ),
+                                    },
+                                ]}
+                            />
+                        )}
+                    </Space>
+                )}
+            />
+        );
+    };
 
     const resetWizard = () => {
         setCurrentStep(0);
+        setStepError(null);
         setLookupResult(null);
         setVerificationResult(null);
         setCreatedFacility(null);
@@ -183,10 +395,11 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         setVerifyingOtp(false);
         setSubmitting(false);
         setResendCooldown(0);
+        setOtpExpiresIn(0);
+        setVerificationExpiresIn(0);
         form.resetFields();
         form.setFieldsValue({
             lookup_mode: 'facility_id',
-            delivery_mode: 'sms',
             contacts: [],
             banks: [],
         });
@@ -195,7 +408,6 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
     useEffect(() => {
         form.setFieldsValue({
             lookup_mode: 'facility_id',
-            delivery_mode: 'sms',
             contacts: [],
             banks: [],
         });
@@ -218,6 +430,43 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         if (confirmed) {
             navigateToRoute?.(backRoute);
         }
+    };
+
+    const handleLookupModeChange = (value: string | number) => {
+        const nextMode = value === 'registration_number' ? 'registration_number' : 'facility_id';
+        form.setFieldsValue({
+            lookup_mode: nextMode,
+            lookup_value: '',
+            facility_id: undefined,
+            registration_number: undefined,
+            otp_code: '',
+        });
+        setLookupResult(null);
+        setVerificationResult(null);
+        setStepError(null);
+        setCurrentStep(0);
+        setResendCooldown(0);
+        setOtpExpiresIn(0);
+        setVerificationExpiresIn(0);
+    };
+
+    const handleLookupValueChange = () => {
+        if (!lookupResult && !verificationResult) {
+            return;
+        }
+
+        setLookupResult(null);
+        setVerificationResult(null);
+        setStepError(null);
+        setCurrentStep(0);
+        setResendCooldown(0);
+        setOtpExpiresIn(0);
+        setVerificationExpiresIn(0);
+        form.setFieldsValue({
+            facility_id: undefined,
+            registration_number: undefined,
+            otp_code: '',
+        });
     };
 
     const buildLookupPayload = (): Record<string, string> => {
@@ -243,11 +492,29 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
             return;
         }
 
+        setStepError(null);
+        setLookupResult(null);
+        setVerificationResult(null);
+        setCurrentStep(0);
+        setResendCooldown(0);
+        setOtpExpiresIn(0);
+        setVerificationExpiresIn(0);
         setSearchingFacility(true);
         const response = await facilityOnboardingApi.lookupFacility(payload);
         setSearchingFacility(false);
 
         if (!response.success || !response.data) {
+            form.setFieldsValue({
+                facility_id: undefined,
+                registration_number: undefined,
+                otp_code: '',
+            });
+            setStepError(buildStepError(
+                0,
+                'We could not fetch the facility from HFR',
+                response,
+                'Unable to fetch the facility from the Health Facility Registry.',
+            ));
             return;
         }
 
@@ -258,10 +525,19 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         form.setFieldsValue({
             facility_id: response.data.facility_preview?.facility_id || undefined,
             registration_number: response.data.facility_preview?.registration_number || undefined,
-            delivery_mode: 'sms',
             otp_code: '',
         });
-        message.success('Facility details loaded from the registry.');
+        if (response.data.already_onboarded) {
+            message.warning(response.data.message || 'This facility is already onboarded in the system.');
+            return;
+        }
+
+        if (response.data.can_start_verification) {
+            message.success('Facility preview loaded from HFR. Continue to ownership verification.');
+            return;
+        }
+
+        message.warning(response.data.message || 'Facility found, but onboarding cannot continue yet.');
     };
 
     const handleStartVerification = async () => {
@@ -276,16 +552,20 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
             return;
         }
 
-        const deliveryMode = form.getFieldValue('delivery_mode') || 'sms';
-
+        setStepError(null);
         setRequestingOtp(true);
         const response = await facilityOnboardingApi.startOwnerVerification({
             facility_id: facilityId,
-            delivery_mode: deliveryMode,
         });
         setRequestingOtp(false);
 
         if (!response.success || !response.data) {
+            setStepError(buildStepError(
+                1,
+                'We could not send the verification code',
+                response,
+                'Unable to send the ownership verification code.',
+            ));
             return;
         }
 
@@ -295,6 +575,7 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
             otp_session: response.data.otp_session,
         } : null);
         setResendCooldown(response.data.otp_session?.resend_cooldown_seconds || 0);
+        setOtpExpiresIn(response.data.otp_session?.expires_in_seconds || 0);
         form.setFieldValue('otp_code', '');
         message.success('OTP sent to the registered facility owner contact.');
     };
@@ -314,6 +595,12 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
             return;
         }
 
+        if (otpExpiresIn <= 0) {
+            message.warning('The current OTP has expired. Request a new code to continue.');
+            return;
+        }
+
+        setStepError(null);
         setVerifyingOtp(true);
         const response = await facilityOnboardingApi.verifyOwnerOtp({
             facility_id: facilityId,
@@ -323,13 +610,21 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         setVerifyingOtp(false);
 
         if (!response.success || !response.data) {
+            setStepError(buildStepError(
+                1,
+                'We could not verify the code',
+                response,
+                'Unable to verify the ownership code.',
+            ));
             return;
         }
 
         setVerificationResult(response.data);
         setCurrentStep(2);
+        setOtpExpiresIn(0);
+        setVerificationExpiresIn(response.data.verification?.expires_in_seconds || 0);
         form.setFieldsValue({
-            region: response.data.additional_defaults?.region || undefined,
+            region: response.data.additional_defaults?.region || referenceData.organization_context?.default_region || undefined,
             physical_address: response.data.additional_defaults?.physical_address || undefined,
             email_address: response.data.additional_defaults?.email_address || undefined,
             number_of_beds: response.data.additional_defaults?.number_of_beds as number | null | undefined,
@@ -351,7 +646,25 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         await handleStartVerification();
     };
 
+    const ensureVerificationActive = () => {
+        if (!verificationResult) {
+            return false;
+        }
+
+        if (verificationExpiresIn > 0) {
+            return true;
+        }
+
+        message.warning('Ownership verification expired. Return to the OTP step and verify again.');
+        setCurrentStep(1);
+        return false;
+    };
+
     const handleNextFromSetup = async () => {
+        if (!ensureVerificationActive()) {
+            return;
+        }
+
         const fieldNames = [
             'physical_address',
             'email_address',
@@ -374,6 +687,10 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
     };
 
     const handleNextFromContacts = async () => {
+        if (!ensureVerificationActive()) {
+            return;
+        }
+
         try {
             await form.validateFields();
             setCurrentStep(4);
@@ -386,6 +703,10 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         const facilityId = verificationResult?.facility_details?.facility_fid || lookupResult?.facility_preview?.facility_id;
         if (!facilityId) {
             message.error('Facility verification data is missing.');
+            return;
+        }
+
+        if (!ensureVerificationActive()) {
             return;
         }
 
@@ -407,6 +728,7 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         const contacts = (values.contacts || []).filter((contact) => contact?.contact_name && contact?.phone_number);
         const banks = (values.banks || []).filter((bank) => bank?.bank_name && bank?.account_number);
 
+        setStepError(null);
         setSubmitting(true);
         const response = await facilityOnboardingApi.completeOnboarding({
             facility_id: facilityId,
@@ -417,6 +739,12 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         setSubmitting(false);
 
         if (!response.success || !response.data) {
+            setStepError(buildStepError(
+                4,
+                'We could not complete facility onboarding',
+                response,
+                'Unable to complete facility onboarding.',
+            ));
             return;
         }
 
@@ -459,6 +787,32 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
         );
     };
 
+    const renderVerificationExpiryNotice = () => {
+        if (!verificationResult) {
+            return null;
+        }
+
+        if (verificationExpiresIn <= 0) {
+            return (
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Ownership verification expired"
+                    description="Return to the OTP step, send a new code, and verify again before saving the facility."
+                />
+            );
+        }
+
+        return (
+            <Alert
+                type={verificationExpiresIn <= 120 ? 'warning' : 'info'}
+                showIcon
+                message="Ownership verification is active"
+                description={`Complete the remaining steps within ${formatCountdown(verificationExpiresIn)}.`}
+            />
+        );
+    };
+
     const renderReview = () => {
         const values = form.getFieldsValue(true);
         const contacts = values.contacts || [];
@@ -488,6 +842,7 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                         column={isMobile ? 1 : 2}
                         size="small"
                         items={[
+                            { key: 'organization', label: 'Organization', children: compactValue(currentOrganizationName) },
                             { key: 'region', label: 'Region', children: compactValue(referenceData.regions.find((region) => region.name === values.region)?.region_name || values.region) },
                             { key: 'address', label: 'Address', children: compactValue(values.physical_address) },
                             { key: 'email', label: 'Email', children: compactValue(values.email_address) },
@@ -548,10 +903,10 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                         subTitle={
                             <Space direction="vertical" size={6} style={{ textAlign: 'center' }}>
                                 <Text>
-                                    <Tag color="blue">{createdFacility.facility_name}</Tag> is now linked to your account.
+                                    <Tag color="blue">{createdFacility.facility_name}</Tag> has been added to your organization.
                                 </Text>
                                 <Text type="secondary">
-                                    Refresh your context and continue to the facilities module.
+                                    Refresh your facility context and continue to the facilities module.
                                 </Text>
                             </Space>
                         }
@@ -595,15 +950,19 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                             Health Facility Onboarding
                         </Title>
                         <Text type="secondary">
-                            Verify the registered facility owner, complete the local setup, and link the facility to your account.
+                            Verify the registered facility owner, complete the local setup, and add the facility to your organization.
                         </Text>
                     </div>
                     <Alert
                         type="info"
                         showIcon
                         style={{ maxWidth: 360 }}
-                        message="Registry-driven onboarding"
-                        description="The facility must already exist in the health facility registry and list you as the owner."
+                        message={currentOrganizationName ? `Adding to ${currentOrganizationName}` : 'Registry-driven onboarding'}
+                        description={
+                            currentOrganizationName
+                                ? `The facility must already exist in the health facility registry and will be added within your authorized organization context${currentOrganizationRegionName ? ` (${currentOrganizationRegionName})` : ''}.`
+                                : 'The facility must already exist in the health facility registry and list you as the owner.'
+                        }
                     />
                 </div>
 
@@ -621,7 +980,9 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                                 <Spin size="large" />
                             </div>
                         ) : (
-                            <Form form={form} layout="vertical" initialValues={{ delivery_mode: 'sms', contacts: [], banks: [] }}>
+                            <Form form={form} layout="vertical" initialValues={{ lookup_mode: 'facility_id', contacts: [], banks: [] }}>
+                                {renderStepError()}
+
                                 {currentStep === 0 && (
                                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
                                         <Alert
@@ -629,8 +990,50 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                                             showIcon
                                             icon={<InfoCircleOutlined />}
                                             message="Find the facility in the registry"
-                                            description="Search by either FID or official facility registration number. We will populate the facility details directly from HFR."
+                                            description="Search by either FID or the regulator-issued registration number. This step loads an HFR preview only. The full onboarding defaults appear after owner OTP verification and the facility will be attached to your current organization context."
                                         />
+
+                                        {currentOrganizationName && (
+                                            <Card size="small" style={{ borderRadius: 12, background: token.colorFillTertiary }}>
+                                                <Descriptions
+                                                    title="Current Organization Context"
+                                                    column={isMobile ? 1 : 2}
+                                                    size="small"
+                                                    items={[
+                                                        {
+                                                            key: 'organization',
+                                                            label: 'Organization',
+                                                            children: currentOrganizationName,
+                                                        },
+                                                        {
+                                                            key: 'region',
+                                                            label: 'Default Region',
+                                                            children: currentOrganizationRegionName || 'Select a region during setup if required',
+                                                        },
+                                                    ]}
+                                                />
+                                            </Card>
+                                        )}
+
+                                        <Card size="small" style={{ borderRadius: 12, background: token.colorFillQuaternary }}>
+                                            <Descriptions
+                                                title="Choose the lookup identifier"
+                                                column={isMobile ? 1 : 2}
+                                                size="small"
+                                                items={[
+                                                    {
+                                                        key: 'fid',
+                                                        label: 'FID',
+                                                        children: 'The HIE-generated facility identifier used across integrated systems.',
+                                                    },
+                                                    {
+                                                        key: 'registration_number',
+                                                        label: 'Registration Number',
+                                                        children: 'The regulator-issued facility registration number used on the facility licence/registration record.',
+                                                    },
+                                                ]}
+                                            />
+                                        </Card>
 
                                         <Form.Item label="Search By" name="lookup_mode">
                                             <Segmented
@@ -639,11 +1042,13 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                                                     { label: 'FID', value: 'facility_id' },
                                                     { label: 'Facility Registration Number', value: 'registration_number' },
                                                 ]}
+                                                value={lookupMode}
+                                                onChange={handleLookupModeChange}
                                             />
                                         </Form.Item>
 
                                         <Form.Item
-                                            label={form.getFieldValue('lookup_mode') === 'registration_number' ? 'Facility Registration Number' : 'Facility ID'}
+                                            label={lookupMode === 'registration_number' ? 'Facility Registration Number' : 'HIE Facility ID (FID)'}
                                             name="lookup_value"
                                             rules={[{ required: true, message: 'Enter the selected registry identifier' }]}
                                         >
@@ -651,10 +1056,11 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                                                 allowClear
                                                 enterButton="Search Facility"
                                                 loading={searchingFacility}
+                                                onChange={handleLookupValueChange}
                                                 onSearch={handleLookupFacility}
                                                 prefix={<SearchOutlined />}
                                                 placeholder={
-                                                    form.getFieldValue('lookup_mode') === 'registration_number'
+                                                    lookupMode === 'registration_number'
                                                         ? 'Enter the official facility registration number'
                                                         : 'e.g. FID-19-118376-4'
                                                 }
@@ -665,30 +1071,36 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
 
                                         {lookupResult?.message && (
                                             <Alert
-                                                type={lookupResult.can_start_verification ? 'success' : 'warning'}
+                                                type={canContinueToVerification ? 'success' : 'warning'}
                                                 showIcon
                                                 message={lookupResult.message}
                                             />
                                         )}
 
                                         {lookupResult?.already_onboarded && (
-                                            <Alert
-                                                type="error"
-                                                showIcon
-                                                message="This facility is already onboarded"
-                                                description={`Existing record: ${lookupResult.already_onboarded.facility_name || lookupResult.already_onboarded.name}`}
+                                            <Result
+                                                status="warning"
+                                                title="This facility is already onboarded"
+                                                subTitle="Confirm the FID or registration number and search again if needed. If the identifier is correct, this facility is already onboarded in the system."
+                                                extra={[
+                                                    <Button key="search-again" onClick={resetWizard}>
+                                                        Search Another Facility
+                                                    </Button>,
+                                                ]}
                                             />
                                         )}
 
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                            <Button
-                                                type="primary"
-                                                disabled={!lookupResult?.facility_preview || !lookupResult?.can_start_verification}
-                                                onClick={() => setCurrentStep(1)}
-                                            >
-                                                Continue to Owner Verification
-                                            </Button>
-                                        </div>
+                                        {!lookupResult?.already_onboarded && (
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                <Button
+                                                    type="primary"
+                                                    disabled={!canContinueToVerification}
+                                                    onClick={() => setCurrentStep(1)}
+                                                >
+                                                    Continue to Owner Verification
+                                                </Button>
+                                            </div>
+                                        )}
                                     </Space>
                                 )}
 
@@ -698,27 +1110,30 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
 
                                         <Card size="small" style={{ borderRadius: 12, background: token.colorFillQuaternary }}>
                                             <Descriptions
-                                                title="Owner Verification"
-                                                column={1}
+                                                title="Ownership Check"
+                                                column={isMobile ? 1 : 2}
                                                 size="small"
                                                 items={[
                                                     {
-                                                        key: 'owner',
-                                                        label: 'Matched Owner',
-                                                        children: compactValue(lookupResult.owner_match?.full_name),
+                                                        key: 'match',
+                                                        label: 'Registry owner ID',
+                                                        children: lookupResult.owner_match?.matched
+                                                            ? 'Matched your signed-in account'
+                                                            : 'Did not match your signed-in account',
+                                                    },
+                                                    {
+                                                        key: 'id_number',
+                                                        label: 'Your identifier',
+                                                        children: compactValue(lookupResult.owner_match?.identification_number),
+                                                    },
+                                                    {
+                                                        key: 'id_type',
+                                                        label: 'Identifier type',
+                                                        children: compactValue(lookupResult.owner_match?.identification_type),
                                                     },
                                                 ]}
                                             />
                                         </Card>
-
-                                        <Form.Item label="OTP Delivery Mode" name="delivery_mode">
-                                            <Select
-                                                options={[
-                                                    { label: 'SMS', value: 'sms' },
-                                                    { label: 'Email', value: 'email' },
-                                                ]}
-                                            />
-                                        </Form.Item>
 
                                         {lookupResult.otp_session ? (
                                             <Alert
@@ -726,9 +1141,10 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                                                 showIcon
                                                 message="OTP Sent"
                                                 description={(
-                                                    <Space>
+                                                    <Space wrap>
                                                         <Tag color="processing">{lookupResult.otp_session.channel?.toUpperCase()}</Tag>
                                                         <Text>{lookupResult.otp_session.masked_destination}</Text>
+                                                        <Text type="secondary">Expires in {formatCountdown(otpExpiresIn)}</Text>
                                                     </Space>
                                                 )}
                                             />
@@ -737,7 +1153,16 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                                                 type="info"
                                                 showIcon
                                                 message="Send an OTP to confirm ownership"
-                                                description="We will send the verification code to the owner contact stored in Client Registry."
+                                                description={`Admin Central asks Client Registry for the primary owner contact. SMS is preferred and email is used only when SMS is unavailable${currentOrganizationName ? `. Once verified, this facility will be added under ${currentOrganizationName}.` : '.'}`}
+                                            />
+                                        )}
+
+                                        {lookupResult.otp_session && otpExpiresIn <= 0 && (
+                                            <Alert
+                                                type="warning"
+                                                showIcon
+                                                message="OTP expired"
+                                                description="Request a new OTP to continue with ownership verification."
                                             />
                                         )}
 
@@ -754,13 +1179,22 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
                                                 Edit Lookup
                                             </Button>
                                             <Space>
-                                                <Button type="default" loading={requestingOtp} onClick={handleStartVerification}>
-                                                    {lookupResult.otp_session ? 'Send New OTP' : 'Send OTP'}
+                                                <Button
+                                                    type="default"
+                                                    loading={requestingOtp}
+                                                    disabled={Boolean(lookupResult.otp_session && resendCooldown > 0)}
+                                                    onClick={lookupResult.otp_session ? handleResendOtp : handleStartVerification}
+                                                >
+                                                    {lookupResult.otp_session
+                                                        ? (resendCooldown > 0 ? `New OTP in ${resendCooldown}s` : 'Send New OTP')
+                                                        : 'Send OTP'}
                                                 </Button>
-                                                <Button onClick={handleResendOtp} disabled={!lookupResult.otp_session || resendCooldown > 0}>
-                                                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend OTP'}
-                                                </Button>
-                                                <Button type="primary" loading={verifyingOtp} onClick={handleVerifyOtp} disabled={!lookupResult.otp_session}>
+                                                <Button
+                                                    type="primary"
+                                                    loading={verifyingOtp}
+                                                    onClick={handleVerifyOtp}
+                                                    disabled={!lookupResult.otp_session || otpExpiresIn <= 0}
+                                                >
                                                     Verify OTP
                                                 </Button>
                                             </Space>
@@ -770,6 +1204,28 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
 
                                 {currentStep === 2 && verificationResult && (
                                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                                        {renderVerificationExpiryNotice()}
+                                        {currentOrganizationName && (
+                                            <Card size="small" style={{ borderRadius: 12, background: token.colorFillTertiary }}>
+                                                <Descriptions
+                                                    title="Target Organization"
+                                                    column={isMobile ? 1 : 2}
+                                                    size="small"
+                                                    items={[
+                                                        {
+                                                            key: 'organization',
+                                                            label: 'Organization',
+                                                            children: currentOrganizationName,
+                                                        },
+                                                        {
+                                                            key: 'region',
+                                                            label: 'Region Scope',
+                                                            children: currentOrganizationRegionName || 'Organization-wide',
+                                                        },
+                                                    ]}
+                                                />
+                                            </Card>
+                                        )}
                                         <Card size="small" style={{ borderRadius: 12, background: token.colorFillQuaternary }}>
                                             <Descriptions
                                                 title="Registry Details"
@@ -882,6 +1338,7 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
 
                                 {currentStep === 3 && (
                                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                                        {renderVerificationExpiryNotice()}
                                         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
                                             Add any extra contact numbers and bank accounts to be saved on the facility record.
                                         </Paragraph>
@@ -1010,14 +1467,20 @@ const FacilityOnboardingWizard: React.FC<FacilityOnboardingWizardProps> = ({
 
                                 {currentStep === 4 && (
                                     <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                                        {renderVerificationExpiryNotice()}
                                         {renderReview()}
                                         <Divider style={{ margin: '8px 0' }} />
                                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                                             <Button onClick={() => setCurrentStep(3)}>
                                                 Back
                                             </Button>
-                                            <Button type="primary" loading={submitting} onClick={handleSubmit}>
-                                                Submit Facility Onboarding
+                                            <Button
+                                                type="primary"
+                                                loading={submitting}
+                                                onClick={handleSubmit}
+                                                disabled={verificationExpired}
+                                            >
+                                                {verificationExpired ? 'Verification Expired' : 'Submit Facility Onboarding'}
                                             </Button>
                                         </div>
                                     </Space>

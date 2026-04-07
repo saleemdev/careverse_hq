@@ -121,14 +121,35 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
 
     const purchaseReceiptSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const purchaseInvoiceSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const purchaseReceiptRequestSeqRef = useRef(0);
+    const purchaseInvoiceRequestSeqRef = useRef(0);
+    const financeBooksRequestSeqRef = useRef(0);
 
     const isExistingAsset = Form.useWatch('is_existing_asset', form);
     const calculateDepreciation = Form.useWatch('calculate_depreciation', form);
     const financeBookRows = Form.useWatch('finance_books', form) || [];
 
+    useEffect(() => () => {
+        if (purchaseReceiptSearchRef.current) {
+            clearTimeout(purchaseReceiptSearchRef.current);
+        }
+        if (purchaseInvoiceSearchRef.current) {
+            clearTimeout(purchaseInvoiceSearchRef.current);
+        }
+    }, []);
+
     useEffect(() => {
         if (!open) {
             return;
+        }
+
+        purchaseReceiptRequestSeqRef.current += 1;
+        purchaseInvoiceRequestSeqRef.current += 1;
+        if (purchaseReceiptSearchRef.current) {
+            clearTimeout(purchaseReceiptSearchRef.current);
+        }
+        if (purchaseInvoiceSearchRef.current) {
+            clearTimeout(purchaseInvoiceSearchRef.current);
         }
 
         form.setFieldsValue({
@@ -179,12 +200,20 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
         setPurchaseReceiptOptions([]);
         setPurchaseInvoiceOptions([]);
 
+        const requestSeq = ++financeBooksRequestSeqRef.current;
         setFinanceBooksLoading(true);
         erpnextAssetsApi.getFinanceBooks().then((response) => {
+            if (requestSeq !== financeBooksRequestSeqRef.current) {
+                return;
+            }
             if (response.success) {
                 setFinanceBookOptions(response.data?.items || []);
             }
-        }).finally(() => setFinanceBooksLoading(false));
+        }).finally(() => {
+            if (requestSeq === financeBooksRequestSeqRef.current) {
+                setFinanceBooksLoading(false);
+            }
+        });
     }, [asset, form, open]);
 
     useEffect(() => {
@@ -201,13 +230,19 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
             clearTimeout(purchaseReceiptSearchRef.current);
         }
 
+        const requestSeq = ++purchaseReceiptRequestSeqRef.current;
         setPurchaseReceiptSearching(true);
         purchaseReceiptSearchRef.current = setTimeout(async () => {
             try {
                 const response = await erpnextAssetsApi.searchPurchaseReceiptsForAsset(asset.item_code, asset.company, value, asset.name);
+                if (requestSeq !== purchaseReceiptRequestSeqRef.current) {
+                    return;
+                }
                 setPurchaseReceiptOptions(response.success ? (response.data?.items || []) : []);
             } finally {
-                setPurchaseReceiptSearching(false);
+                if (requestSeq === purchaseReceiptRequestSeqRef.current) {
+                    setPurchaseReceiptSearching(false);
+                }
             }
         }, 300);
     }, [asset.company, asset.item_code, asset.name]);
@@ -217,13 +252,19 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
             clearTimeout(purchaseInvoiceSearchRef.current);
         }
 
+        const requestSeq = ++purchaseInvoiceRequestSeqRef.current;
         setPurchaseInvoiceSearching(true);
         purchaseInvoiceSearchRef.current = setTimeout(async () => {
             try {
                 const response = await erpnextAssetsApi.searchPurchaseInvoicesForAsset(asset.item_code, asset.company, value, asset.name);
+                if (requestSeq !== purchaseInvoiceRequestSeqRef.current) {
+                    return;
+                }
                 setPurchaseInvoiceOptions(response.success ? (response.data?.items || []) : []);
             } finally {
-                setPurchaseInvoiceSearching(false);
+                if (requestSeq === purchaseInvoiceRequestSeqRef.current) {
+                    setPurchaseInvoiceSearching(false);
+                }
             }
         }, 300);
     }, [asset.company, asset.item_code, asset.name]);
@@ -330,7 +371,11 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
             setSaving(true);
             const result = await updateAsset(asset.name, payload);
             if (result.success) {
-                message.success('Draft asset updated');
+                if (result.warning) {
+                    message.warning(result.warning);
+                } else {
+                    message.success('Draft asset updated');
+                }
                 onClose();
             } else {
                 message.error(result.error || 'Failed to update draft asset');
@@ -492,12 +537,12 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
                                     <Form.Item
                                         label="Purchase Invoice"
                                         name="purchase_invoice"
-                                        extra="Use this instead when the invoice is the stock-updating source document."
+                                        extra="Use this instead when the invoice is the source purchase document."
                                     >
                                         <Select
                                             showSearch
                                             allowClear
-                                            placeholder="Search submitted stock Purchase Invoices"
+                                            placeholder="Search submitted Purchase Invoices"
                                             filterOption={false}
                                             onSearch={handlePurchaseInvoiceSearch}
                                             onSelect={handlePurchaseInvoiceSelect}

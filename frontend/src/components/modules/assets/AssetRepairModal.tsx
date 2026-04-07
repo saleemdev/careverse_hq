@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     Modal, Form, Input, DatePicker, Checkbox, Button, Space, Card, Tag,
-    Typography, Alert, message, theme,
+    Typography, Alert, message,
 } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
 import useERPNextAssetStore from '../../../stores/modules/erpnextAssetStore';
@@ -17,7 +17,6 @@ interface Props {
 }
 
 const AssetRepairModal: React.FC<Props> = ({ open, onClose, assetName }) => {
-    const { token } = theme.useToken();
     const { isMobile } = useResponsive();
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
@@ -28,7 +27,7 @@ const AssetRepairModal: React.FC<Props> = ({ open, onClose, assetName }) => {
             const values = await form.validateFields();
             setSubmitting(true);
 
-            const success = await createRepairRequest({
+            const result = await createRepairRequest({
                 asset_name: assetName,
                 failure_date: values.failure_date?.format('YYYY-MM-DD'),
                 description: values.description,
@@ -36,14 +35,18 @@ const AssetRepairModal: React.FC<Props> = ({ open, onClose, assetName }) => {
                 capitalize_repair_cost: values.capitalize_repair_cost ? 1 : 0,
             });
 
-            if (success) {
-                message.success('Repair request created');
+            if (result.success) {
+                if (result.warning) {
+                    message.warning(result.warning);
+                } else {
+                    message.success('Repair request created');
+                }
                 form.resetFields();
                 onClose();
             } else {
-                message.error('Failed to create repair request');
+                message.error(result.error || 'Failed to create repair request');
             }
-        } catch (err) {
+        } catch {
             // validation error
         } finally {
             setSubmitting(false);

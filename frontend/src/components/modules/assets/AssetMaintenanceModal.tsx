@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Modal, Form, Input, Select, DatePicker, Button, Space, Card, Tag,
     Typography, message,
@@ -44,19 +44,49 @@ const AssetMaintenanceModal: React.FC<Props> = ({ open, onClose, assetName, comp
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [teams, setTeams] = useState<MaintenanceTeam[]>([]);
+    const [teamsLoading, setTeamsLoading] = useState(false);
+    const [teamsError, setTeamsError] = useState('');
     const [tasks, setTasks] = useState<MaintenanceTaskRow[]>([{ key: Date.now() }]);
     const { createMaintenanceRequest } = useERPNextAssetStore();
+    const teamsRequestSeqRef = useRef(0);
 
     // Track selected team reactively so member dropdown updates
     const selectedTeamName = Form.useWatch('maintenance_team', form);
     const selectedTeam = teams.find((t) => t.name === selectedTeamName);
 
     useEffect(() => {
-        if (open) {
-            erpnextAssetsApi.getMaintenanceTeams(company).then((res) => {
-                if (res.success) setTeams(res.data?.items || []);
-            });
+        if (!open) {
+            teamsRequestSeqRef.current += 1;
+            setTeams([]);
+            setTeamsLoading(false);
+            setTeamsError('');
+            return;
         }
+
+        const requestSeq = ++teamsRequestSeqRef.current;
+        setTeamsLoading(true);
+        setTeamsError('');
+        erpnextAssetsApi.getMaintenanceTeams(company).then((res) => {
+            if (requestSeq !== teamsRequestSeqRef.current) {
+                return;
+            }
+            if (res.success) {
+                setTeams(res.data?.items || []);
+                setTeamsError('');
+                return;
+            }
+            setTeams([]);
+            setTeamsError(res.error || res.message || 'Failed to load maintenance teams.');
+        }).catch(() => {
+            if (requestSeq === teamsRequestSeqRef.current) {
+                setTeams([]);
+                setTeamsError('Failed to load maintenance teams.');
+            }
+        }).finally(() => {
+            if (requestSeq === teamsRequestSeqRef.current) {
+                setTeamsLoading(false);
+            }
+        });
     }, [open, company]);
 
     const handleSubmit = async () => {
@@ -74,19 +104,23 @@ const AssetMaintenanceModal: React.FC<Props> = ({ open, onClose, assetName, comp
                 description: values[`task_desc_${task.key}`] || '',
             }));
 
-            const success = await createMaintenanceRequest({
+            const result = await createMaintenanceRequest({
                 asset_name: assetName,
                 maintenance_team: values.maintenance_team,
                 tasks: JSON.stringify(taskData),
             });
 
-            if (success) {
-                message.success('Maintenance scheduled');
+            if (result.success) {
+                if (result.warning) {
+                    message.warning(result.warning);
+                } else {
+                    message.success('Maintenance scheduled');
+                }
                 form.resetFields();
                 setTasks([{ key: Date.now() }]);
                 onClose();
             } else {
-                message.error('Failed to create maintenance schedule');
+                message.error(result.error || 'Failed to create maintenance schedule');
             }
         } catch {
             // validation error
@@ -131,7 +165,10 @@ const AssetMaintenanceModal: React.FC<Props> = ({ open, onClose, assetName, comp
                     rules={[{ required: true, message: 'Select a maintenance team' }]}
                 >
                     <Select
-                        placeholder="Select team"
+                        placeholder={teamsLoading ? 'Loading teams...' : 'Select team'}
+                        loading={teamsLoading}
+                        disabled={teamsLoading || teams.length === 0}
+                        notFoundContent={teamsError || 'No maintenance teams available'}
                         onChange={() => {
                             const clearedAssignments = tasks.reduce<Record<string, undefined>>((acc, task) => {
                                 acc[`task_assign_${task.key}`] = undefined;

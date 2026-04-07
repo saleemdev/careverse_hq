@@ -6,7 +6,7 @@ Avoids heavy dependencies from utils.py
 import frappe
 
 
-def api_response(success=False, data=None, message=None, status_code=200, pagination=None):
+def api_response(success=False, data=None, message=None, status_code=200, pagination=None, details=None):
     """
     Standardize API responses across the application
 
@@ -16,6 +16,7 @@ def api_response(success=False, data=None, message=None, status_code=200, pagina
         message (str): Error message or success message
         status_code (int): HTTP status code
         pagination (dict): Pagination metadata
+        details (dict): Optional structured error details for debugging/UI disclosure
 
     Returns:
         dict: Standardized response format compatible with Frappe's message wrapper
@@ -31,6 +32,8 @@ def api_response(success=False, data=None, message=None, status_code=200, pagina
     # For error responses, include message
     if not success and message is not None:
         response_data["message"] = message
+        if details is not None:
+            response_data["details"] = details
 
     # For success responses with a message
     if success and message is not None:

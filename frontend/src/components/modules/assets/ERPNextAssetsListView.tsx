@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import {
     Table, Card, Row, Col, Statistic, Tag, Input, Space, Typography,
-    Button, theme, Select, Spin, Progress,
+    Button, theme, Select, Spin, Progress, Alert,
 } from 'antd';
 import {
     LaptopOutlined, ToolOutlined, CheckCircleOutlined, WarningOutlined,
@@ -47,13 +47,15 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const {
-        assets, loading, total, statusAggregates, filters,
+        assets, loading, listError, total, statusAggregates, dashboardError, filters,
         fetchAssets, fetchDashboard, setFilters,
     } = useERPNextAssetStore((state) => ({
         assets: state.assets,
         loading: state.loading,
+        listError: state.listError,
         total: state.total,
         statusAggregates: state.statusAggregates,
+        dashboardError: state.dashboardError,
         filters: state.filters,
         fetchAssets: state.fetchAssets,
         fetchDashboard: state.fetchDashboard,
@@ -82,27 +84,42 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
     }, [filters.search]);
 
     const getFacilityIdsForFetch = useCallback(() => {
+        if (facilitiesLoading) {
+            return null;
+        }
         if (filters.facilities.length > 0) return filters.facilities;
         return availableFacilities.map((f) => f.hie_id);
-    }, [filters.facilities, availableFacilities]);
+    }, [filters.facilities, availableFacilities, facilitiesLoading]);
 
     const refreshAssets = useCallback(() => {
         const ids = getFacilityIdsForFetch();
+        if (ids === null) {
+            return;
+        }
         fetchAssets(ids);
     }, [fetchAssets, getFacilityIdsForFetch]);
 
     const refreshDashboard = useCallback(() => {
         const ids = getFacilityIdsForFetch();
+        if (ids === null) {
+            return;
+        }
         fetchDashboard(ids);
     }, [fetchDashboard, getFacilityIdsForFetch]);
 
     useEffect(() => {
+        if (facilitiesLoading) {
+            return;
+        }
         refreshAssets();
-    }, [refreshAssets, filters.status, filters.category, filters.search, filters.page, filters.pageSize, filters.facilities]);
+    }, [refreshAssets, facilitiesLoading, filters.status, filters.category, filters.search, filters.page, filters.pageSize, filters.facilities]);
 
     useEffect(() => {
+        if (facilitiesLoading) {
+            return;
+        }
         refreshDashboard();
-    }, [refreshDashboard, filters.facilities]);
+    }, [refreshDashboard, facilitiesLoading, filters.facilities]);
 
     const handleSearch = (value: string) => {
         setSearchInput(value);
@@ -123,6 +140,9 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
 
     const handleRefresh = () => {
         clearPendingSearchDebounce();
+        if (facilitiesLoading) {
+            return;
+        }
         const pendingSearch = searchInput;
         if (pendingSearch !== filters.search) {
             setFilters({ search: pendingSearch });
@@ -276,6 +296,16 @@ const ERPNextAssetsListView: React.FC<Props> = ({ navigateToRoute }) => {
 
     return (
         <div style={{ padding: isMobile ? '16px' : '24px' }}>
+            {(listError || dashboardError) && (
+                <Alert
+                    type="error"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    message="Unable to refresh asset data"
+                    description={listError || dashboardError}
+                />
+            )}
+
             {/* KPI Dashboard */}
             <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
                 {kpiCards.map((kpi) => (

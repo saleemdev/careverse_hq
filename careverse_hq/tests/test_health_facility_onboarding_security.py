@@ -2,6 +2,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import requests
+
 from careverse_hq.api import facility_onboarding_v2 as onboarding_api
 
 
@@ -99,3 +101,29 @@ class TestFacilityOnboardingSecurity(unittest.TestCase):
         self.assertNotIn("Authorization", log_messages)
         self.assertNotIn("Bearer", log_messages)
         self.assertNotIn("super-secret-token", log_messages)
+
+    def test_fetch_facility_hwr_fr_returns_error_payload_for_upstream_http_errors(self):
+        fake_frappe = _make_mock_frappe(user="owner@example.com")
+        fake_frappe.db.get_singles_dict = MagicMock(
+            return_value=SimpleNamespace(
+                hie_url="https://registry.example.com",
+                hfr_fetch_url="/facility/search",
+            )
+        )
+
+        response = MagicMock()
+        response.status_code = 502
+        response.reason = "Bad Gateway"
+        http_error = requests.HTTPError(response=response)
+
+        with (
+            patch.object(onboarding_api, "frappe", fake_frappe),
+            patch.object(onboarding_api, "api_response", side_effect=lambda **kw: kw),
+            patch.object(onboarding_api._hie, "generate_jwt_token", return_value="super-secret-token"),
+            patch.object(onboarding_api.requests, "get", side_effect=http_error),
+        ):
+            payload = onboarding_api.fetch_facility_hwr_fr(facility_id="FAC-103")
+
+        self.assertEqual(payload["status"], "error")
+        self.assertEqual(payload["status_code"], 502)
+        self.assertIn("HTTP 502", payload["message"])

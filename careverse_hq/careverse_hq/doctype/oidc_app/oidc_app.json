@@ -1,0 +1,152 @@
+{
+ "actions": [],
+ "creation": "2026-04-05 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "app_name",
+  "owner_system",
+  "contacts",
+  "status",
+  "client_type",
+  "oauth_client",
+  "trusted_client",
+  "default_redirect_uri",
+  "redirect_uris",
+  "scopes",
+  "description",
+  "last_secret_rotated_on",
+  "audit_events"
+ ],
+ "fields": [
+  {
+   "fieldname": "app_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "App Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "owner_system",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Owner System"
+  },
+  {
+   "fieldname": "contacts",
+   "fieldtype": "Small Text",
+   "label": "Contacts"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nDisabled\nArchived",
+   "reqd": 1
+  },
+  {
+   "default": "Web Confidential",
+   "fieldname": "client_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Client Type",
+   "options": "Web Confidential\nNative Public",
+   "reqd": 1
+  },
+  {
+   "fieldname": "oauth_client",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "OAuth Client",
+   "options": "OAuth Client",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "trusted_client",
+   "fieldtype": "Check",
+   "label": "Trusted Client (Skip Consent)"
+  },
+  {
+   "fieldname": "default_redirect_uri",
+   "fieldtype": "Data",
+   "label": "Default Redirect URI",
+   "reqd": 1
+  },
+  {
+   "fieldname": "redirect_uris",
+   "fieldtype": "Table",
+   "label": "Redirect URIs",
+   "options": "OIDC App Redirect URI"
+  },
+  {
+   "fieldname": "scopes",
+   "fieldtype": "Table",
+   "label": "Scopes",
+   "options": "OIDC App Scope"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "last_secret_rotated_on",
+   "fieldtype": "Datetime",
+   "label": "Last Secret Rotated On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "audit_events",
+   "fieldtype": "Table",
+   "label": "Audit Events",
+   "options": "OIDC App Audit Event",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-04-05 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Careverse Hq",
+ "name": "OIDC App",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Admin Central Admin",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "County Executive",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

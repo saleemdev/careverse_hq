@@ -5,11 +5,28 @@
 import { getCsrfToken, refreshCsrfToken, ensureCsrfToken } from '../utils/csrf';
 import { notifyApiError } from '../utils/notifications';
 
-interface ApiResponse<T = any> {
+export interface ApiResponse<T = any> {
     success: boolean;
     message?: string;
     data?: T;
     error?: string;
+}
+
+export interface ApiErrorDetails {
+    source?: string;
+    source_label?: string;
+    kind?: string;
+    status_code?: number;
+    reason?: string;
+    technical_message?: string;
+    debug_traceback?: string;
+}
+
+export interface ApiErrorPayload {
+    status?: string;
+    message?: string;
+    status_code?: number;
+    details?: ApiErrorDetails;
 }
 
 export interface FacilityOnboardingRegionOption {
@@ -22,6 +39,14 @@ export interface FacilityOnboardingRegionOption {
 export interface FacilityOnboardingReferenceData {
     regions: FacilityOnboardingRegionOption[];
     public_owner_types: string[];
+    organization_context?: {
+        organization_id?: string | null;
+        organization_name?: string | null;
+        company_names?: string[];
+        organization_region?: string | null;
+        organization_region_name?: string | null;
+        default_region?: string | null;
+    };
 }
 
 export interface FacilityOnboardingLookupPayload {
@@ -59,16 +84,14 @@ export interface FacilityOnboardingOtpSession {
     channel: 'sms' | 'email';
     masked_destination: string;
     expires_in_seconds: number;
+    expires_at?: number;
     resend_cooldown_seconds: number;
 }
 
 export interface FacilityOnboardingLookupResult {
     facility_preview: FacilityOnboardingFacilityPreview;
     already_onboarded?: {
-        name: string;
-        facility_name?: string | null;
-        hie_id?: string | null;
-        matched_on?: string | null;
+        exists: boolean;
     } | null;
     owner_match: FacilityOnboardingOwnerMatch;
     owner_id_present: boolean;
@@ -144,6 +167,7 @@ export interface FacilityOwnerOtpVerificationResult {
     additional_defaults: FacilityOnboardingAdditionalDefaults;
     verification: {
         expires_in_seconds: number;
+        expires_at?: number;
     };
 }
 
@@ -189,6 +213,79 @@ const isCsrfErrorResponse = (response: Response, result: any): boolean => {
     );
 };
 
+const decodeServerMessageItem = (item: unknown): string | null => {
+    if (!item) return null;
+    if (typeof item === 'string') {
+        try {
+            const parsed = JSON.parse(item);
+            if (parsed && typeof parsed.message === 'string' && parsed.message.trim()) {
+                return parsed.message.trim();
+            }
+        } catch {
+            if (item.trim()) {
+                return item.trim();
+            }
+        }
+        return null;
+    }
+    if (typeof item === 'object' && item !== null && typeof (item as any).message === 'string') {
+        const message = String((item as any).message).trim();
+        return message || null;
+    }
+    return null;
+};
+
+const extractServerMessages = (payload: any): string | null => {
+    const raw = payload?._server_messages ?? payload?.server_messages;
+    if (!raw) return null;
+
+    let parsed = raw;
+    if (typeof parsed === 'string') {
+        try {
+            parsed = JSON.parse(parsed);
+        } catch {
+            return parsed.trim() || null;
+        }
+    }
+
+    if (!Array.isArray(parsed)) {
+        return null;
+    }
+
+    const messages = parsed
+        .map((item) => decodeServerMessageItem(item))
+        .filter((item): item is string => Boolean(item));
+
+    return messages.length ? messages.join('; ') : null;
+};
+
+const extractFrappeErrorMessage = (payload: any, fallback = 'Request failed'): string => {
+    if (typeof payload?.message === 'string' && payload.message.trim()) {
+        return payload.message.trim();
+    }
+    if (payload?.message && typeof payload.message === 'object') {
+        const nested = payload.message;
+        if (typeof nested.message === 'string' && nested.message.trim()) {
+            return nested.message.trim();
+        }
+        const nestedServerMessage = extractServerMessages(nested);
+        if (nestedServerMessage) {
+            return nestedServerMessage;
+        }
+    }
+
+    const serverMessage = extractServerMessages(payload);
+    if (serverMessage) {
+        return serverMessage;
+    }
+
+    if (typeof payload?.exc === 'string' && payload.exc.trim()) {
+        return payload.exc.trim();
+    }
+
+    return fallback;
+};
+
 // Base API call helper
 const apiCall = async <T = any>(
     method: string,
@@ -232,16 +329,20 @@ const apiCall = async <T = any>(
             // Frappe wraps api_response dicts in {"message": {...}}, so result.message
             // can be an object like {"status":"error","message":"actual error text"}.
             const raw = result.message;
-            const errorMsg =
-                (typeof raw === 'object' && raw !== null && typeof raw.message === 'string')
-                    ? raw.message
-                    : (typeof raw === 'string' ? raw : null)
-                        || result.exc
-                        || 'Request failed';
+            const errorPayload =
+                (typeof raw === 'object' && raw !== null)
+                    ? raw
+                    : (typeof result === 'object' && result !== null ? result : undefined);
+            const errorMsg = extractFrappeErrorMessage(
+                errorPayload ?? result,
+                typeof raw === 'string' && raw.trim() ? raw : 'Request failed'
+            );
             notifyApiError(errorMsg);
             return {
                 success: false,
                 error: errorMsg,
+                message: errorMsg,
+                data: errorPayload as T,
             };
         }
 
@@ -257,6 +358,8 @@ const apiCall = async <T = any>(
             return {
                 success: false,
                 error: errorMsg,
+                message: errorMsg,
+                data: result as T,
             };
         }
 
@@ -396,31 +499,24 @@ export const callFrappePostMethod = async <T = any>(
                     const payload = r?.message ?? r;
 
                     if (r?.exc) {
-                        // exc is a Python traceback string; try to extract the
-                        // last meaningful line, or fall back to the payload message.
-                        const excMsg = (typeof payload === 'object' && payload !== null && typeof payload.message === 'string')
-                            ? payload.message
-                            : (typeof r?.message === 'string' ? r.message : 'Request failed.');
-                        finish({ success: false, error: excMsg, data: r as any });
+                        const excMsg = extractFrappeErrorMessage(payload ?? r, 'Request failed.');
+                        finish({
+                            success: false,
+                            error: excMsg,
+                            message: excMsg,
+                            data: (typeof payload === 'object' && payload !== null ? payload : r) as any,
+                        });
                         return;
                     }
 
                     if (responseStatus === 'error') {
-                        const errorMessage =
-                            typeof r?.message === 'string'
-                                ? r.message
-                                : (typeof payload === 'object' && payload !== null && typeof payload.message === 'string')
-                                    ? payload.message
-                                    : 'Request failed.';
+                        const errorMessage = extractFrappeErrorMessage(payload ?? r, 'Request failed.');
                         finish({ success: false, error: errorMessage, message: errorMessage, data: r as any });
                         return;
                     }
 
                     if (typeof payload === 'object' && payload?.status === 'error') {
-                        const errorMessage =
-                            typeof payload?.message === 'string'
-                                ? payload.message
-                                : 'Request failed.';
+                        const errorMessage = extractFrappeErrorMessage(payload, 'Request failed.');
                         finish({ success: false, error: errorMessage, message: errorMessage, data: payload });
                         return;
                     }
@@ -435,13 +531,14 @@ export const callFrappePostMethod = async <T = any>(
                 },
                 error: (err: any) => {
                     // err can be an XHR response, parsed JSON, or Error object.
-                    // Extract the deepest string message available.
                     const raw = err?.responseJSON?.message ?? err?.message ?? err;
-                    const errMsg =
-                        (typeof raw === 'object' && raw !== null && typeof raw.message === 'string')
-                            ? raw.message
-                            : (typeof raw === 'string' ? raw : 'Request failed.');
-                    finish({ success: false, error: errMsg, data: err as any });
+                    const errMsg = extractFrappeErrorMessage(raw ?? err, 'Request failed.');
+                    finish({
+                        success: false,
+                        error: errMsg,
+                        message: errMsg,
+                        data: (typeof raw === 'object' && raw !== null ? raw : err) as any,
+                    });
                 },
             });
         });
@@ -1322,6 +1419,161 @@ export const userManagementApi = {
     },
 };
 
+export interface OidcApp {
+    id: string;
+    app_name: string;
+    owner_system?: string;
+    contacts?: string;
+    status: 'Draft' | 'Active' | 'Disabled' | 'Archived' | string;
+    client_type: 'Web Confidential' | 'Native Public' | string;
+    oauth_client?: string;
+    trusted_client: number;
+    default_redirect_uri: string;
+    redirect_uris: string[];
+    scopes: string[];
+    description?: string;
+    last_secret_rotated_on?: string;
+    modified?: string;
+}
+
+export interface OidcAppReferenceData {
+    client_types: string[];
+    statuses: string[];
+    supported_scopes: string[];
+}
+
+export interface OidcAppListResponse {
+    items: OidcApp[];
+    pagination: {
+        page: number;
+        page_size: number;
+        total: number;
+        total_pages: number;
+    };
+}
+
+export interface OidcAppAuditEvent {
+    event_time?: string;
+    actor?: string;
+    action?: string;
+    reason?: string;
+    details?: string;
+}
+
+export interface OidcAppDetailResponse {
+    app: OidcApp;
+    oauth_client?: {
+        client_id?: string;
+        grant_type?: string;
+        response_type?: string;
+        token_endpoint_auth_method?: string;
+        skip_authorization?: number;
+    };
+    audit_events: OidcAppAuditEvent[];
+}
+
+export interface OidcQuickstartResponse {
+    app: OidcApp;
+    oauth: {
+        client_id: string;
+        token_endpoint_auth_method: string;
+        authorization_endpoint: string;
+        token_endpoint: string;
+        userinfo_endpoint: string;
+        scopes: string[];
+        redirect_uris: string[];
+    };
+}
+
+export const oidcAppsApi = {
+    getReferenceData: async (): Promise<ApiResponse<OidcAppReferenceData>> => {
+        return frappeCall<OidcAppReferenceData>('careverse_hq.api.oidc_apps.get_reference_data', {});
+    },
+
+    listApps: async (params: {
+        filters?: {
+            search?: string;
+            status?: string;
+            client_type?: string;
+        };
+        page?: number;
+        page_size?: number;
+        sort?: string;
+    }): Promise<ApiResponse<OidcAppListResponse>> => {
+        return callFrappePostMethod<OidcAppListResponse>('careverse_hq.api.oidc_apps.list_oidc_apps', {
+            filters: params.filters || {},
+            page: params.page || 1,
+            page_size: params.page_size || 20,
+            sort: params.sort || 'modified desc',
+        });
+    },
+
+    getAppDetail: async (appId: string): Promise<ApiResponse<OidcAppDetailResponse>> => {
+        return callFrappePostMethod<OidcAppDetailResponse>('careverse_hq.api.oidc_apps.get_oidc_app_detail', {
+            app_id: appId,
+        });
+    },
+
+    createApp: async (payload: {
+        app_name: string;
+        owner_system?: string;
+        contacts?: string;
+        status?: string;
+        client_type: string;
+        trusted_client: number;
+        default_redirect_uri: string;
+        redirect_uris: string[];
+        scopes: string[];
+        description?: string;
+    }): Promise<ApiResponse<{ app: OidcApp; credentials?: { client_id: string; client_secret: string } }>> => {
+        return callFrappePostMethod<{ app: OidcApp; credentials?: { client_id: string; client_secret: string } }>(
+            'careverse_hq.api.oidc_apps.create_oidc_app',
+            { payload }
+        );
+    },
+
+    updateApp: async (
+        appId: string,
+        payload: Record<string, unknown>
+    ): Promise<ApiResponse<{ app: OidcApp }>> => {
+        return callFrappePostMethod<{ app: OidcApp }>('careverse_hq.api.oidc_apps.update_oidc_app', {
+            app_id: appId,
+            payload,
+        });
+    },
+
+    setAppStatus: async (
+        appId: string,
+        status: string,
+        reason?: string
+    ): Promise<ApiResponse<{ app: OidcApp }>> => {
+        return callFrappePostMethod<{ app: OidcApp }>('careverse_hq.api.oidc_apps.set_oidc_app_status', {
+            app_id: appId,
+            status,
+            reason: reason || '',
+        });
+    },
+
+    rotateClientSecret: async (
+        appId: string,
+        reason?: string
+    ): Promise<ApiResponse<{ client_secret: string; last_secret_rotated_on?: string }>> => {
+        return callFrappePostMethod<{ client_secret: string; last_secret_rotated_on?: string }>(
+            'careverse_hq.api.oidc_apps.rotate_oidc_client_secret',
+            {
+                app_id: appId,
+                reason: reason || '',
+            }
+        );
+    },
+
+    getQuickstart: async (appId: string): Promise<ApiResponse<OidcQuickstartResponse>> => {
+        return callFrappePostMethod<OidcQuickstartResponse>('careverse_hq.api.oidc_apps.get_oidc_quickstart', {
+            app_id: appId,
+        });
+    },
+};
+
 // Companies API
 export const companiesApi = {
     // Get list of companies
@@ -1666,6 +1918,224 @@ export const erpnextAssetsApi = {
     },
 };
 
+export interface ShiftStatusAggregates {
+    total_assignments: number;
+    active_assignments: number;
+    inactive_assignments: number;
+    employees_with_shifts: number;
+    attendance_records: number;
+    late_entries: number;
+    missing_checkouts: number;
+}
+
+export interface ShiftDashboardPayload {
+    status_aggregates: ShiftStatusAggregates;
+}
+
+export interface ShiftAssignmentItem {
+    name: string;
+    employee: string;
+    employee_name: string;
+    department?: string | null;
+    company?: string | null;
+    shift_type: string;
+    shift_start_time?: string | null;
+    shift_end_time?: string | null;
+    start_date: string;
+    end_date?: string | null;
+    status: string;
+    shift_location?: string | null;
+    overtime_type?: string | null;
+    facility_id?: string | null;
+    facility_name?: string | null;
+    enable_auto_attendance?: boolean;
+}
+
+export interface AttendanceVisibilityItem {
+    name: string;
+    attendance_date: string;
+    employee: string;
+    employee_name: string;
+    department?: string | null;
+    company?: string | null;
+    status: string;
+    shift?: string | null;
+    late_entry: boolean;
+    check_in?: string | null;
+    check_out?: string | null;
+    working_hours?: number | null;
+    is_missing_checkout: boolean;
+    facility_id?: string | null;
+    facility_name?: string | null;
+}
+
+export interface ShiftFilterFacilityOption {
+    hie_id: string;
+    facility_name: string;
+    facility_mfl?: string | null;
+}
+
+export interface ShiftFilterEmployeeOption {
+    name: string;
+    employee_name?: string | null;
+    department?: string | null;
+    company?: string | null;
+    facility_id?: string | null;
+    facility_name?: string | null;
+}
+
+export interface ShiftFilterTypeOption {
+    name: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    enable_auto_attendance?: boolean;
+    color?: string | null;
+}
+
+export interface ShiftFilterLocationOption {
+    name: string;
+    label?: string | null;
+}
+
+export interface ShiftTypeCreatePayload {
+    name: string;
+    start_time: string;
+    end_time: string;
+    color?: string;
+    enable_auto_attendance?: boolean;
+    process_attendance_after?: string;
+}
+
+export interface ShiftTypeCreateResult {
+    name: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    color?: string | null;
+    enable_auto_attendance?: boolean;
+}
+
+export interface ShiftFilterOptionsPayload {
+    facilities: ShiftFilterFacilityOption[];
+    employees: ShiftFilterEmployeeOption[];
+    shift_types: ShiftFilterTypeOption[];
+    locations: ShiftFilterLocationOption[];
+    shift_status_options: string[];
+    attendance_status_options: string[];
+}
+
+export interface PaginatedPayload<T> {
+    items: T[];
+    total_count: number;
+    page: number;
+    page_size: number;
+}
+
+export const shiftManagementApi = {
+    getDashboard: async (params: {
+        facilities?: string[];
+        date_from?: string;
+        date_to?: string;
+    } = {}): Promise<ApiResponse<ShiftDashboardPayload>> => {
+        const q: Record<string, any> = {};
+        if (params.facilities?.length) q.facilities = params.facilities.join(',');
+        if (params.date_from) q.date_from = params.date_from;
+        if (params.date_to) q.date_to = params.date_to;
+        return frappeCall<ShiftDashboardPayload>('careverse_hq.api.shift_management.get_shift_dashboard', q);
+    },
+
+    getShiftAssignments: async (params: {
+        facilities?: string[];
+        page?: number;
+        page_size?: number;
+        employee?: string;
+        shift_type?: string;
+        status?: string;
+        date_from?: string;
+        date_to?: string;
+    } = {}): Promise<ApiResponse<PaginatedPayload<ShiftAssignmentItem>>> => {
+        const q: Record<string, any> = {};
+        if (params.facilities?.length) q.facilities = params.facilities.join(',');
+        if (params.page != null) q.page = params.page;
+        if (params.page_size != null) q.page_size = params.page_size;
+        if (params.employee) q.employee = params.employee;
+        if (params.shift_type) q.shift_type = params.shift_type;
+        if (params.status) q.status = params.status;
+        if (params.date_from) q.date_from = params.date_from;
+        if (params.date_to) q.date_to = params.date_to;
+        return frappeCall<PaginatedPayload<ShiftAssignmentItem>>('careverse_hq.api.shift_management.get_shift_assignments', q);
+    },
+
+    getAttendanceVisibility: async (params: {
+        facilities?: string[];
+        page?: number;
+        page_size?: number;
+        employee?: string;
+        status?: string;
+        date_from?: string;
+        date_to?: string;
+        late_only?: boolean;
+        missing_checkout_only?: boolean;
+    } = {}): Promise<ApiResponse<PaginatedPayload<AttendanceVisibilityItem>>> => {
+        const q: Record<string, any> = {};
+        if (params.facilities?.length) q.facilities = params.facilities.join(',');
+        if (params.page != null) q.page = params.page;
+        if (params.page_size != null) q.page_size = params.page_size;
+        if (params.employee) q.employee = params.employee;
+        if (params.status) q.status = params.status;
+        if (params.date_from) q.date_from = params.date_from;
+        if (params.date_to) q.date_to = params.date_to;
+        if (params.late_only != null) q.late_only = params.late_only ? 1 : 0;
+        if (params.missing_checkout_only != null) q.missing_checkout_only = params.missing_checkout_only ? 1 : 0;
+        return frappeCall<PaginatedPayload<AttendanceVisibilityItem>>('careverse_hq.api.shift_management.get_attendance_visibility', q);
+    },
+
+    getFilterOptions: async (params: {
+        facilities?: string[];
+        employee_search?: string;
+        employee_limit?: number;
+    } = {}): Promise<ApiResponse<ShiftFilterOptionsPayload>> => {
+        const q: Record<string, any> = {};
+        if (params.facilities?.length) q.facilities = params.facilities.join(',');
+        if (params.employee_search) q.employee_search = params.employee_search;
+        if (params.employee_limit != null) q.employee_limit = params.employee_limit;
+        return frappeCall<ShiftFilterOptionsPayload>('careverse_hq.api.shift_management.get_shift_filter_options', q);
+    },
+
+    createShiftAssignment: async (data: {
+        employee: string;
+        shift_type: string;
+        start_date: string;
+        end_date?: string;
+        status?: string;
+        shift_location?: string;
+        overtime_type?: string;
+    }): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.shift_management.create_shift_assignment', data);
+    },
+
+    reassignShiftAssignment: async (data: {
+        source_shift: string;
+        target_employee: string;
+        target_date: string;
+        source_date?: string;
+        target_shift?: string;
+    }): Promise<ApiResponse> => {
+        return callFrappePostMethod('careverse_hq.api.shift_management.reassign_shift_assignment', data);
+    },
+
+    createShiftType: async (data: ShiftTypeCreatePayload): Promise<ApiResponse<ShiftTypeCreateResult>> => {
+        return callFrappePostMethod<ShiftTypeCreateResult>('careverse_hq.api.shift_management.create_shift_type', data);
+    },
+
+    createShiftLocation: async (data: {
+        name: string;
+        parent_location?: string;
+        is_group?: boolean;
+    }): Promise<ApiResponse<{ name: string }>> => {
+        return callFrappePostMethod<{ name: string }>('careverse_hq.api.shift_management.create_shift_location', data);
+    },
+};
+
 export default {
     dashboard: dashboardApi,
     approvals: approvalApi,
@@ -1679,5 +2149,6 @@ export default {
     companies: companiesApi,
     licenses: licensesApi,
     erpnextAssets: erpnextAssetsApi,
+    shiftManagement: shiftManagementApi,
     mock: mockData,
 };

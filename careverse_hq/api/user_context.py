@@ -13,6 +13,29 @@ from frappe.utils.file_manager import save_file
 from .utils import api_response
 
 
+def _get_company_scoped_facilities(company_name: Optional[str] = None):
+	"""Return facilities visible to the current user via Frappe permissions."""
+	fields = [
+		"hie_id",
+		"facility_name",
+		"facility_mfl",
+		"facility_type",
+		"category",
+		"organization_company",
+		"region_company",
+		"county",
+		"sub_county",
+	]
+
+	query_kwargs = {
+		"fields": fields,
+		"order_by": "facility_name asc",
+		"limit_page_length": 0,
+	}
+
+	return frappe.get_list("Health Facility", **query_kwargs)
+
+
 @frappe.whitelist()
 def get_user_company_context():
 	"""
@@ -83,25 +106,7 @@ def get_user_company_context():
 
 		facilities = []
 		if has_permission and _hf_doctype_exists:
-			# frappe.get_list respects Role Permissions + User Permissions
-			# natively — company users see their tenant's facilities,
-			# oversight users see whatever their role grants.
-			facilities = frappe.get_list(
-				"Health Facility",
-				fields=[
-					"hie_id",
-					"facility_name",
-					"facility_mfl",
-					"facility_type",
-					"category",
-					"organization_company",
-					"region_company",
-					"county",
-					"sub_county",
-				],
-				order_by="facility_name asc",
-				limit_page_length=0,
-			)
+			facilities = _get_company_scoped_facilities(company_doc.get("name") if company_doc else None)
 
 		return api_response(
 			success=True,
@@ -170,22 +175,7 @@ def get_facilities_for_company(company: str):
 		# Health Facility list: no filters — Frappe User Permissions on Health Facility apply
 		facilities = []
 		if frappe.db.exists("DocType", "Health Facility"):
-			facilities = frappe.get_list(
-				"Health Facility",
-				fields=[
-					"hie_id",
-					"facility_name",
-					"facility_mfl",
-					"facility_type",
-					"category",
-					"organization_company",
-					"region_company",
-					"county",
-					"sub_county"
-				],
-				order_by="facility_name asc",
-				limit_page_length=0,
-			)
+			facilities = _get_company_scoped_facilities(company)
 
 		return api_response(
 			success=True,

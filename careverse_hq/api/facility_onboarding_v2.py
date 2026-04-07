@@ -15,6 +15,40 @@ _hie = HIE()
 _cryptoService = SecureTransportManager()
 
 
+def _error_response(message, status_code=500, details=None):
+    """Return a helper-friendly error payload while preserving Frappe response state."""
+    api_response(
+        success=False,
+        message=message,
+        status_code=status_code,
+        details=details,
+    )
+    payload = {
+        "status": "error",
+        "message": message,
+        "status_code": status_code,
+    }
+    if details is not None:
+        payload["details"] = details
+    return payload
+
+
+def _registry_error_details(kind, technical_message, *, status_code=None, reason=None):
+    details = {
+        "source": "hfr",
+        "source_label": "Health Facility Registry",
+        "kind": kind,
+        "technical_message": technical_message,
+    }
+    if status_code is not None:
+        details["status_code"] = int(status_code)
+    if reason:
+        details["reason"] = str(reason)
+    if frappe.conf.get("developer_mode"):
+        details["debug_traceback"] = frappe.get_traceback()
+    return details
+
+
 def _get_healthcare_user(user):
     healthcare_user = frappe.get_doc(
         "Healthcare Organization User", {"user": user},
@@ -42,9 +76,8 @@ def fetch_facility_hwr_fr(**kwargs):
 
     api_key = _hie.generate_jwt_token()
     if not api_key:
-        return api_response(
-            success=False,
-            message="Failed to generate HFR API token. Please check your credentials.",
+        return _error_response(
+            "Failed to generate HFR API token. Please check your credentials.",
             status_code=400,
         )
     payload = {}
@@ -60,9 +93,8 @@ def fetch_facility_hwr_fr(**kwargs):
         payload["facility-fid"] = kwargs.get("facility_id")
 
     if not payload:
-        return api_response(
-            success=False,
-            message="You must provide facility_name, registration_number, facility_id or facility_code.",
+        return _error_response(
+            "You must provide facility_name, registration_number, facility_id or facility_code.",
             status_code=400,
         )
 
@@ -78,15 +110,84 @@ def fetch_facility_hwr_fr(**kwargs):
         data = resp.json()
 
         # Process successful response
-        message = data.get("message",None)
+        message = data.get("message", None)
+        if message is None:
+            return _error_response(
+                "The Health Facility Registry returned an empty response. Please try again shortly.",
+                status_code=502,
+                details=_registry_error_details(
+                    "empty_response",
+                    "The facility registry response did not include a message payload.",
+                    status_code=502,
+                ),
+            )
         return message
-    
+
+    except requests.HTTPError as e:
+        status_code = getattr(e.response, "status_code", 502) or 502
+        reason = str(getattr(e.response, "reason", "") or "").strip()
+        if status_code >= 500:
+            message = "The Health Facility Registry is temporarily unavailable. Please try again shortly."
+        else:
+            message = "The Health Facility Registry rejected the facility lookup request."
+        frappe.log_error(
+            message=f"Error: {e} url={hfr_url} payload_keys={sorted(payload.keys())}",
+            title="Fetching Facility Failed",
+        )
+        return _error_response(
+            message,
+            status_code=status_code,
+            details=_registry_error_details(
+                "http_error",
+                f"Upstream facility registry returned HTTP {status_code}{f' {reason}' if reason else ''}.",
+                status_code=status_code,
+                reason=reason or None,
+            ),
+        )
+
+    except requests.RequestException as e:
+        frappe.log_error(
+            message=f"Error: {e} url={hfr_url} payload_keys={sorted(payload.keys())}",
+            title="Fetching Facility Failed",
+        )
+        return _error_response(
+            "We could not reach the Health Facility Registry. Please try again shortly.",
+            status_code=502,
+            details=_registry_error_details(
+                "network_error",
+                f"Facility registry request failed before receiving an HTTP response: {type(e).__name__}: {e}",
+                status_code=502,
+            ),
+        )
+
+    except ValueError as e:
+        frappe.log_error(
+            message=f"Error: {e} url={hfr_url} payload_keys={sorted(payload.keys())}",
+            title="Fetching Facility Failed",
+        )
+        return _error_response(
+            "The Health Facility Registry returned an unreadable response. Please try again shortly.",
+            status_code=502,
+            details=_registry_error_details(
+                "invalid_json",
+                f"Facility registry returned invalid JSON: {e}",
+                status_code=502,
+            ),
+        )
+
     except Exception as e:
-        frappe.log_error(message=f"Error: {e}", title=f"Fetching Facility {payload} Failed")
-        return api_response(
-            success=False,
-            message= f"An error occured while fetching the facility {e}",
+        frappe.log_error(
+            message=f"Error: {e} url={hfr_url} payload_keys={sorted(payload.keys())}",
+            title="Fetching Facility Failed",
+        )
+        return _error_response(
+            "An unexpected error occurred while contacting the Health Facility Registry.",
             status_code=500,
+            details=_registry_error_details(
+                "adapter_error",
+                f"Unexpected registry adapter error: {type(e).__name__}: {e}",
+                status_code=500,
+            ),
         )
     
 def fetch_facility_local(**kwargs):

@@ -44,6 +44,14 @@ def _submit_lock_key(user: str, facility_id: str) -> str:
     return f"careverse_hq:facility_onboarding:submit_lock:{user}:{facility_id}"
 
 
+def _seconds_remaining(expires_at: Any) -> int:
+    try:
+        remaining = int(expires_at) - int(time.time())
+    except Exception:
+        return 0
+    return max(0, remaining)
+
+
 def _parse_json_field(value: Any, *, fallback: Any) -> Any:
     if value is None:
         return fallback
@@ -72,7 +80,34 @@ def _get_healthcare_user(user: str):
 def _fetch_registry_facility(**kwargs):
     from .facility_onboarding_v2 import fetch_facility_hwr_fr
 
-    return fetch_facility_hwr_fr(**kwargs)
+    response = fetch_facility_hwr_fr(**kwargs)
+    if response is not None:
+        return response
+
+    local_response = getattr(getattr(frappe, "local", None), "response", None)
+    if isinstance(local_response, dict) and local_response.get("status") == "error":
+        return {
+            "status": "error",
+            "message": local_response.get("message") or _("Facility registry request failed."),
+            "status_code": local_response.get("http_status_code") or 502,
+            "details": local_response.get("details"),
+        }
+    return response
+
+
+def _unexpected_registry_response():
+    return api_response(
+        success=False,
+        message=_("The Health Facility Registry returned an unexpected response. Please try again shortly."),
+        status_code=502,
+        details={
+            "source": "hfr",
+            "source_label": "Health Facility Registry",
+            "kind": "unexpected_payload",
+            "status_code": 502,
+            "technical_message": "Facility registry response payload was not a JSON object.",
+        },
+    )
 
 
 def _create_facility_record(**kwargs):
@@ -89,7 +124,7 @@ def _get_public_owner_types() -> List[str]:
 
 
 def _normalize_lookup_args(kwargs: Dict[str, Any]) -> Dict[str, str]:
-    lookup_fields = ("facility_id", "registration_number", "facility_code", "facility_name")
+    lookup_fields = ("facility_id", "registration_number")
     normalized: Dict[str, str] = {}
     for field in lookup_fields:
         value = kwargs.get(field)
@@ -233,7 +268,7 @@ def _build_facility_preview(facility: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _find_existing_facility(facility: Dict[str, Any]) -> Optional[Dict[str, str]]:
+def _find_existing_facility(facility: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     search_pairs = [
         ("hie_id", _pick_first(facility.get("facility_fid"), facility.get("facility_id"), facility.get("hie_id"))),
         ("registration_number", facility.get("registration_number")),
@@ -242,16 +277,18 @@ def _find_existing_facility(facility: Dict[str, Any]) -> Optional[Dict[str, str]
     for fieldname, value in search_pairs:
         if not value:
             continue
-        existing = frappe.get_all(
-            "Health Facility",
-            filters={fieldname: value},
-            fields=["name", "facility_name", "hie_id"],
-            limit=1,
+        existing = frappe.db.sql(
+            f"""
+            SELECT name
+            FROM `tabHealth Facility`
+            WHERE `{fieldname}` = %(value)s
+            LIMIT 1
+            """,
+            values={"value": value},
+            as_dict=True,
         )
         if existing:
-            found = dict(existing[0])
-            found["matched_on"] = fieldname
-            return found
+            return {"exists": True}
     return None
 
 
@@ -281,7 +318,9 @@ def _evaluate_lookup_result(user: str, facility: Dict[str, Any]) -> Dict[str, An
 
     message = None
     if existing:
-        message = _("This facility has already been onboarded.")
+        message = _(
+            "This facility is already onboarded in the system. Please confirm the FID or registration number before trying again."
+        )
     elif not healthcare_user:
         message = _("Your account is not linked to a healthcare organization user profile.")
     elif not owner_id_present:
@@ -419,6 +458,174 @@ def _grant_post_onboarding_access(user: str, facility_docname: str) -> None:
     frappe.clear_cache(user=user)
 
 
+def _get_user_company_names(user: str) -> List[str]:
+    companies = frappe.get_all(
+        "User Permission",
+        filters={"user": user, "allow": "Company"},
+        pluck="for_value",
+        limit_page_length=0,
+    )
+    return [company for company in companies if company]
+
+
+def _build_onboarding_organization_context(user: str, healthcare_user=None) -> Dict[str, Any]:
+    if healthcare_user is None:
+        try:
+            healthcare_user = _get_healthcare_user(user)
+        except frappe.DoesNotExistError:
+            healthcare_user = None
+
+    company_names = _get_user_company_names(user)
+    organization_name = healthcare_user.get("organization") if healthcare_user else None
+    organization_region = healthcare_user.get("organization_region") if healthcare_user else None
+
+    organization = None
+    if organization_name:
+        organization = frappe.db.get_value(
+            "Healthcare Organization",
+            organization_name,
+            ["name", "organization_name", "company"],
+            as_dict=True,
+        )
+
+    region_filters: Dict[str, Any] = {}
+    if organization and organization.get("name"):
+        region_filters["parent_organization"] = organization.get("name")
+    elif company_names:
+        region_filters["company"] = ["in", company_names]
+
+    regions = []
+    if region_filters:
+        regions = frappe.get_all(
+            "Healthcare Organization Region",
+            filters=region_filters,
+            fields=["name", "region_name", "parent_organization", "company"],
+            order_by="region_name asc",
+        )
+
+    region_name = None
+    if organization_region:
+        region_name = frappe.db.get_value(
+            "Healthcare Organization Region",
+            organization_region,
+            "region_name",
+        )
+
+    default_region = organization_region or (regions[0].get("name") if len(regions) == 1 else None)
+
+    return {
+        "organization": organization,
+        "organization_region": organization_region or None,
+        "organization_region_name": region_name or None,
+        "regions": regions,
+        "company_names": company_names,
+        "default_region": default_region,
+    }
+
+
+def _resolve_onboarding_target_context(additional_details: Dict[str, Any]) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    public_owner_types = {value.strip().upper() for value in _get_public_owner_types() if value}
+    ownership_type = str(additional_details.get("organization_owner_type") or "").strip().upper()
+    is_public = ownership_type in public_owner_types
+
+    if is_public:
+        organization_name = str(additional_details.get("county") or "").strip()
+        region_name = str(additional_details.get("sub_county") or "").strip()
+        if not organization_name:
+            return None, _("Organization county is missing from the registry data.")
+        if not region_name:
+            return None, _("Organization region is missing from the registry data.")
+
+        try:
+            organization = frappe.get_doc(
+                "Healthcare Organization",
+                {"organization_name": organization_name},
+                ignore_permissions=True,
+            )
+        except frappe.DoesNotExistError:
+            return None, _("The target organization for this facility could not be found.")
+
+        try:
+            region = frappe.get_doc(
+                "Healthcare Organization Region",
+                {"region_name": region_name},
+                ignore_permissions=True,
+            )
+        except frappe.DoesNotExistError:
+            return None, _("The target organization region for this facility could not be found.")
+
+        if region.get("parent_organization") and region.get("parent_organization") != organization.get("name"):
+            return None, _("The registry county and sub-county do not map to the same organization.")
+    else:
+        region_id = str(additional_details.get("region") or "").strip()
+        if not region_id:
+            return None, _("Select the organization region that should own this facility.")
+
+        try:
+            region = frappe.get_doc(
+                "Healthcare Organization Region",
+                {"name": region_id},
+                ignore_permissions=True,
+            )
+        except frappe.DoesNotExistError:
+            return None, _("The selected organization region could not be found.")
+
+        organization_id = region.get("parent_organization")
+        if not organization_id:
+            return None, _("The selected organization region is not linked to an organization.")
+
+        try:
+            organization = frappe.get_doc(
+                "Healthcare Organization",
+                {"name": organization_id},
+                ignore_permissions=True,
+            )
+        except frappe.DoesNotExistError:
+            return None, _("The selected organization could not be found.")
+
+    return {
+        "is_public": is_public,
+        "organization": {
+            "name": organization.get("name"),
+            "organization_name": organization.get("organization_name"),
+            "company": organization.get("company"),
+        },
+        "region": {
+            "name": region.get("name"),
+            "region_name": region.get("region_name"),
+            "company": region.get("company"),
+            "parent_organization": region.get("parent_organization"),
+        },
+    }, None
+
+
+def _validate_target_context_for_user(user: str, healthcare_user, target_context: Dict[str, Any]) -> Optional[str]:
+    organization_context = _build_onboarding_organization_context(user, healthcare_user)
+    current_organization = organization_context.get("organization") or {}
+    target_organization = target_context.get("organization") or {}
+    target_region = target_context.get("region") or {}
+
+    if current_organization.get("name") and target_organization.get("name") != current_organization.get("name"):
+        return _(
+            "This facility maps to {0}, but your onboarding access is scoped to {1}."
+        ).format(
+            target_organization.get("organization_name") or _("another organization"),
+            current_organization.get("organization_name") or _("your current organization"),
+        )
+
+    allowed_companies = set(organization_context.get("company_names") or [])
+    target_company = _pick_first(target_region.get("company"), target_organization.get("company"))
+    if not current_organization.get("name") and allowed_companies and target_company not in allowed_companies:
+        return _("This facility maps outside the companies your account can manage.")
+
+    if not target_context.get("is_public"):
+        allowed_regions = {region.get("name") for region in organization_context.get("regions") or []}
+        if allowed_regions and target_region.get("name") not in allowed_regions:
+            return _("Select an organization region within your current organization.")
+
+    return None
+
+
 @frappe.whitelist(methods=["GET"])
 def get_reference_data():
     user = _require_authenticated_user()
@@ -426,16 +633,24 @@ def get_reference_data():
         return api_response(success=False, message=_("Authentication required."), status_code=401)
 
     try:
-        regions = frappe.get_all(
-            "Healthcare Organization Region",
-            fields=["name", "region_name", "parent_organization", "company"],
-            order_by="region_name asc",
-        )
+        try:
+            healthcare_user = _get_healthcare_user(user)
+        except frappe.DoesNotExistError:
+            healthcare_user = None
+        organization_context = _build_onboarding_organization_context(user, healthcare_user)
         return api_response(
             success=True,
             data={
-                "regions": regions,
+                "regions": organization_context.get("regions") or [],
                 "public_owner_types": _get_public_owner_types(),
+                "organization_context": {
+                    "organization_id": organization_context.get("organization", {}).get("name") if organization_context.get("organization") else None,
+                    "organization_name": organization_context.get("organization", {}).get("organization_name") if organization_context.get("organization") else None,
+                    "company_names": organization_context.get("company_names") or [],
+                    "organization_region": organization_context.get("organization_region"),
+                    "organization_region_name": organization_context.get("organization_region_name"),
+                    "default_region": organization_context.get("default_region"),
+                },
             },
             status_code=200,
         )
@@ -471,11 +686,7 @@ def lookup_facility(**kwargs):
         return facility
 
     if not isinstance(facility, dict):
-        return api_response(
-            success=False,
-            message=_("Unexpected facility registry response."),
-            status_code=502,
-        )
+        return _unexpected_registry_response()
 
     return api_response(
         success=True,
@@ -492,10 +703,10 @@ def start_owner_verification(**kwargs):
 
     kwargs.pop("cmd", None)
     lookup = _normalize_lookup_args(kwargs)
-    if not lookup:
+    if len(lookup) != 1:
         return api_response(
             success=False,
-            message=_("Provide facility ID or registration number."),
+            message=_("Provide either FID or registration number."),
             status_code=400,
         )
 
@@ -522,17 +733,15 @@ def start_owner_verification(**kwargs):
         return facility
 
     if not isinstance(facility, dict):
-        return api_response(
-            success=False,
-            message=_("Unexpected facility registry response."),
-            status_code=502,
-        )
+        return _unexpected_registry_response()
 
     evaluation = _evaluate_lookup_result(user, facility)
     if evaluation.get("already_onboarded"):
         return api_response(
             success=False,
-            message=_("This facility has already been onboarded."),
+            message=_(
+                "This facility is already onboarded in the system. Please confirm the FID or registration number before trying again."
+            ),
             data={"already_onboarded": evaluation.get("already_onboarded")},
             status_code=409,
         )
@@ -597,6 +806,8 @@ def start_owner_verification(**kwargs):
             status_code=500,
         )
 
+    issued_at = int(time.time())
+    expires_at = issued_at + FACILITY_ONBOARDING_OTP_TTL_SECONDS
     payload = {
         "user": user,
         "facility_id": facility_id,
@@ -607,7 +818,8 @@ def start_owner_verification(**kwargs):
         "attempts": 0,
         "facility": facility,
         "admin_details": _build_admin_details(healthcare_user),
-        "issued_at": int(time.time()),
+        "issued_at": issued_at,
+        "expires_at": expires_at,
     }
     otp_id = frappe.generate_hash(length=20)
     cache = frappe.cache()
@@ -631,7 +843,8 @@ def start_owner_verification(**kwargs):
                 "otp_id": otp_id,
                 "channel": delivery_mode,
                 "masked_destination": _mask_destination(delivery_mode, destination),
-                "expires_in_seconds": FACILITY_ONBOARDING_OTP_TTL_SECONDS,
+                "expires_in_seconds": _seconds_remaining(expires_at),
+                "expires_at": expires_at,
                 "resend_cooldown_seconds": FACILITY_ONBOARDING_OTP_RESEND_COOLDOWN_SECONDS,
             },
             "owner_match": evaluation.get("owner_match"),
@@ -667,6 +880,15 @@ def verify_owner_otp(facility_id: Optional[str] = None, otp_id: Optional[str] = 
     if payload.get("facility_id") != facility_id:
         return api_response(success=False, message=_("OTP session does not match the selected facility."), status_code=403)
 
+    otp_seconds_remaining = _seconds_remaining(payload.get("expires_at"))
+    if otp_seconds_remaining <= 0:
+        frappe.cache().delete_value(_otp_cache_key(otp_id))
+        return api_response(
+            success=False,
+            message=_("OTP session expired. Please request a new code."),
+            status_code=403,
+        )
+
     attempts = int(payload.get("attempts") or 0)
     if attempts >= FACILITY_ONBOARDING_OTP_MAX_ATTEMPTS:
         frappe.cache().delete_value(_otp_cache_key(otp_id))
@@ -696,7 +918,7 @@ def verify_owner_otp(facility_id: Optional[str] = None, otp_id: Optional[str] = 
         frappe.cache().set_value(
             _otp_cache_key(otp_id),
             json.dumps(payload),
-            expires_in_sec=FACILITY_ONBOARDING_OTP_TTL_SECONDS,
+            expires_in_sec=otp_seconds_remaining,
         )
         return api_response(
             success=False,
@@ -706,6 +928,8 @@ def verify_owner_otp(facility_id: Optional[str] = None, otp_id: Optional[str] = 
 
     frappe.cache().delete_value(_otp_cache_key(otp_id))
     components = _build_facility_payload_components(payload.get("facility") or {}, payload.get("admin_details") or {})
+    verified_at = int(time.time())
+    verification_expires_at = verified_at + FACILITY_ONBOARDING_VERIFICATION_TTL_SECONDS
     verification_payload = {
         "facility_id": facility_id,
         "facility": payload.get("facility") or {},
@@ -713,7 +937,8 @@ def verify_owner_otp(facility_id: Optional[str] = None, otp_id: Optional[str] = 
         "license_details": components["license_details"],
         "additional_defaults": components["additional_defaults"],
         "admin_details": payload.get("admin_details") or {},
-        "verified_at": int(time.time()),
+        "verified_at": verified_at,
+        "expires_at": verification_expires_at,
     }
     _cache_verification(user, facility_id, verification_payload)
 
@@ -726,7 +951,8 @@ def verify_owner_otp(facility_id: Optional[str] = None, otp_id: Optional[str] = 
             "license_details": components["license_details"],
             "additional_defaults": components["additional_defaults"],
             "verification": {
-                "expires_in_seconds": FACILITY_ONBOARDING_VERIFICATION_TTL_SECONDS,
+                "expires_in_seconds": _seconds_remaining(verification_expires_at),
+                "expires_at": verification_expires_at,
             },
         },
         status_code=200,
@@ -748,8 +974,24 @@ def complete_onboarding(
     if not facility_id:
         return api_response(success=False, message=_("facility_id is required."), status_code=400)
 
+    try:
+        healthcare_user = _get_healthcare_user(user)
+    except frappe.DoesNotExistError:
+        return api_response(
+            success=False,
+            message=_("Your account is not linked to a healthcare organization user profile."),
+            status_code=400,
+        )
+
     verification_payload = _load_verification(user, facility_id)
     if not verification_payload:
+        return api_response(
+            success=False,
+            message=_("Owner verification expired. Please verify ownership again."),
+            status_code=403,
+        )
+    if _seconds_remaining(verification_payload.get("expires_at")) <= 0:
+        frappe.cache().delete_value(_verification_cache_key(user, facility_id))
         return api_response(
             success=False,
             message=_("Owner verification expired. Please verify ownership again."),
@@ -773,17 +1015,15 @@ def complete_onboarding(
             return facility
 
         if not isinstance(facility, dict):
-            return api_response(
-                success=False,
-                message=_("Unexpected facility registry response."),
-                status_code=502,
-            )
+            return _unexpected_registry_response()
 
         existing = _find_existing_facility(facility)
         if existing:
             return api_response(
                 success=False,
-                message=_("This facility has already been onboarded."),
+                message=_(
+                    "This facility is already onboarded in the system. Please confirm the FID or registration number before trying again."
+                ),
                 data={"already_onboarded": existing},
                 status_code=409,
             )
@@ -813,6 +1053,22 @@ def complete_onboarding(
         ):
             if fieldname in submitted_additional:
                 merged_additional[fieldname] = submitted_additional.get(fieldname)
+
+        target_context, target_error = _resolve_onboarding_target_context(merged_additional)
+        if target_error:
+            return api_response(
+                success=False,
+                message=target_error,
+                status_code=400,
+            )
+
+        target_validation_error = _validate_target_context_for_user(user, healthcare_user, target_context or {})
+        if target_validation_error:
+            return api_response(
+                success=False,
+                message=target_validation_error,
+                status_code=403,
+            )
 
         create_result = _create_facility_record(
             facility_id=facility_id,

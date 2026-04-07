@@ -418,13 +418,21 @@ const useAuthStore = create<AuthState>()(
             // Frappe's desk JS bundle (frappe.logout()) which isn't loaded
             // in this custom frontend — causing a 404 in production.
             try {
-              await fetch('/api/method/logout', {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' },
+              const csrfToken = getCsrfToken()
+              const response = await fetch('/api/method/logout', {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {})
+                },
                 credentials: 'include',
               })
+
+              if (!response.ok) {
+                throw new Error(`Logout request failed with status ${response.status}`)
+              }
             } catch (e) {
-              // Network error is fine — session may already be gone
+              // Network/server errors are logged; local auth is already cleared.
               console.warn('[Auth] Logout API call failed, redirecting anyway:', e)
             }
 

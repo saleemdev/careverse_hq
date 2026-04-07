@@ -37,6 +37,7 @@ import { dashboardApi, employeesApi, affiliationsApi } from '../services/api';
 import { useResponsive } from '../hooks/useResponsive';
 import useFacilityStore from '../stores/facilityStore';
 import useDashboardRealtime from '../hooks/useDashboardRealtime';
+import FacilitiesEmptyOnboardingCTA from './modules/facilities/FacilitiesEmptyOnboardingCTA';
 // AccountTypesMetrics removed as per requirement
 
 const { Title, Text } = Typography;
@@ -57,9 +58,12 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
     const {
         company,
         accessMode,
+        availableFacilities,
         loading: facilityLoading,
+        refreshFacilities,
     } = useFacilityStore();
     const canUseCompanyContext = accessMode === 'company';
+    const hasLinkedFacilities = availableFacilities.length > 0;
 
     // State for real data
     const [companyData, setCompanyData] = useState<any>(null);
@@ -101,10 +105,10 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
     // Fetch data when company is loaded - ONLY after facility context is ready
     useEffect(() => {
         // CRITICAL: Only fetch if facility context is ready
-        if (canUseCompanyContext && !facilityLoading && company) {
+        if (canUseCompanyContext && !facilityLoading && company && hasLinkedFacilities) {
             fetchDashboardData();
         }
-    }, [canUseCompanyContext, facilityLoading, company]);
+    }, [canUseCompanyContext, facilityLoading, company, hasLinkedFacilities]);
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -255,8 +259,12 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         }
     };
 
-    const handleRefresh = () => {
+    const handleRefresh = async () => {
         setLastRefresh(new Date());
+        if (!hasLinkedFacilities) {
+            await refreshFacilities();
+            return;
+        }
         fetchDashboardData();
     };
 
@@ -396,6 +404,44 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             terminated: (Number(status.Terminated || 0) + Number(status.Inactive || 0)),
         }))
         .sort((a, b) => b.total - a.total);
+
+    if (canUseCompanyContext && !facilityLoading && company && !hasLinkedFacilities) {
+        return (
+            <div
+                style={{
+                    padding: isMobile ? '12px' : '20px',
+                    background: token.colorBgLayout,
+                    minHeight: 'calc(100vh - 64px)',
+                }}
+            >
+                <div style={{ marginBottom: 18 }}>
+                    <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: token.colorTextHeading, fontWeight: 600, fontSize: isMobile ? '22px' : '26px' }}>
+                        Executive Dashboard
+                    </Title>
+                    <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '13px' }}>
+                        {company?.company_name || company?.abbr} does not have any linked health facilities yet.
+                    </Text>
+                </div>
+
+                <Card
+                    style={{
+                        borderRadius: '16px',
+                        boxShadow: '0 8px 28px rgba(15, 23, 42, 0.06)',
+                        border: 'none',
+                    }}
+                    bodyStyle={{ padding: 0 }}
+                >
+                    <FacilitiesEmptyOnboardingCTA
+                        organizationName={company?.company_name || company?.abbr}
+                        onOnboard={() => navigateToRoute?.('facilities/new')}
+                        onRefresh={handleRefresh}
+                        onboardingEnabled={Boolean(navigateToRoute)}
+                        isMobile={isMobile}
+                    />
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <div

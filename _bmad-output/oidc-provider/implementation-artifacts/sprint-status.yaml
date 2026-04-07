@@ -1,0 +1,36 @@
+generated: 2026-04-05
+last_updated: 2026-04-07
+project: careverse_hq-oidc-provider
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{project-root}/_bmad-output/oidc-provider/implementation-artifacts"
+
+development_status:
+  epic-1: complete
+  1-1-health-worker-eligibility-policy: done
+  1-2-subject-stability-user-social-login-backfill: done
+  1-3-identity-reconciliation-report-job: done
+  epic-1-retrospective: optional
+
+  epic-2: complete
+  2-1-oidc-app-doctype-and-oauth-client-mapping: done
+  2-2-oidc-app-admin-api-create-list-detail: done
+  2-3-client-secret-rotation-and-audit: done
+  2-4-security-validation-redirect-pkce-scope: done
+  epic-2-retrospective: optional
+
+  epic-3: complete
+  3-1-administration-navigation-and-oidc-apps-shell: done
+  3-2-oidc-app-create-wizard-google-console-flow: done
+  3-3-consent-page-branding-and-scope-display: done
+  3-4-redirect-error-ux-and-request-id: done
+  3-5-login-context-for-authorize-no-social-surface: done
+  epic-3-retrospective: optional
+
+  epic-4: complete
+  4-1-in-app-quickstart-generation: done
+  4-2-operator-runbook-and-incident-docs: done
+  4-3-integrator-guide-web-native-pkce: done
+  4-4-e2e-provider-flow-positive-and-negative-paths: done
+  4-5-go-live-readiness-checklist: done
+  epic-4-retrospective: optional

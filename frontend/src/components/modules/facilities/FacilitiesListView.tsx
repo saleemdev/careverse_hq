@@ -28,6 +28,7 @@ import EmptyState from '../../shared/EmptyState/EmptyState';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { COMPONENT_WIDTHS } from '../../../styles/tokens';
 import FacilityDetailDrawer from './FacilityDetailDrawer';
+import FacilitiesEmptyOnboardingCTA from './FacilitiesEmptyOnboardingCTA';
 
 const { Text, Title } = Typography;
 
@@ -131,6 +132,8 @@ const FacilitiesListView: React.FC<FacilitiesListViewProps> = ({
     );
 
     const activeFiltersCount = [searchTerm, selectedCounty, selectedLevel, selectedOperationalStatus].filter(Boolean).length;
+    const hasAnyFacilities = facilities.length > 0;
+    const showToolbar = hasAnyFacilities || activeFiltersCount > 0 || Boolean(searchTerm);
 
     // Filter facilities based on search term + selected filters
     const filteredFacilities = facilities.filter(facility => {
@@ -245,7 +248,7 @@ const FacilitiesListView: React.FC<FacilitiesListViewProps> = ({
                 </div>
                 {FEATURE_ENABLED && navigateToRoute && (
                     <Button type="primary" onClick={() => navigateToRoute('facilities/new')}>
-                        Onboard Facility
+                        {hasAnyFacilities ? 'Onboard Facility' : 'Add First Facility'}
                     </Button>
                 )}
             </div>
@@ -254,7 +257,7 @@ const FacilitiesListView: React.FC<FacilitiesListViewProps> = ({
             <Card
                 style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
                 bodyStyle={{ padding: 0 }}
-                title={
+                title={showToolbar ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '16px 24px' }}>
                         <Space wrap>
                             <Input
@@ -320,7 +323,7 @@ const FacilitiesListView: React.FC<FacilitiesListViewProps> = ({
                             <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
                         </Space>
                     </div>
-                }
+                ) : undefined}
             >
                 {loading ? (
                     <TableSkeleton rows={filters.pageSize} />
@@ -348,12 +351,12 @@ const FacilitiesListView: React.FC<FacilitiesListViewProps> = ({
                         actionText="Clear Search"
                     />
                 ) : (
-                    <EmptyState
-                        type="no-data"
-                        title="No Facilities Registered"
-                        description={`There are no health facilities registered under ${company?.company_name || 'your company'}.`}
-                        onAction={handleRefresh}
-                        actionText="Reload List"
+                    <FacilitiesEmptyOnboardingCTA
+                        organizationName={company?.company_name || company?.name}
+                        onRefresh={handleRefresh}
+                        onOnboard={FEATURE_ENABLED && navigateToRoute ? () => navigateToRoute('facilities/new') : undefined}
+                        onboardingEnabled={FEATURE_ENABLED && Boolean(navigateToRoute)}
+                        isMobile={isMobile}
                     />
                 )}
             </Card>

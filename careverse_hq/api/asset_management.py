@@ -391,7 +391,7 @@ def get_assets_metrics(**kwargs):
         filters={
             "health_facility": ["in", facilities]
         },
-        fields=["status", "count(*) as count"],
+        fields=["status", {"COUNT": "*", "as": "count"}],
         group_by="status",
         limit_page_length=0
     )

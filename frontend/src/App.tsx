@@ -27,8 +27,10 @@ import UserManagementPage from './pages/user-management/UserManagementPage';
 import UserListPage from './pages/user-management/UserListPage';
 import CreateUserPage from './pages/user-management/CreateUserPage';
 import EditUserPage from './pages/user-management/EditUserPage';
+import OidcAppsView from './components/modules/administration/OidcAppsView';
 import ProfilePage from './pages/profile/ProfilePage';
 import LeaveApplicationsListView from './components/modules/hr/LeaveApplicationsListView';
+import ShiftManagementView from './components/modules/hr/ShiftManagementView';
 import ClaimsListView from './components/modules/claims/ClaimsListView';
 import RecruitmentDeskPage from './components/modules/recruitment/RecruitmentDeskPage';
 import JobPostEditorPage from './components/modules/recruitment/JobPostEditorPage';
@@ -420,22 +422,12 @@ function App() {
       case 'facilities/new':
         return <FacilityOnboardingWizard navigateToRoute={navigateToRoute} standalone={accessPolicy.mode === 'none'} />;
 
-      // Attendance routes (Under Construction)
+      // Shift Management (admin-only phase 1) + attendance visibility
       case 'attendance':
+        return <ShiftManagementView initialTab="assignments" />;
+
       case 'late-arrivals':
-        return (
-          <div style={{ padding: '24px' }}>
-            <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-              <EmptyState
-                type="under-construction"
-                title="Attendance Tracking"
-                description="Real-time attendance monitoring is on the way."
-                onAction={() => navigateToRoute('dashboard')}
-                actionText="Return to Dashboard"
-              />
-            </Card>
-          </div>
-        );
+        return <ShiftManagementView initialTab="attendance" forceLateOnly />;
 
       // eContracting route (Under Construction)
       case 'e-contracting':
@@ -520,6 +512,9 @@ function App() {
           return <EditUserPage userId={currentDetailId} navigateToRoute={navigateToRoute} />;
         }
         return <UserListPage navigateToRoute={navigateToRoute} />;
+
+      case 'oidc-apps':
+        return <OidcAppsView />;
 
       // Legacy user management routes kept for gradual migration
       case 'create-user':

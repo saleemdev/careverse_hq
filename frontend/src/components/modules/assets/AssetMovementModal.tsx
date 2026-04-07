@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     Modal, Form, Select, DatePicker, Button, Space, Card, Typography,
     Alert, message, Empty, Spin,
@@ -51,28 +51,48 @@ const AssetMovementModal: React.FC<Props> = ({
     const [employees, setEmployees] = useState<EmployeeSearchOption[]>([]);
     const [employeeSearching, setEmployeeSearching] = useState(false);
     const employeeSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const employeeSearchRequestSeqRef = useRef(0);
     const purpose = Form.useWatch('purpose', form) || 'Transfer';
 
     const handleEmployeeSearch = useCallback((value: string) => {
-        if (employeeSearchRef.current) clearTimeout(employeeSearchRef.current);
+        if (employeeSearchRef.current) {
+            clearTimeout(employeeSearchRef.current);
+        }
+        const requestSeq = ++employeeSearchRequestSeqRef.current;
         if (!value || value.length < 2) {
             setEmployees([]);
+            setEmployeeSearching(false);
             return;
         }
         setEmployeeSearching(true);
         employeeSearchRef.current = setTimeout(async () => {
-            const res = await erpnextAssetsApi.searchEmployees(value, company);
-            if (res.success) setEmployees(res.data?.items || []);
-            setEmployeeSearching(false);
+            try {
+                const res = await erpnextAssetsApi.searchEmployees(value, company);
+                if (requestSeq !== employeeSearchRequestSeqRef.current || !open) {
+                    return;
+                }
+                setEmployees(res.success ? (res.data?.items || []) : []);
+            } finally {
+                if (requestSeq === employeeSearchRequestSeqRef.current) {
+                    setEmployeeSearching(false);
+                }
+            }
         }, 350);
-    }, [company]);
+    }, [company, open]);
+
+    useEffect(() => () => {
+        if (employeeSearchRef.current) {
+            clearTimeout(employeeSearchRef.current);
+        }
+        employeeSearchRequestSeqRef.current += 1;
+    }, []);
 
     const handleSubmit = async () => {
         try {
             const values = await form.validateFields();
             setSubmitting(true);
 
-            const success = await createMovement({
+            const result = await createMovement({
                 asset_name: assetName,
                 purpose: values.purpose,
                 target_facility_id: values.purpose === 'Issue' ? undefined : values.target_facility_id,
@@ -80,12 +100,16 @@ const AssetMovementModal: React.FC<Props> = ({
                 transaction_date: values.transaction_date?.format('YYYY-MM-DD HH:mm:ss'),
             });
 
-            if (success) {
-                message.success(`Asset ${values.purpose.toLowerCase()} completed`);
+            if (result.success) {
+                if (result.warning) {
+                    message.warning(result.warning);
+                } else {
+                    message.success(`Asset ${values.purpose.toLowerCase()} completed`);
+                }
                 form.resetFields();
                 onClose();
             } else {
-                message.error('Failed to create movement');
+                message.error(result.error || 'Failed to create movement');
             }
         } catch {
             // validation error
@@ -101,6 +125,13 @@ const AssetMovementModal: React.FC<Props> = ({
             onCancel={onClose}
             afterOpenChange={(isOpen) => {
                 if (!isOpen) {
+                    if (employeeSearchRef.current) {
+                        clearTimeout(employeeSearchRef.current);
+                    }
+                    employeeSearchRequestSeqRef.current += 1;
+                    setEmployeeSearching(false);
+                    setEmployees([]);
+                    form.resetFields();
                     return;
                 }
                 setEmployees([]);
@@ -148,6 +179,8 @@ const AssetMovementModal: React.FC<Props> = ({
                     }
 
                     form.setFieldValue('to_employee', undefined);
+                    employeeSearchRequestSeqRef.current += 1;
+                    setEmployeeSearching(false);
                     setEmployees([]);
                 }}
             >

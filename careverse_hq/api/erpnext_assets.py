@@ -15,7 +15,7 @@ import json
 import frappe
 from frappe import _
 from frappe.utils import now_datetime, getdate, flt
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 from careverse_hq.api.facilities import api_response
 from .dashboard_utils import validate_user_facilities, _count
 from .location_sync import (
@@ -105,17 +105,110 @@ def _as_optional_text(value: Any) -> Optional[str]:
     return text or None
 
 
+def _doc_has_field(doc: Any, fieldname: str) -> bool:
+    try:
+        return bool(doc.meta.has_field(fieldname))
+    except Exception:
+        return False
+
+
+def _doc_field_value(doc: Any, fieldname: str, default: Any = None) -> Any:
+    if _doc_has_field(doc, fieldname):
+        return getattr(doc, fieldname, default)
+    return default
+
+
+BOOKED_DEPRECIATION_COUNT_FIELDS = (
+    "opening_number_of_booked_depreciations",
+    "number_of_depreciations_booked",
+)
+
+
+def _doc_first_field_value(doc: Any, fieldnames: List[str] | tuple[str, ...], default: Any = None) -> Any:
+    for fieldname in fieldnames:
+        if _doc_has_field(doc, fieldname):
+            return getattr(doc, fieldname, default)
+    return default
+
+
+def _set_doc_fields_if_present(doc: Any, fieldnames: List[str] | tuple[str, ...], value: Any) -> None:
+    for fieldname in fieldnames:
+        if _doc_has_field(doc, fieldname):
+            setattr(doc, fieldname, value)
+
+
+def _get_asset_depreciation_schedules(asset_name: str, limit_parents: int = 5) -> List[Dict[str, Any]]:
+    schedules: List[Dict[str, Any]] = []
+
+    if frappe.db.exists("DocType", "Asset Depreciation Schedule"):
+        dep_schedule_docs = frappe.get_list(
+            "Asset Depreciation Schedule",
+            filters={"asset": asset_name},
+            fields=["name", "finance_book"],
+            order_by="creation desc",
+            limit_page_length=limit_parents,
+        )
+        for ds in dep_schedule_docs:
+            entries = frappe.get_list(
+                "Depreciation Schedule",
+                filters={"parent": ds.name},
+                fields=[
+                    "schedule_date", "depreciation_amount",
+                    "accumulated_depreciation_amount", "journal_entry",
+                ],
+                parent_doctype="Asset Depreciation Schedule",
+                order_by="schedule_date asc",
+                limit_page_length=0,
+            )
+            schedules.append({
+                "name": ds.name,
+                "finance_book": ds.finance_book,
+                "entries": entries,
+            })
+
+    # v14 fallback (and safety fallback when parent docs are unavailable)
+    if not schedules:
+        legacy_entries = frappe.get_list(
+            "Depreciation Schedule",
+            filters={"parent": asset_name},
+            fields=[
+                "schedule_date", "depreciation_amount",
+                "accumulated_depreciation_amount", "journal_entry",
+            ],
+            parent_doctype="Asset",
+            order_by="schedule_date asc",
+            limit_page_length=0,
+        )
+        if legacy_entries:
+            schedules.append({
+                "name": asset_name,
+                "finance_book": None,
+                "entries": legacy_entries,
+            })
+
+    return schedules
+
+
 def _set_purchase_amount(target: Any, amount: Any) -> None:
     normalized_amount = flt(amount)
 
     if isinstance(target, dict):
-        target["net_purchase_amount"] = normalized_amount
-        target["gross_purchase_amount"] = normalized_amount
+        doctype = target.get("doctype")
+        meta = frappe.get_meta(doctype) if doctype else None
+        if meta and meta.has_field("net_purchase_amount"):
+            target["net_purchase_amount"] = normalized_amount
+        if meta and meta.has_field("gross_purchase_amount"):
+            target["gross_purchase_amount"] = normalized_amount
+        if meta and meta.has_field("purchase_amount") and "gross_purchase_amount" not in target:
+            target["purchase_amount"] = normalized_amount
         return
 
-    target.net_purchase_amount = normalized_amount
-    if target.meta.has_field("gross_purchase_amount"):
+    if _doc_has_field(target, "net_purchase_amount"):
+        target.net_purchase_amount = normalized_amount
+    if _doc_has_field(target, "gross_purchase_amount"):
         target.gross_purchase_amount = normalized_amount
+    elif _doc_has_field(target, "purchase_amount"):
+        target.purchase_amount = normalized_amount
 
 
 def _validate_purchase_document_choice(
@@ -135,15 +228,13 @@ def _ensure_purchase_document_access(
     docname: Optional[str],
     company: Optional[str],
     item_code: Optional[str],
-) -> None:
+) -> Optional[str]:
     if not docname:
-        return
+        return None
 
     filters: Dict[str, Any] = {"name": docname, "docstatus": 1}
     if company:
         filters["company"] = company
-    if doctype == "Purchase Invoice":
-        filters["update_stock"] = 1
 
     docs = frappe.get_list(
         doctype,
@@ -163,6 +254,7 @@ def _ensure_purchase_document_access(
             child_doctype,
             filters={"parent": docname, "item_code": item_code},
             pluck="name",
+            parent_doctype=doctype,
             limit_page_length=1,
         )
         if not child_rows:
@@ -170,6 +262,23 @@ def _ensure_purchase_document_access(
                 _("{0} {1} does not contain item {2}.").format(doctype, docname, item_code),
                 frappe.ValidationError,
             )
+        return child_rows[0]
+
+    return None
+
+
+def _get_employee_name_map(employee_ids: List[str]) -> Dict[str, str]:
+    unique_ids = [employee_id for employee_id in dict.fromkeys(employee_ids) if employee_id]
+    if not unique_ids:
+        return {}
+
+    employees = frappe.get_list(
+        "Employee",
+        filters={"name": ["in", unique_ids]},
+        fields=["name", "employee_name"],
+        limit_page_length=0,
+    )
+    return {employee.name: employee.employee_name for employee in employees}
 
 
 def _ensure_facility_access(facility_id: Optional[str]) -> None:
@@ -347,7 +456,7 @@ def get_asset_dashboard(**kwargs):
         category_agg = frappe.get_list(
             "Asset",
             filters=base_filters,
-            fields=["asset_category", "count(name) as count"],
+            fields=["asset_category", {"COUNT": "*", "as": "count"}],
             group_by="asset_category",
             limit_page_length=0,
         )
@@ -447,7 +556,7 @@ def get_assets_list(**kwargs):
                 "Asset",
                 filters=filters,
                 or_filters=or_filters,
-                fields=["count(name) as count"],
+                fields=[{"COUNT": "*", "as": "count"}],
                 limit_page_length=1,
             )
             total_count = int((count_rows[0].get("count") if count_rows else 0) or 0)
@@ -539,6 +648,21 @@ def get_asset_detail(**kwargs):
     try:
         result = asset.as_dict()
 
+        # Normalize optional amount fields across ERPNext versions.
+        gross_purchase_amount = flt(
+            _doc_field_value(asset, "gross_purchase_amount", _doc_field_value(asset, "purchase_amount", 0))
+        )
+        result["gross_purchase_amount"] = gross_purchase_amount
+        result["net_purchase_amount"] = flt(
+            _doc_field_value(asset, "net_purchase_amount", gross_purchase_amount)
+        )
+        result["opening_accumulated_depreciation"] = flt(
+            _doc_field_value(asset, "opening_accumulated_depreciation", 0)
+        )
+        result["opening_number_of_booked_depreciations"] = int(
+            _doc_first_field_value(asset, BOOKED_DEPRECIATION_COUNT_FIELDS, 0) or 0
+        )
+
         # Facility info from Location
         if asset.location:
             result["facility_id"] = get_facility_for_location(asset.location) or ""
@@ -547,13 +671,8 @@ def get_asset_detail(**kwargs):
             result["facility_id"] = ""
             result["facility_name"] = ""
 
-        # Custodian name
-        if asset.custodian:
-            result["custodian_name"] = frappe.db.get_value(
-                "Employee", asset.custodian, "employee_name"
-            ) or ""
-        else:
-            result["custodian_name"] = ""
+        custodian_id = _doc_field_value(asset, "custodian")
+        employee_ids: Set[str] = {custodian_id} if custodian_id else set()
 
         # Maintenance records
         maintenance_list = frappe.get_list(
@@ -600,6 +719,7 @@ def get_asset_detail(**kwargs):
             "Asset Movement Item",
             filters={"asset": asset_name},
             pluck="parent",
+            parent_doctype="Asset Movement",
             limit_page_length=0,
         )
         if movement_items:
@@ -617,6 +737,7 @@ def get_asset_detail(**kwargs):
                     "Asset Movement Item",
                     filters={"parent": mov.name, "asset": asset_name},
                     fields=["source_location", "target_location", "from_employee", "to_employee"],
+                    parent_doctype="Asset Movement",
                     limit_page_length=1,
                 )
                 if items:
@@ -627,49 +748,37 @@ def get_asset_detail(**kwargs):
                     if mov.get("target_location"):
                         mov["target_location_name"] = get_facility_name_for_location(mov["target_location"]) or mov["target_location"]
                     if mov.get("from_employee"):
-                        mov["from_employee_name"] = frappe.db.get_value("Employee", mov["from_employee"], "employee_name") or ""
+                        employee_ids.add(mov["from_employee"])
                     if mov.get("to_employee"):
-                        mov["to_employee_name"] = frappe.db.get_value("Employee", mov["to_employee"], "employee_name") or ""
+                        employee_ids.add(mov["to_employee"])
+
+            employee_name_map = _get_employee_name_map(list(employee_ids))
+            result["custodian_name"] = employee_name_map.get(custodian_id, "")
+            for mov in movements:
+                if mov.get("from_employee"):
+                    mov["from_employee_name"] = employee_name_map.get(mov["from_employee"], "")
+                if mov.get("to_employee"):
+                    mov["to_employee_name"] = employee_name_map.get(mov["to_employee"], "")
             result["movements"] = movements
         else:
+            employee_name_map = _get_employee_name_map(list(employee_ids))
+            result["custodian_name"] = employee_name_map.get(custodian_id, "")
             result["movements"] = []
 
         # Depreciation
-        if asset.calculate_depreciation:
-            dep_schedules = frappe.get_list(
-                "Asset Depreciation Schedule",
-                filters={"asset": asset_name, "docstatus": 1},
-                fields=["name", "finance_book"],
-                limit_page_length=5,
-            )
-            schedules = []
-            for ds in dep_schedules:
-                entries = frappe.get_list(
-                    "Depreciation Schedule",
-                    filters={"parent": ds.name},
-                    fields=[
-                        "schedule_date", "depreciation_amount",
-                        "accumulated_depreciation_amount", "journal_entry",
-                    ],
-                    order_by="schedule_date asc",
-                    limit_page_length=0,
-                )
-                schedules.append({
-                    "name": ds.name,
-                    "finance_book": ds.finance_book,
-                    "entries": entries,
-                })
-            result["depreciation_schedules"] = schedules
-        else:
-            result["depreciation_schedules"] = []
+        result["depreciation_schedules"] = (
+            _get_asset_depreciation_schedules(asset_name, limit_parents=5)
+            if asset.calculate_depreciation
+            else []
+        )
 
         # Insurance
         result["insurance"] = {
-            "policy_number": asset.policy_number,
-            "insurer": asset.insurer,
-            "insured_value": asset.insured_value,
-            "insurance_start_date": asset.insurance_start_date,
-            "insurance_end_date": asset.insurance_end_date,
+            "policy_number": _doc_field_value(asset, "policy_number"),
+            "insurer": _doc_field_value(asset, "insurer"),
+            "insured_value": flt(_doc_field_value(asset, "insured_value", 0)),
+            "insurance_start_date": _doc_field_value(asset, "insurance_start_date"),
+            "insurance_end_date": _doc_field_value(asset, "insurance_end_date"),
         }
 
         return api_response(success=True, data=result)
@@ -711,11 +820,15 @@ def create_asset(**kwargs):
 
     try:
         # Validate item is a fixed asset
-        item = frappe.db.get_value(
-            "Item", item_code, ["is_fixed_asset", "asset_category", "item_name"], as_dict=True
+        item_rows = frappe.get_list(
+            "Item",
+            filters={"name": item_code},
+            fields=["name", "is_fixed_asset", "asset_category", "item_name"],
+            limit_page_length=1,
         )
-        if not item:
+        if not item_rows:
             return api_response(success=False, message=f"Item '{item_code}' not found", status_code=404)
+        item = item_rows[0]
         if not item.is_fixed_asset:
             return api_response(
                 success=False,
@@ -727,6 +840,15 @@ def create_asset(**kwargs):
         purchase_receipt = _as_optional_text(kwargs.get("purchase_receipt"))
         purchase_invoice = _as_optional_text(kwargs.get("purchase_invoice"))
         _validate_purchase_document_choice(is_existing_asset, purchase_receipt, purchase_invoice)
+
+        calculate_depreciation = _as_check(kwargs.get("calculate_depreciation"), 0)
+        available_for_use_date = kwargs.get("available_for_use_date")
+        if calculate_depreciation and not available_for_use_date:
+            return api_response(
+                success=False,
+                message="available_for_use_date is required when calculate_depreciation is enabled",
+                status_code=400,
+            )
 
         # Resolve location from facility_id if provided
         location = kwargs.get("location")
@@ -750,8 +872,12 @@ def create_asset(**kwargs):
             _ensure_location_matches_facility(location, facility_id)
         _ensure_location_access(location)
 
-        _ensure_purchase_document_access("Purchase Receipt", purchase_receipt, company, item_code)
-        _ensure_purchase_document_access("Purchase Invoice", purchase_invoice, company, item_code)
+        purchase_receipt_item = _ensure_purchase_document_access(
+            "Purchase Receipt", purchase_receipt, company, item_code
+        )
+        purchase_invoice_item = _ensure_purchase_document_access(
+            "Purchase Invoice", purchase_invoice, company, item_code
+        )
 
         # Build asset doc
         asset_data = {
@@ -766,10 +892,15 @@ def create_asset(**kwargs):
             "is_existing_asset": is_existing_asset,
             "custodian": kwargs.get("custodian"),
             "department": kwargs.get("department"),
-            "calculate_depreciation": kwargs.get("calculate_depreciation", 0),
+            "calculate_depreciation": calculate_depreciation,
             "purchase_receipt": purchase_receipt,
             "purchase_invoice": purchase_invoice,
         }
+        asset_meta = frappe.get_meta("Asset")
+        if purchase_receipt_item and asset_meta.has_field("purchase_receipt_item"):
+            asset_data["purchase_receipt_item"] = purchase_receipt_item
+        if purchase_invoice_item and asset_meta.has_field("purchase_invoice_item"):
+            asset_data["purchase_invoice_item"] = purchase_invoice_item
         _set_purchase_amount(
             asset_data, kwargs.get("gross_purchase_amount", kwargs.get("net_purchase_amount"))
         )
@@ -882,20 +1013,34 @@ def update_asset(**kwargs):
                 else _as_optional_text(doc.purchase_invoice)
             )
         _validate_purchase_document_choice(is_existing_asset, purchase_receipt, purchase_invoice)
-        _ensure_purchase_document_access("Purchase Receipt", purchase_receipt, doc.company, doc.item_code)
-        _ensure_purchase_document_access("Purchase Invoice", purchase_invoice, doc.company, doc.item_code)
+        purchase_receipt_item = _ensure_purchase_document_access(
+            "Purchase Receipt", purchase_receipt, doc.company, doc.item_code
+        )
+        purchase_invoice_item = _ensure_purchase_document_access(
+            "Purchase Invoice", purchase_invoice, doc.company, doc.item_code
+        )
 
         doc.is_existing_asset = is_existing_asset
         doc.purchase_receipt = purchase_receipt
         doc.purchase_invoice = purchase_invoice
+        if _doc_has_field(doc, "purchase_receipt_item"):
+            doc.purchase_receipt_item = purchase_receipt_item
+        if _doc_has_field(doc, "purchase_invoice_item"):
+            doc.purchase_invoice_item = purchase_invoice_item
 
         calculate_depreciation = _as_check(
             kwargs.get("calculate_depreciation"), int(doc.calculate_depreciation or 0)
         )
         doc.calculate_depreciation = calculate_depreciation
+        if calculate_depreciation and not doc.available_for_use_date:
+            return api_response(
+                success=False,
+                message="available_for_use_date is required when calculate_depreciation is enabled",
+                status_code=400,
+            )
 
         if calculate_depreciation:
-            existing_rows = [row.as_dict() for row in doc.finance_books] if doc.finance_books else []
+            existing_rows = [row.as_dict() for row in (doc.get("finance_books") or [])]
             finance_books_payload = _parse_finance_books_payload(kwargs.get("finance_books"))
 
             if finance_books_payload is not None:
@@ -909,19 +1054,28 @@ def update_asset(**kwargs):
                 doc.set("finance_books", existing_rows)
 
             if is_existing_asset:
-                doc.opening_accumulated_depreciation = flt(
-                    kwargs.get("opening_accumulated_depreciation", 0)
-                )
-                doc.opening_number_of_booked_depreciations = int(
-                    kwargs.get("opening_number_of_booked_depreciations", 0) or 0
-                )
+                if (
+                    "opening_accumulated_depreciation" in kwargs
+                    and _doc_has_field(doc, "opening_accumulated_depreciation")
+                ):
+                    doc.opening_accumulated_depreciation = flt(
+                        kwargs.get("opening_accumulated_depreciation", 0)
+                    )
+                if "opening_number_of_booked_depreciations" in kwargs:
+                    _set_doc_fields_if_present(
+                        doc,
+                        BOOKED_DEPRECIATION_COUNT_FIELDS,
+                        int(kwargs.get("opening_number_of_booked_depreciations", 0) or 0),
+                    )
             else:
-                doc.opening_accumulated_depreciation = 0
-                doc.opening_number_of_booked_depreciations = 0
+                if _doc_has_field(doc, "opening_accumulated_depreciation"):
+                    doc.opening_accumulated_depreciation = 0
+                _set_doc_fields_if_present(doc, BOOKED_DEPRECIATION_COUNT_FIELDS, 0)
         else:
             doc.set("finance_books", [])
-            doc.opening_accumulated_depreciation = 0
-            doc.opening_number_of_booked_depreciations = 0
+            if _doc_has_field(doc, "opening_accumulated_depreciation"):
+                doc.opening_accumulated_depreciation = 0
+            _set_doc_fields_if_present(doc, BOOKED_DEPRECIATION_COUNT_FIELDS, 0)
 
         doc.save()
 
@@ -1360,15 +1514,15 @@ def create_asset_movement(**kwargs):
 
         movement_item = {
             "asset": asset_name,
-            "source_location": asset.location,
+            "source_location": _doc_field_value(asset, "location"),
             "target_location": target_location,
-            "from_employee": asset.custodian,
+            "from_employee": _doc_field_value(asset, "custodian"),
             "to_employee": kwargs.get("to_employee"),
         }
 
         doc = frappe.get_doc({
             "doctype": "Asset Movement",
-            "company": asset.company,
+            "company": _doc_field_value(asset, "company"),
             "purpose": purpose,
             "transaction_date": kwargs.get("transaction_date") or now_datetime(),
             "assets": [movement_item],
@@ -1412,6 +1566,7 @@ def get_asset_movements(**kwargs):
             "Asset Movement Item",
             filters={"asset": asset_name},
             pluck="parent",
+            parent_doctype="Asset Movement",
             limit_page_length=0,
         )
 
@@ -1428,11 +1583,13 @@ def get_asset_movements(**kwargs):
             limit_page_length=50,
         )
 
+        employee_ids: Set[str] = set()
         for mov in movements:
             items = frappe.get_list(
                 "Asset Movement Item",
                 filters={"parent": mov.name, "asset": asset_name},
                 fields=["source_location", "target_location", "from_employee", "to_employee"],
+                parent_doctype="Asset Movement",
                 limit_page_length=1,
             )
             if items:
@@ -1446,13 +1603,16 @@ def get_asset_movements(**kwargs):
                         get_facility_name_for_location(mov["target_location"]) or mov["target_location"]
                     )
                 if mov.get("from_employee"):
-                    mov["from_employee_name"] = (
-                        frappe.db.get_value("Employee", mov["from_employee"], "employee_name") or ""
-                    )
+                    employee_ids.add(mov["from_employee"])
                 if mov.get("to_employee"):
-                    mov["to_employee_name"] = (
-                        frappe.db.get_value("Employee", mov["to_employee"], "employee_name") or ""
-                    )
+                    employee_ids.add(mov["to_employee"])
+
+        employee_name_map = _get_employee_name_map(list(employee_ids))
+        for mov in movements:
+            if mov.get("from_employee"):
+                mov["from_employee_name"] = employee_name_map.get(mov["from_employee"], "")
+            if mov.get("to_employee"):
+                mov["to_employee_name"] = employee_name_map.get(mov["to_employee"], "")
 
         return api_response(success=True, data={"items": movements})
 
@@ -1482,53 +1642,44 @@ def get_depreciation_summary(**kwargs):
         asset = _get_asset_doc_with_access(asset_name, "read")
 
         finance_books = []
-        for fb in asset.finance_books:
+        for fb in asset.get("finance_books") or []:
             finance_books.append({
-                "finance_book": fb.finance_book,
-                "depreciation_method": fb.depreciation_method,
-                "total_number_of_depreciations": fb.total_number_of_depreciations,
-                "frequency_of_depreciation": fb.frequency_of_depreciation,
-                "depreciation_start_date": fb.depreciation_start_date,
-                "expected_value_after_useful_life": fb.expected_value_after_useful_life,
-                "rate_of_depreciation": fb.rate_of_depreciation,
-                "value_after_depreciation": fb.value_after_depreciation,
+                "finance_book": fb.get("finance_book"),
+                "depreciation_method": fb.get("depreciation_method"),
+                "total_number_of_depreciations": fb.get("total_number_of_depreciations"),
+                "frequency_of_depreciation": fb.get("frequency_of_depreciation"),
+                "depreciation_start_date": fb.get("depreciation_start_date"),
+                "expected_value_after_useful_life": fb.get("expected_value_after_useful_life"),
+                "rate_of_depreciation": fb.get("rate_of_depreciation"),
+                "value_after_depreciation": fb.get("value_after_depreciation"),
             })
 
-        schedules = []
-        dep_schedule_docs = frappe.get_list(
-            "Asset Depreciation Schedule",
-            filters={"asset": asset_name, "docstatus": 1},
-            fields=["name", "finance_book"],
-            limit_page_length=5,
-        )
-        for ds in dep_schedule_docs:
-            entries = frappe.get_list(
-                "Depreciation Schedule",
-                filters={"parent": ds.name},
-                fields=[
-                    "schedule_date", "depreciation_amount",
-                    "accumulated_depreciation_amount", "journal_entry",
-                ],
-                order_by="schedule_date asc",
-                limit_page_length=0,
-            )
-            schedules.append({
-                "name": ds.name,
-                "finance_book": ds.finance_book,
-                "entries": entries,
-            })
+        schedules = _get_asset_depreciation_schedules(asset_name, limit_parents=5)
 
         return api_response(
             success=True,
             data={
-                "net_purchase_amount": asset.net_purchase_amount,
-                "gross_purchase_amount": asset.gross_purchase_amount,
-                "additional_asset_cost": asset.additional_asset_cost,
-                "total_asset_cost": asset.total_asset_cost,
-                "value_after_depreciation": asset.value_after_depreciation,
-                "opening_accumulated_depreciation": asset.opening_accumulated_depreciation,
-                "is_fully_depreciated": asset.is_fully_depreciated,
-                "calculate_depreciation": asset.calculate_depreciation,
+                "net_purchase_amount": flt(
+                    _doc_field_value(
+                        asset,
+                        "net_purchase_amount",
+                        _doc_field_value(asset, "gross_purchase_amount", _doc_field_value(asset, "purchase_amount", 0)),
+                    )
+                ),
+                "gross_purchase_amount": flt(
+                    _doc_field_value(asset, "gross_purchase_amount", _doc_field_value(asset, "purchase_amount", 0))
+                ),
+                "additional_asset_cost": flt(_doc_field_value(asset, "additional_asset_cost", 0)),
+                "total_asset_cost": flt(_doc_field_value(asset, "total_asset_cost", 0)),
+                "value_after_depreciation": flt(_doc_field_value(asset, "value_after_depreciation", 0)),
+                "opening_accumulated_depreciation": flt(
+                    _doc_field_value(asset, "opening_accumulated_depreciation", 0)
+                ),
+                "opening_number_of_booked_depreciations": int(
+                    _doc_first_field_value(asset, BOOKED_DEPRECIATION_COUNT_FIELDS, 0) or 0
+                ),
+                "is_fully_depreciated": _as_check(_doc_field_value(asset, "is_fully_depreciated", 0), 0),
+                "calculate_depreciation": _as_check(_doc_field_value(asset, "calculate_depreciation", 0), 0),
                 "finance_books": finance_books,
                 "schedules": schedules,
             },
@@ -1605,6 +1756,7 @@ def get_maintenance_teams(**kwargs):
                 "Maintenance Team Member",
                 filters={"parent": team.name},
                 fields=["team_member", "full_name", "maintenance_role"],
+                parent_doctype="Asset Maintenance Team",
                 limit_page_length=0,
             )
             team["members"] = members
@@ -1737,13 +1889,19 @@ def create_fixed_asset_item(**kwargs):
             )
 
         # Validate item_group exists and is leaf
-        ig = frappe.db.get_value("Item Group", item_group, ["is_group"], as_dict=True)
-        if not ig:
+        item_group_rows = frappe.get_list(
+            "Item Group",
+            filters={"name": item_group},
+            fields=["name", "is_group"],
+            limit_page_length=1,
+        )
+        if not item_group_rows:
             return api_response(
                 success=False,
                 message=f"Item Group '{item_group}' not found",
                 status_code=404,
             )
+        ig = item_group_rows[0]
         if ig.is_group:
             return api_response(
                 success=False,
@@ -1890,7 +2048,7 @@ def search_purchase_receipts_for_asset(**kwargs):
 
 @frappe.whitelist()
 def search_purchase_invoices_for_asset(**kwargs):
-    """Search submitted stock-updating Purchase Invoices containing the selected asset item."""
+    """Search submitted Purchase Invoices containing the selected asset item."""
     kwargs.pop("cmd", None)
     return _search_purchase_documents_for_asset("Purchase Invoice", kwargs)
 
@@ -1913,8 +2071,6 @@ def _search_purchase_documents_for_asset(doctype: str, kwargs: Dict[str, Any]):
         purchase_doc_field = "purchase_receipt" if doctype == "Purchase Receipt" else "purchase_invoice"
         route = "purchase-receipt" if doctype == "Purchase Receipt" else "purchase-invoice"
         parent_filters: Dict[str, Any] = {"docstatus": 1, "company": company}
-        if doctype == "Purchase Invoice":
-            parent_filters["update_stock"] = 1
 
         parent_or_filters = None
         if search:
@@ -1954,6 +2110,7 @@ def _search_purchase_documents_for_asset(doctype: str, kwargs: Dict[str, Any]):
                     "item_code": item_code,
                 },
                 fields=["parent", "item_name", "qty", "base_net_rate", "base_net_amount"],
+                parent_doctype=doctype,
                 limit_page_length=0,
             )
             if not child_rows:
