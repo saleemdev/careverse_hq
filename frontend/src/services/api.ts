@@ -1828,6 +1828,23 @@ export const erpnextAssetsApi = {
         return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.create_asset_movement', data);
     },
 
+    reassignAssetCustodian: async (data: {
+        asset_name: string;
+        to_employee: string;
+        transaction_date?: string;
+    }): Promise<ApiResponse> => {
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.reassign_asset_custodian', data);
+    },
+
+    updateAssetCurrentValuation: async (data: {
+        asset_name: string;
+        new_asset_value: number;
+        date?: string;
+        finance_book?: string;
+    }): Promise<ApiResponse> => {
+        return apiCallWithTimeout('POST', '/api/method/careverse_hq.api.erpnext_assets.update_asset_current_valuation', data);
+    },
+
     getMovements: async (assetName: string): Promise<ApiResponse> => {
         return frappeCall('careverse_hq.api.erpnext_assets.get_asset_movements', { asset_name: assetName });
     },
@@ -1860,7 +1877,7 @@ export const erpnextAssetsApi = {
         };
         if (data.maintenance_manager) payload.maintenance_manager = data.maintenance_manager;
         if (data.members?.length) payload.members = JSON.stringify(data.members);
-        return frappeCall('careverse_hq.api.erpnext_assets.create_maintenance_team', payload);
+        return callFrappePostMethod('careverse_hq.api.erpnext_assets.create_maintenance_team', payload);
     },
 
     // Item management (for asset creation flow)

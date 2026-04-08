@@ -281,6 +281,30 @@ def _get_employee_name_map(employee_ids: List[str]) -> Dict[str, str]:
     return {employee.name: employee.employee_name for employee in employees}
 
 
+def _validate_employee_company_scope(employee_id: Optional[str], company: Optional[str]) -> None:
+    """Ensure employee exists, is readable, and belongs to expected company."""
+    if not employee_id:
+        return
+
+    rows = frappe.get_list(
+        "Employee",
+        filters={"name": employee_id},
+        fields=["name", "company"],
+        limit_page_length=1,
+    )
+    if not rows:
+        frappe.throw(
+            _("Employee {0} was not found or is not accessible.").format(employee_id),
+            frappe.PermissionError,
+        )
+
+    if company and rows[0].company != company:
+        frappe.throw(
+            _("Employee {0} does not belong to company {1}.").format(employee_id, company),
+            frappe.ValidationError,
+        )
+
+
 def _ensure_facility_access(facility_id: Optional[str]) -> None:
     if not facility_id:
         return
@@ -1094,6 +1118,145 @@ def update_asset(**kwargs):
 
 
 @frappe.whitelist()
+def update_asset_current_valuation(**kwargs):
+    """Adjust current asset valuation through ERPNext Asset Value Adjustment.
+
+    This preserves accounting and depreciation integrity by using ERPNext's
+    native revaluation workflow instead of mutating Asset fields directly.
+
+    Args:
+        asset_name (required), new_asset_value (required),
+        date (optional, defaults to today), finance_book (optional),
+        difference_account (optional), cost_center (optional)
+    """
+    kwargs.pop("cmd", None)
+    asset_name = kwargs.get("asset_name")
+    new_asset_value = kwargs.get("new_asset_value")
+    if not asset_name or new_asset_value is None:
+        return api_response(
+            success=False,
+            message="asset_name and new_asset_value are required",
+            status_code=400,
+        )
+
+    try:
+        asset = _get_asset_doc_with_access(asset_name, "write")
+    except frappe.PermissionError:
+        return api_response(success=False, message="Permission denied", status_code=403)
+    except frappe.DoesNotExistError:
+        return api_response(success=False, message="Asset not found", status_code=404)
+
+    if asset.docstatus == 0:
+        return api_response(
+            success=False,
+            message="Draft assets should be updated from Edit Draft Details.",
+            status_code=400,
+        )
+
+    if asset.status in ("Sold", "Scrapped", "Cancelled"):
+        return api_response(
+            success=False,
+            message=f"Cannot adjust valuation for asset with status '{asset.status}'",
+            status_code=400,
+        )
+
+    try:
+        from erpnext.assets.doctype.asset.depreciation import get_depreciation_accounts
+
+        valuation_date = kwargs.get("date") or getdate()
+        target_value = flt(new_asset_value)
+        if target_value < 0:
+            return api_response(
+                success=False,
+                message="new_asset_value cannot be negative",
+                status_code=400,
+            )
+
+        finance_book = kwargs.get("finance_book") or None
+        finance_book_rows = asset.get("finance_books") or []
+        if asset.calculate_depreciation:
+            if not finance_book_rows:
+                return api_response(
+                    success=False,
+                    message="No finance books are configured for this depreciating asset",
+                    status_code=400,
+                )
+            if finance_book:
+                finance_book_names = {row.finance_book for row in finance_book_rows if row.finance_book}
+                if finance_book not in finance_book_names:
+                    return api_response(
+                        success=False,
+                        message="finance_book is not configured on this asset",
+                        status_code=400,
+                    )
+            else:
+                finance_book = asset.default_finance_book or (
+                    finance_book_rows[0].finance_book if finance_book_rows else None
+                )
+
+        current_value = flt(asset.get_value_after_depreciation(finance_book))
+        if target_value == current_value:
+            return api_response(
+                success=True,
+                message="Asset valuation is already at the requested value",
+                data={
+                    "asset_name": asset.name,
+                    "adjustment_name": None,
+                    "current_asset_value": current_value,
+                    "new_asset_value": target_value,
+                },
+            )
+
+        _, _, depreciation_expense_account = get_depreciation_accounts(
+            asset.asset_category, asset.company
+        )
+        difference_account = kwargs.get("difference_account") or depreciation_expense_account
+        if not difference_account:
+            return api_response(
+                success=False,
+                message="Unable to resolve difference_account for this asset category/company",
+                status_code=400,
+            )
+
+        cost_center = kwargs.get("cost_center") or asset.get("cost_center")
+
+        adjustment_doc = frappe.get_doc({
+            "doctype": "Asset Value Adjustment",
+            "company": asset.company,
+            "asset": asset.name,
+            "asset_category": asset.asset_category,
+            "date": valuation_date,
+            "finance_book": finance_book,
+            "current_asset_value": current_value,
+            "new_asset_value": target_value,
+            "difference_account": difference_account,
+            "cost_center": cost_center,
+        })
+        adjustment_doc.insert()
+        adjustment_doc.submit()
+
+        return api_response(
+            success=True,
+            message="Asset valuation updated",
+            data={
+                "asset_name": asset.name,
+                "adjustment_name": adjustment_doc.name,
+                "journal_entry": adjustment_doc.journal_entry,
+                "current_asset_value": current_value,
+                "new_asset_value": target_value,
+                "finance_book": finance_book,
+            },
+        )
+    except frappe.PermissionError:
+        return api_response(success=False, message="Permission denied", status_code=403)
+    except frappe.ValidationError as e:
+        return api_response(success=False, message=str(e), status_code=400)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), _("Update Asset Valuation Error"))
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
+
+
+@frappe.whitelist()
 def submit_asset(**kwargs):
     """Submit a Draft asset.
 
@@ -1502,7 +1665,7 @@ def create_asset_movement(**kwargs):
     """Create and auto-submit an Asset Movement.
 
     Args:
-        asset_name (required), purpose (required: Transfer|Issue|Receipt),
+        asset_name (required), purpose (required: Transfer|Issue|Receipt|Transfer and Issue),
         target_location, to_employee, transaction_date
     """
     kwargs.pop("cmd", None)
@@ -1515,10 +1678,10 @@ def create_asset_movement(**kwargs):
             success=False, message="asset_name and purpose are required", status_code=400
         )
 
-    if purpose not in ("Transfer", "Issue", "Receipt"):
+    if purpose not in ("Transfer", "Issue", "Receipt", "Transfer and Issue"):
         return api_response(
             success=False,
-            message="purpose must be one of: Transfer, Issue, Receipt",
+            message="purpose must be one of: Transfer, Issue, Receipt, Transfer and Issue",
             status_code=400,
         )
 
@@ -1540,13 +1703,38 @@ def create_asset_movement(**kwargs):
         if target_location:
             _ensure_location_access(target_location)
 
+        to_employee = kwargs.get("to_employee") or None
+        if to_employee:
+            _validate_employee_company_scope(to_employee, _doc_field_value(asset, "company"))
+
         movement_item = {
             "asset": asset_name,
             "source_location": _doc_field_value(asset, "location"),
             "target_location": target_location,
             "from_employee": _doc_field_value(asset, "custodian"),
-            "to_employee": kwargs.get("to_employee"),
+            "to_employee": to_employee,
         }
+
+        if purpose in ("Issue", "Transfer and Issue") and not movement_item["to_employee"]:
+            return api_response(
+                success=False,
+                message="to_employee is required when purpose is Issue or Transfer and Issue",
+                status_code=400,
+            )
+
+        if purpose in ("Transfer", "Receipt", "Transfer and Issue") and not movement_item["target_location"]:
+            return api_response(
+                success=False,
+                message="target_location or target_facility_id is required for this movement purpose",
+                status_code=400,
+            )
+
+        if purpose == "Transfer and Issue" and not movement_item["from_employee"]:
+            return api_response(
+                success=False,
+                message="Asset has no current custodian. Transfer first, then run an Issue movement to assign an employee.",
+                status_code=400,
+            )
 
         transaction_date = kwargs.get("transaction_date") or now_datetime()
         # Prevent future-dated movements to preserve audit trail integrity.
@@ -1587,6 +1775,101 @@ def create_asset_movement(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Create Movement Error"))
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
+
+
+@frappe.whitelist()
+def reassign_asset_custodian(**kwargs):
+    """Reassign the asset custodian for non-draft assets via Asset Movement (Issue).
+
+    Args:
+        asset_name (required), to_employee (required), transaction_date (optional)
+    """
+    kwargs.pop("cmd", None)
+
+    asset_name = kwargs.get("asset_name")
+    to_employee = kwargs.get("to_employee")
+    if not asset_name or not to_employee:
+        return api_response(
+            success=False,
+            message="asset_name and to_employee are required",
+            status_code=400,
+        )
+
+    try:
+        asset = _get_asset_doc_with_access(asset_name, "write")
+        if asset.docstatus == 0:
+            return api_response(
+                success=False,
+                message="Draft assets should be updated from Edit Draft Details.",
+                status_code=400,
+            )
+
+        if asset.status in ("Sold", "Scrapped", "Cancelled"):
+            return api_response(
+                success=False,
+                message=f"Cannot reassign custodian for asset with status '{asset.status}'",
+                status_code=400,
+            )
+
+        company = _doc_field_value(asset, "company")
+        _validate_employee_company_scope(to_employee, company)
+
+        current_custodian = _doc_field_value(asset, "custodian")
+        if current_custodian == to_employee:
+            return api_response(
+                success=True,
+                message="Asset is already assigned to this employee",
+                data={"asset_name": asset.name, "movement_name": None},
+            )
+
+        transaction_date = kwargs.get("transaction_date") or now_datetime()
+        try:
+            parsed_transaction_date = get_datetime(transaction_date)
+            if parsed_transaction_date > now_datetime():
+                return api_response(
+                    success=False,
+                    message="transaction_date cannot be in the future",
+                    status_code=400,
+                )
+        except Exception:
+            return api_response(
+                success=False,
+                message="Invalid transaction_date format",
+                status_code=400,
+            )
+
+        movement_doc = frappe.get_doc({
+            "doctype": "Asset Movement",
+            "company": company,
+            "purpose": "Issue",
+            "transaction_date": transaction_date,
+            "assets": [{
+                "asset": asset.name,
+                "source_location": _doc_field_value(asset, "location"),
+                "from_employee": current_custodian,
+                "to_employee": to_employee,
+            }],
+        })
+        movement_doc.insert()
+        movement_doc.submit()
+
+        return api_response(
+            success=True,
+            message="Asset custodian reassigned",
+            data={
+                "asset_name": asset.name,
+                "movement_name": movement_doc.name,
+                "to_employee": to_employee,
+            },
+        )
+
+    except frappe.PermissionError:
+        return api_response(success=False, message="Permission denied", status_code=403)
+    except frappe.ValidationError as e:
+        return api_response(success=False, message=str(e), status_code=400)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), _("Reassign Asset Custodian Error"))
         return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
@@ -1853,6 +2136,15 @@ def create_maintenance_team(**kwargs):
             for m in (raw_members or [])
             if isinstance(m, dict) and m.get("team_member")
         ]
+        unique_members = []
+        seen_member_ids = set()
+        for member in members:
+            member_id = member.get("team_member")
+            if not member_id or member_id in seen_member_ids:
+                continue
+            seen_member_ids.add(member_id)
+            unique_members.append(member)
+        members = unique_members
 
         doc = frappe.get_doc({
             "doctype": "Asset Maintenance Team",

@@ -19,6 +19,7 @@ interface Props {
     currentLocation: string;
     currentFacilityId?: string;
     currentLocationName: string;
+    currentCustodian?: string;
     currentCustodianName: string;
     company: string;
 }
@@ -30,15 +31,10 @@ interface EmployeeSearchOption {
     department?: string;
 }
 
-const PURPOSES = [
-    { value: 'Transfer', label: 'Transfer (Move to another location)' },
-    { value: 'Issue', label: 'Issue (Assign to employee)' },
-    { value: 'Receipt', label: 'Receipt (Receive at location)' },
-];
-
 const AssetMovementModal: React.FC<Props> = ({
     open, onClose, assetName,
     currentLocation, currentFacilityId, currentLocationName,
+    currentCustodian,
     currentCustodianName,
     company,
 }) => {
@@ -54,6 +50,13 @@ const AssetMovementModal: React.FC<Props> = ({
     const employeeSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const employeeSearchRequestSeqRef = useRef(0);
     const purpose = Form.useWatch('purpose', form) || 'Transfer';
+    const hasCurrentCustodian = Boolean((currentCustodian || '').trim());
+    const movementPurposeOptions = [
+        { value: 'Transfer', label: 'Transfer (Move to another location)' },
+        { value: 'Transfer and Issue', label: 'Transfer + Reassign Employee', disabled: !hasCurrentCustodian },
+        { value: 'Issue', label: 'Issue (Assign to employee)' },
+        { value: 'Receipt', label: 'Receipt (Receive at location)' },
+    ];
 
     const handleEmployeeSearch = useCallback((value: string) => {
         if (employeeSearchRef.current) {
@@ -97,7 +100,9 @@ const AssetMovementModal: React.FC<Props> = ({
                 asset_name: assetName,
                 purpose: values.purpose,
                 target_facility_id: values.purpose === 'Issue' ? undefined : values.target_facility_id,
-                to_employee: values.purpose === 'Issue' ? values.to_employee : undefined,
+                to_employee: (values.purpose === 'Issue' || values.purpose === 'Transfer and Issue')
+                    ? values.to_employee
+                    : undefined,
                 transaction_date: values.transaction_date?.format('YYYY-MM-DD HH:mm:ss'),
             });
 
@@ -179,6 +184,10 @@ const AssetMovementModal: React.FC<Props> = ({
                         return;
                     }
 
+                    if (changedValues.purpose === 'Transfer and Issue') {
+                        return;
+                    }
+
                     form.setFieldValue('to_employee', undefined);
                     employeeSearchRequestSeqRef.current += 1;
                     setEmployeeSearching(false);
@@ -190,10 +199,10 @@ const AssetMovementModal: React.FC<Props> = ({
                     name="purpose"
                     rules={[{ required: true }]}
                 >
-                    <Select options={PURPOSES} />
+                    <Select options={movementPurposeOptions} />
                 </Form.Item>
 
-                {(purpose === 'Transfer' || purpose === 'Receipt') && (
+                {(purpose === 'Transfer' || purpose === 'Receipt' || purpose === 'Transfer and Issue') && (
                     <Form.Item
                         label="Target Facility"
                         name="target_facility_id"
@@ -215,9 +224,9 @@ const AssetMovementModal: React.FC<Props> = ({
                     </Form.Item>
                 )}
 
-                {purpose === 'Issue' && (
+                {(purpose === 'Issue' || purpose === 'Transfer and Issue') && (
                     <Form.Item
-                        label="Assign To Employee"
+                        label={purpose === 'Transfer and Issue' ? 'Reassign To Employee' : 'Assign To Employee'}
                         name="to_employee"
                         rules={[{ required: true, message: 'Select employee' }]}
                     >
@@ -251,6 +260,16 @@ const AssetMovementModal: React.FC<Props> = ({
                 <Form.Item label="Transaction Date" name="transaction_date">
                     <DatePicker showTime style={{ width: '100%' }} />
                 </Form.Item>
+
+                {!hasCurrentCustodian && (
+                    <Alert
+                        type="info"
+                        showIcon
+                        style={{ marginBottom: 12 }}
+                        message="Transfer + Reassign is disabled"
+                        description="This asset has no current custodian. Transfer first, then use Issue to assign an employee."
+                    />
+                )}
             </Form>
 
             <Alert

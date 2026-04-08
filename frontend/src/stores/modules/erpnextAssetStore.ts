@@ -209,6 +209,8 @@ interface ERPNextAssetStore {
     createRepairRequest: (data: Record<string, unknown>) => Promise<MutationResult>;
     completeRepair: (data: Record<string, unknown>) => Promise<MutationResult>;
     createMovement: (data: Record<string, unknown>) => Promise<MutationResult>;
+    reassignAssetCustodian: (data: Record<string, unknown>) => Promise<MutationResult>;
+    updateAssetCurrentValuation: (data: Record<string, unknown>) => Promise<MutationResult>;
 }
 
 const getErrorMessage = (error: unknown, fallback: string) => (
@@ -712,6 +714,67 @@ const useERPNextAssetStore = create<ERPNextAssetStore>((set, get) => ({
         } catch (error: unknown) {
             console.error('Failed to create movement', error);
             return { success: false, error: getErrorMessage(error, 'Unexpected error creating movement') };
+        }
+    },
+
+    reassignAssetCustodian: async (data) => {
+        try {
+            const response = await erpnextAssetsApi.reassignAssetCustodian({
+                asset_name: String(data.asset_name || ''),
+                to_employee: String(data.to_employee || ''),
+                transaction_date: data.transaction_date ? String(data.transaction_date) : undefined,
+            });
+            if (response.success) {
+                const assetName = typeof data.asset_name === 'string' ? data.asset_name : null;
+                if (assetName) {
+                    const [movementsOk, detailOk] = await Promise.all([
+                        get().fetchMovements(assetName),
+                        get().fetchAssetDetail(assetName),
+                    ]);
+                    if (!movementsOk || !detailOk) {
+                        return {
+                            success: true,
+                            warning: 'Custodian updated, but the asset view could not be fully refreshed. Reload and confirm the latest assignment.',
+                        };
+                    }
+                }
+                return { success: true };
+            }
+            return { success: false, error: response.error || response.message || 'Failed to reassign asset custodian' };
+        } catch (error: unknown) {
+            console.error('Failed to reassign asset custodian', error);
+            return { success: false, error: getErrorMessage(error, 'Unexpected error reassigning asset custodian') };
+        }
+    },
+
+    updateAssetCurrentValuation: async (data) => {
+        try {
+            const response = await erpnextAssetsApi.updateAssetCurrentValuation({
+                asset_name: String(data.asset_name || ''),
+                new_asset_value: Number(data.new_asset_value || 0),
+                date: data.date ? String(data.date) : undefined,
+                finance_book: data.finance_book ? String(data.finance_book) : undefined,
+            });
+            if (response.success) {
+                const assetName = typeof data.asset_name === 'string' ? data.asset_name : null;
+                if (assetName) {
+                    const [detailOk, depreciationOk] = await Promise.all([
+                        get().fetchAssetDetail(assetName),
+                        get().fetchDepreciation(assetName),
+                    ]);
+                    if (!detailOk || !depreciationOk) {
+                        return {
+                            success: true,
+                            warning: 'Valuation updated, but the latest view could not be fully refreshed. Reload and confirm current value.',
+                        };
+                    }
+                }
+                return { success: true };
+            }
+            return { success: false, error: response.error || response.message || 'Failed to update asset valuation' };
+        } catch (error: unknown) {
+            console.error('Failed to update asset valuation', error);
+            return { success: false, error: getErrorMessage(error, 'Unexpected error updating asset valuation') };
         }
     },
 }));

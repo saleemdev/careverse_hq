@@ -6,7 +6,7 @@ import {
 import type { BadgeProps } from 'antd';
 import {
     ArrowLeftOutlined, LaptopOutlined, ToolOutlined, WarningOutlined,
-    SwapOutlined, CheckCircleOutlined, EditOutlined,
+    SwapOutlined, CheckCircleOutlined, EditOutlined, DollarOutlined,
 } from '@ant-design/icons';
 import useERPNextAssetStore from '../../../stores/modules/erpnextAssetStore';
 import { useResponsive } from '../../../hooks/useResponsive';
@@ -15,6 +15,8 @@ import AssetMaintenanceModal from './AssetMaintenanceModal';
 import AssetRepairModal from './AssetRepairModal';
 import AssetMovementModal from './AssetMovementModal';
 import AssetDraftSetupModal from './AssetDraftSetupModal';
+import AssetAssignmentModal from './AssetAssignmentModal';
+import AssetValuationModal from './AssetValuationModal';
 import dayjs from 'dayjs';
 
 const { Text, Title } = Typography;
@@ -67,6 +69,8 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
     const [repairModalOpen, setRepairModalOpen] = useState(false);
     const [movementModalOpen, setMovementModalOpen] = useState(false);
     const [draftSetupOpen, setDraftSetupOpen] = useState(false);
+    const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+    const [valuationModalOpen, setValuationModalOpen] = useState(false);
     const detailAttempted = loadedAssetId === assetId;
 
     const navigateToAssetsList = () => {
@@ -139,6 +143,8 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
         : 0;
     const depreciationSchedules: DepreciationScheduleGroup[] = depreciationSummary?.schedules || [];
     const canSubmitDraft = Boolean(asset.available_for_use_date);
+    const canEditAssignment = !['Draft', 'Sold', 'Scrapped', 'Cancelled'].includes(asset.status);
+    const canEditValuation = !['Draft', 'Sold', 'Scrapped', 'Cancelled'].includes(asset.status);
 
     // ----- Overview Tab -----
     const overviewTab = (
@@ -406,6 +412,16 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                                 Edit Draft Details
                             </Button>
                         )}
+                        {canEditAssignment && (
+                            <Button icon={<EditOutlined />} onClick={() => setAssignmentModalOpen(true)}>
+                                Edit Assignment
+                            </Button>
+                        )}
+                        {canEditValuation && (
+                            <Button icon={<DollarOutlined />} onClick={() => setValuationModalOpen(true)}>
+                                Edit Valuation
+                            </Button>
+                        )}
                         {asset.status === 'Draft' && (
                             canSubmitDraft ? (
                                 <Button type="primary" icon={<CheckCircleOutlined />} onClick={handleSubmit}>
@@ -471,8 +487,25 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                 currentLocation={asset.location}
                 currentFacilityId={asset.facility_id}
                 currentLocationName={asset.facility_name || asset.location}
+                currentCustodian={asset.custodian}
                 currentCustodianName={asset.custodian_name}
                 company={asset.company}
+            />
+            <AssetAssignmentModal
+                open={assignmentModalOpen}
+                onClose={() => setAssignmentModalOpen(false)}
+                assetName={assetId}
+                company={asset.company}
+                currentCustodian={asset.custodian}
+                currentCustodianName={asset.custodian_name}
+            />
+            <AssetValuationModal
+                open={valuationModalOpen}
+                onClose={() => setValuationModalOpen(false)}
+                assetName={assetId}
+                currentValuation={asset.value_after_depreciation || 0}
+                calculateDepreciation={Boolean(asset.calculate_depreciation)}
+                financeBooks={asset.finance_books || []}
             />
             <AssetDraftSetupModal
                 open={draftSetupOpen}

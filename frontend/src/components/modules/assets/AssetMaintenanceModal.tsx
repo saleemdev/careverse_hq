@@ -18,7 +18,12 @@ interface CreateTeamProps {
     open: boolean;
     onClose: () => void;
     company: string;
-    onCreated: (team: { name: string; maintenance_team_name: string; company: string; members: any[] }) => void;
+    onCreated: (team: {
+        name: string;
+        maintenance_team_name: string;
+        company: string;
+        members: Array<{ team_member: string; full_name?: string; maintenance_role?: string }>;
+    }) => void;
 }
 
 interface TeamMemberRow {
@@ -30,7 +35,6 @@ const nextMemberKey = () => ++_memberCounter;
 
 
 const CreateMaintenanceTeamModal: React.FC<CreateTeamProps> = ({ open, onClose, company, onCreated }) => {
-    const { isMobile } = useResponsive();
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
@@ -48,13 +52,34 @@ const CreateMaintenanceTeamModal: React.FC<CreateTeamProps> = ({ open, onClose, 
 
     useEffect(() => {
         if (!open) {
+            if (managerSearchRef.current) {
+                clearTimeout(managerSearchRef.current);
+            }
+            Object.values(memberSearchRefs.current).forEach((timeoutHandle) => {
+                clearTimeout(timeoutHandle);
+            });
+            managerSeqRef.current += 1;
+            memberSeqRefs.current = {};
             form.resetFields();
             setError('');
             setMembers([{ key: nextMemberKey() }]);
             setManagerOptions([]);
             setMemberOptions({});
+            setMemberSearching({});
+            setManagerSearching(false);
         }
     }, [open, form]);
+
+    useEffect(() => () => {
+        if (managerSearchRef.current) {
+            clearTimeout(managerSearchRef.current);
+        }
+        Object.values(memberSearchRefs.current).forEach((timeoutHandle) => {
+            clearTimeout(timeoutHandle);
+        });
+        managerSeqRef.current += 1;
+        memberSeqRefs.current = {};
+    }, []);
 
     const searchEmployees = useCallback(async (value: string, seq: number, seqRef: React.MutableRefObject<number>) => {
         if (!value || value.length < 2) return [];
@@ -108,6 +133,12 @@ const CreateMaintenanceTeamModal: React.FC<CreateTeamProps> = ({ open, onClose, 
                 }))
                 .filter((m) => m.team_member);
 
+            const memberIds = memberPayload.map((member) => member.team_member);
+            if (new Set(memberIds).size !== memberIds.length) {
+                setError('Each team member can only be added once.');
+                return;
+            }
+
             const res = await erpnextAssetsApi.createMaintenanceTeam({
                 maintenance_team_name: values.maintenance_team_name,
                 company,
@@ -129,20 +160,16 @@ const CreateMaintenanceTeamModal: React.FC<CreateTeamProps> = ({ open, onClose, 
         }
     };
 
+    if (!open) {
+        return null;
+    }
+
     return (
-        <Modal
+        <Card
+            size="small"
+            style={{ marginBottom: 16, borderRadius: 10 }}
             title={<Space><TeamOutlined /><span>Create Maintenance Team</span></Space>}
-            open={open}
-            onCancel={onClose}
-            width={isMobile ? '100%' : 680}
-            style={{ top: isMobile ? 0 : 24 }}
-            destroyOnClose
-            footer={[
-                <Button key="cancel" onClick={onClose}>Cancel</Button>,
-                <Button key="create" type="primary" icon={<PlusOutlined />} loading={submitting} onClick={handleCreate}>
-                    Create Team
-                </Button>,
-            ]}
+            extra={<Button type="text" onClick={onClose}>Close</Button>}
         >
             {error && (
                 <Alert type="error" message={error} showIcon closable onClose={() => setError('')} style={{ marginBottom: 16 }} />
@@ -227,11 +254,16 @@ const CreateMaintenanceTeamModal: React.FC<CreateTeamProps> = ({ open, onClose, 
                     </Card>
                 ))}
 
-                <Button type="dashed" icon={<PlusOutlined />} onClick={addMember} block>
-                    Add Member
-                </Button>
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                    <Button type="dashed" icon={<PlusOutlined />} onClick={addMember} block>
+                        Add Member
+                    </Button>
+                    <Button type="primary" icon={<PlusOutlined />} loading={submitting} onClick={handleCreate} block>
+                        Create Team
+                    </Button>
+                </Space>
             </Form>
-        </Modal>
+        </Card>
     );
 };
 
@@ -317,7 +349,6 @@ const AssetMaintenanceModal: React.FC<Props> = ({ open, onClose, assetName, comp
             return;
         }
         loadTeams(company);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, company]);
 
     const handleSubmit = async () => {
@@ -445,6 +476,17 @@ const AssetMaintenanceModal: React.FC<Props> = ({ open, onClose, assetName, comp
                     </Select>
                 </Form.Item>
 
+                <CreateMaintenanceTeamModal
+                    open={createTeamOpen}
+                    onClose={() => setCreateTeamOpen(false)}
+                    company={company}
+                    onCreated={(newTeam) => {
+                        setTeams((prev) => [...prev, newTeam]);
+                        form.setFieldValue('maintenance_team', newTeam.name);
+                        setCreateTeamOpen(false);
+                    }}
+                />
+
                 {tasks.map((task, idx) => (
                     <Card
                         key={task.key}
@@ -496,16 +538,6 @@ const AssetMaintenanceModal: React.FC<Props> = ({ open, onClose, assetName, comp
                 </Button>
             </Form>
 
-            <CreateMaintenanceTeamModal
-                open={createTeamOpen}
-                onClose={() => setCreateTeamOpen(false)}
-                company={company}
-                onCreated={(newTeam) => {
-                    setTeams((prev) => [...prev, newTeam]);
-                    form.setFieldValue('maintenance_team', newTeam.name);
-                    setCreateTeamOpen(false);
-                }}
-            />
         </Modal>
     );
 };
