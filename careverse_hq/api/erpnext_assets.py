@@ -14,7 +14,7 @@ All endpoints use:
 import json
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, getdate, flt
+from frappe.utils import now_datetime, getdate, flt, get_datetime
 from typing import Optional, List, Dict, Any, Set
 from careverse_hq.api.facilities import api_response
 from .dashboard_utils import validate_user_facilities, _count
@@ -500,7 +500,7 @@ def get_asset_dashboard(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Asset Dashboard Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -618,7 +618,7 @@ def get_assets_list(**kwargs):
         return api_response(success=False, message="Permission denied", status_code=403)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Asset List Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -785,7 +785,7 @@ def get_asset_detail(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Asset Detail Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -928,7 +928,7 @@ def create_asset(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Create Asset Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1090,7 +1090,7 @@ def update_asset(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Update Asset Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1135,7 +1135,7 @@ def submit_asset(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Submit Asset Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -1168,11 +1168,27 @@ def create_maintenance_request(**kwargs):
 
     try:
         import json
-        tasks = json.loads(tasks_raw) if isinstance(tasks_raw, str) else (tasks_raw or [])
+        raw_tasks = json.loads(tasks_raw) if isinstance(tasks_raw, str) else (tasks_raw or [])
+
+        if not raw_tasks:
+            return api_response(
+                success=False, message="At least one maintenance task is required", status_code=400
+            )
+
+        # Whitelist allowed task fields to prevent payload injection.
+        _ALLOWED_TASK_FIELDS = {
+            "maintenance_task", "maintenance_type", "start_date", "end_date",
+            "periodicity", "assign_to", "description", "certificate_required",
+        }
+        tasks = [
+            {k: v for k, v in task.items() if k in _ALLOWED_TASK_FIELDS}
+            for task in raw_tasks
+            if isinstance(task, dict)
+        ]
 
         if not tasks:
             return api_response(
-                success=False, message="At least one maintenance task is required", status_code=400
+                success=False, message="No valid task data provided", status_code=400
             )
 
         asset = _get_asset_doc_with_access(asset_name, "write")
@@ -1210,7 +1226,7 @@ def create_maintenance_request(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Create Maintenance Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1259,7 +1275,7 @@ def get_maintenance_schedule(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Maintenance Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1281,8 +1297,14 @@ def complete_maintenance_log(**kwargs):
         )
 
     try:
+        # Resolve the asset name before loading the log to prevent IDOR —
+        # verify asset access first, then load the full log doc.
+        log_meta = frappe.db.get_value("Asset Maintenance Log", log_name, "asset_name")
+        if not log_meta:
+            return api_response(success=False, message="Maintenance log not found", status_code=404)
+        _get_asset_doc_with_access(log_meta, "read")
+
         doc = frappe.get_doc("Asset Maintenance Log", log_name)
-        _get_asset_doc_with_access(doc.asset_name, "read")
 
         if doc.maintenance_status not in ("Planned", "Overdue"):
             return api_response(
@@ -1312,7 +1334,7 @@ def complete_maintenance_log(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Complete Maintenance Log Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -1341,7 +1363,7 @@ def create_repair_request(**kwargs):
         )
 
     try:
-        asset = _get_asset_doc_with_access(asset_name, "read")
+        asset = _get_asset_doc_with_access(asset_name, "write")
 
         if asset.status in ("Sold", "Scrapped"):
             return api_response(
@@ -1373,7 +1395,7 @@ def create_repair_request(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Create Repair Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1394,8 +1416,14 @@ def complete_repair(**kwargs):
         )
 
     try:
+        # Resolve the asset name before loading the repair to prevent IDOR —
+        # verify asset access first, then load the full repair doc.
+        asset_name_for_repair = frappe.db.get_value("Asset Repair", repair_name, "asset")
+        if not asset_name_for_repair:
+            return api_response(success=False, message="Repair record not found", status_code=404)
+        _get_asset_doc_with_access(asset_name_for_repair, "read")
+
         doc = frappe.get_doc("Asset Repair", repair_name)
-        _get_asset_doc_with_access(doc.asset, "read")
 
         if doc.repair_status != "Pending":
             return api_response(
@@ -1423,7 +1451,7 @@ def complete_repair(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Complete Repair Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1462,7 +1490,7 @@ def get_repairs(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Repairs Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -1495,7 +1523,7 @@ def create_asset_movement(**kwargs):
         )
 
     try:
-        asset = _get_asset_doc_with_access(asset_name, "read")
+        asset = _get_asset_doc_with_access(asset_name, "write")
 
         # Resolve target location from facility_id if provided
         target_location = kwargs.get("target_location")
@@ -1520,11 +1548,28 @@ def create_asset_movement(**kwargs):
             "to_employee": kwargs.get("to_employee"),
         }
 
+        transaction_date = kwargs.get("transaction_date") or now_datetime()
+        # Prevent future-dated movements to preserve audit trail integrity.
+        try:
+            parsed_transaction_date = get_datetime(transaction_date)
+            if parsed_transaction_date > now_datetime():
+                return api_response(
+                    success=False,
+                    message="transaction_date cannot be in the future",
+                    status_code=400,
+                )
+        except Exception:
+            return api_response(
+                success=False,
+                message="Invalid transaction_date format",
+                status_code=400,
+            )
+
         doc = frappe.get_doc({
             "doctype": "Asset Movement",
             "company": _doc_field_value(asset, "company"),
             "purpose": purpose,
-            "transaction_date": kwargs.get("transaction_date") or now_datetime(),
+            "transaction_date": transaction_date,
             "assets": [movement_item],
         })
         doc.insert()
@@ -1542,7 +1587,7 @@ def create_asset_movement(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Create Movement Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1618,7 +1663,7 @@ def get_asset_movements(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Movements Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -1691,7 +1736,7 @@ def get_depreciation_summary(**kwargs):
         return api_response(success=False, message="Asset not found", status_code=404)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Depreciation Summary Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -1725,7 +1770,7 @@ def get_asset_categories(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Categories Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1765,7 +1810,85 @@ def get_maintenance_teams(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Teams Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
+
+
+@frappe.whitelist()
+def create_maintenance_team(**kwargs):
+    """Create a new Asset Maintenance Team.
+
+    Asset Maintenance Team.maintenance_manager and Maintenance Team Member.team_member
+    are both Link → User (not Employee). Callers must supply User IDs (email/user_id).
+    maintenance_role is Link → Role — omit or pass a valid Frappe Role name.
+
+    Args:
+        maintenance_team_name (required): Display name for the team
+        company (required): Company this team belongs to
+        maintenance_manager (optional): User ID of the manager
+        members (optional): JSON list of [{team_member: <user_id>, maintenance_role: <Role name>}]
+    """
+    kwargs.pop("cmd", None)
+
+    team_name = kwargs.get("maintenance_team_name")
+    company = kwargs.get("company")
+
+    if not all([team_name, company]):
+        return api_response(
+            success=False,
+            message="maintenance_team_name and company are required",
+            status_code=400,
+        )
+
+    try:
+        import json as _json
+
+        raw_members = kwargs.get("members")
+        if isinstance(raw_members, str):
+            raw_members = _json.loads(raw_members)
+
+        # team_member → Link:User, maintenance_role → Link:Role (optional)
+        _ALLOWED_MEMBER_FIELDS = {"team_member", "maintenance_role"}
+        members = [
+            {k: v for k, v in m.items() if k in _ALLOWED_MEMBER_FIELDS and v}
+            for m in (raw_members or [])
+            if isinstance(m, dict) and m.get("team_member")
+        ]
+
+        doc = frappe.get_doc({
+            "doctype": "Asset Maintenance Team",
+            "maintenance_team_name": team_name,
+            "company": company,
+            "maintenance_manager": kwargs.get("maintenance_manager") or None,
+            "maintenance_team_members": members,
+        })
+        doc.insert()
+
+        # Return the new team with enriched members for immediate use in the UI
+        enriched_members = frappe.get_list(
+            "Maintenance Team Member",
+            filters={"parent": doc.name},
+            fields=["team_member", "full_name", "maintenance_role"],
+            parent_doctype="Asset Maintenance Team",
+            limit_page_length=0,
+        )
+
+        return api_response(
+            success=True,
+            message=f"Maintenance team '{doc.maintenance_team_name}' created",
+            data={
+                "name": doc.name,
+                "maintenance_team_name": doc.maintenance_team_name,
+                "company": doc.company,
+                "maintenance_manager": doc.maintenance_manager,
+                "members": enriched_members,
+            },
+        )
+
+    except frappe.ValidationError as e:
+        return api_response(success=False, message=str(e), status_code=400)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), _("Create Maintenance Team Error"))
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -1811,7 +1934,7 @@ def search_fixed_asset_items(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Search Items Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1832,7 +1955,7 @@ def get_item_naming_config(**kwargs):
         return api_response(success=True, data=data)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Item Naming Config Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1957,7 +2080,7 @@ def create_fixed_asset_item(**kwargs):
         return api_response(success=False, message=str(e), status_code=400)
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Create Item Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -1989,7 +2112,7 @@ def get_item_groups(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Item Groups Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -2011,7 +2134,7 @@ def get_user_companies(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Companies Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -2036,7 +2159,7 @@ def get_finance_books(**kwargs):
         return api_response(success=True, data={"items": finance_books})
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Finance Books Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -2191,7 +2314,7 @@ def _search_purchase_documents_for_asset(doctype: str, kwargs: Dict[str, Any]):
         return api_response(success=True, data={"items": items[:limit]})
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Search Purchase Documents Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -2210,7 +2333,7 @@ def search_employees(**kwargs):
         company = kwargs.get("company")
         limit = min(50, int(kwargs.get("limit", 20)))
 
-        filters: dict = {"status": "Active"}
+        filters: dict = {}
         if company:
             filters["company"] = company
 
@@ -2226,7 +2349,7 @@ def search_employees(**kwargs):
             "Employee",
             filters=filters,
             or_filters=or_filters if or_filters else None,
-            fields=["name", "employee_name", "designation", "department", "company"],
+            fields=["name", "employee_name", "designation", "department", "company", "user_id"],
             order_by="employee_name asc",
             limit_page_length=limit,
         )
@@ -2235,7 +2358,7 @@ def search_employees(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Search Employees Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)
 
 
 @frappe.whitelist()
@@ -2270,4 +2393,4 @@ def get_departments(**kwargs):
 
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), _("Get Departments Error"))
-        return api_response(success=False, message=str(e), status_code=500)
+        return api_response(success=False, message="An unexpected error occurred. Please try again.", status_code=500)

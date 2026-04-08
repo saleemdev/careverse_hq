@@ -1848,6 +1848,21 @@ export const erpnextAssetsApi = {
         return frappeCall('careverse_hq.api.erpnext_assets.get_maintenance_teams', q);
     },
 
+    createMaintenanceTeam: async (data: {
+        maintenance_team_name: string;
+        company: string;
+        maintenance_manager?: string;
+        members?: Array<{ team_member: string }>;
+    }): Promise<ApiResponse> => {
+        const payload: Record<string, any> = {
+            maintenance_team_name: data.maintenance_team_name,
+            company: data.company,
+        };
+        if (data.maintenance_manager) payload.maintenance_manager = data.maintenance_manager;
+        if (data.members?.length) payload.members = JSON.stringify(data.members);
+        return frappeCall('careverse_hq.api.erpnext_assets.create_maintenance_team', payload);
+    },
+
     // Item management (for asset creation flow)
     searchFixedAssetItems: async (search: string, limit?: number): Promise<ApiResponse> => {
         const q: Record<string, any> = { search };

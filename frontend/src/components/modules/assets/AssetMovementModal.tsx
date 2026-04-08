@@ -17,6 +17,7 @@ interface Props {
     onClose: () => void;
     assetName: string;
     currentLocation: string;
+    currentFacilityId?: string;
     currentLocationName: string;
     currentCustodianName: string;
     company: string;
@@ -37,7 +38,7 @@ const PURPOSES = [
 
 const AssetMovementModal: React.FC<Props> = ({
     open, onClose, assetName,
-    currentLocation, currentLocationName,
+    currentLocation, currentFacilityId, currentLocationName,
     currentCustodianName,
     company,
 }) => {
@@ -203,11 +204,13 @@ const AssetMovementModal: React.FC<Props> = ({
                             showSearch
                             optionFilterProp="children"
                         >
-                            {availableFacilities.map((f) => (
-                                <Select.Option key={f.hie_id} value={f.hie_id}>
-                                    {f.facility_name}
-                                </Select.Option>
-                            ))}
+                            {availableFacilities
+                                .filter((f) => f.hie_id !== currentFacilityId)
+                                .map((f) => (
+                                    <Select.Option key={f.hie_id} value={f.hie_id}>
+                                        {f.facility_name}
+                                    </Select.Option>
+                                ))}
                         </Select>
                     </Form.Item>
                 )}

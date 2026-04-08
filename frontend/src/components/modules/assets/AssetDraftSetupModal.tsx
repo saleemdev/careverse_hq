@@ -64,11 +64,19 @@ interface AssetFinanceBookFormValue {
     rate_of_depreciation?: number;
 }
 
+interface EmployeeOption {
+    name: string;
+    employee_name: string;
+    designation?: string;
+    department?: string;
+}
+
 interface AssetDraftSetupValues {
     is_existing_asset: boolean;
     purchase_date?: Dayjs | null;
     available_for_use_date?: Dayjs | null;
     gross_purchase_amount: number;
+    custodian?: string;
     purchase_receipt?: string;
     purchase_invoice?: string;
     calculate_depreciation: boolean;
@@ -118,12 +126,16 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
     const [purchaseInvoiceSearching, setPurchaseInvoiceSearching] = useState(false);
     const [selectedPurchaseReceipt, setSelectedPurchaseReceipt] = useState<PurchaseDocumentOption | null>(null);
     const [selectedPurchaseInvoice, setSelectedPurchaseInvoice] = useState<PurchaseDocumentOption | null>(null);
+    const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+    const [employeeSearching, setEmployeeSearching] = useState(false);
 
     const purchaseReceiptSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const purchaseInvoiceSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const employeeSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const purchaseReceiptRequestSeqRef = useRef(0);
     const purchaseInvoiceRequestSeqRef = useRef(0);
     const financeBooksRequestSeqRef = useRef(0);
+    const employeeSearchRequestSeqRef = useRef(0);
 
     const isExistingAsset = Form.useWatch('is_existing_asset', form);
     const calculateDepreciation = Form.useWatch('calculate_depreciation', form);
@@ -135,6 +147,9 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
         }
         if (purchaseInvoiceSearchRef.current) {
             clearTimeout(purchaseInvoiceSearchRef.current);
+        }
+        if (employeeSearchRef.current) {
+            clearTimeout(employeeSearchRef.current);
         }
     }, []);
 
@@ -157,6 +172,7 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
             purchase_date: asset.purchase_date ? dayjs(asset.purchase_date) : null,
             available_for_use_date: asset.available_for_use_date ? dayjs(asset.available_for_use_date) : null,
             gross_purchase_amount: asset.gross_purchase_amount || asset.net_purchase_amount || 0,
+            custodian: asset.custodian || undefined,
             purchase_receipt: asset.purchase_receipt || undefined,
             purchase_invoice: asset.purchase_invoice || undefined,
             calculate_depreciation: Boolean(asset.calculate_depreciation),
@@ -199,6 +215,12 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
         );
         setPurchaseReceiptOptions([]);
         setPurchaseInvoiceOptions([]);
+        setEmployees([]);
+        setEmployeeSearching(false);
+        employeeSearchRequestSeqRef.current += 1;
+        if (employeeSearchRef.current) {
+            clearTimeout(employeeSearchRef.current);
+        }
 
         const requestSeq = ++financeBooksRequestSeqRef.current;
         setFinanceBooksLoading(true);
@@ -268,6 +290,34 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
             }
         }, 300);
     }, [asset.company, asset.item_code, asset.name]);
+
+    const handleEmployeeSearch = useCallback((value: string) => {
+        if (employeeSearchRef.current) {
+            clearTimeout(employeeSearchRef.current);
+        }
+        if (!value || value.length < 2) {
+            employeeSearchRequestSeqRef.current += 1;
+            setEmployees([]);
+            setEmployeeSearching(false);
+            return;
+        }
+
+        const requestSeq = ++employeeSearchRequestSeqRef.current;
+        setEmployeeSearching(true);
+        employeeSearchRef.current = setTimeout(async () => {
+            try {
+                const response = await erpnextAssetsApi.searchEmployees(value, asset.company);
+                if (requestSeq !== employeeSearchRequestSeqRef.current || !open) {
+                    return;
+                }
+                setEmployees(response.success ? (response.data?.items || []) : []);
+            } finally {
+                if (requestSeq === employeeSearchRequestSeqRef.current) {
+                    setEmployeeSearching(false);
+                }
+            }
+        }, 300);
+    }, [asset.company, open]);
 
     const applySelectedPurchaseDocument = useCallback((document: PurchaseDocumentOption, fieldName: 'purchase_receipt' | 'purchase_invoice') => {
         const otherField = fieldName === 'purchase_receipt' ? 'purchase_invoice' : 'purchase_receipt';
@@ -346,6 +396,7 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
                 purchase_date: values.purchase_date?.format('YYYY-MM-DD'),
                 available_for_use_date: values.available_for_use_date?.format('YYYY-MM-DD'),
                 gross_purchase_amount: values.gross_purchase_amount,
+                custodian: values.custodian,
                 purchase_receipt: values.is_existing_asset ? '' : values.purchase_receipt,
                 purchase_invoice: values.is_existing_asset ? '' : values.purchase_invoice,
                 calculate_depreciation: values.calculate_depreciation ? 1 : 0,
@@ -472,6 +523,38 @@ const AssetDraftSetupModal: React.FC<Props> = ({ asset, open, onClose }) => {
                             placeholder="0.00"
                             formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                             parser={parseCurrencyInput}
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Custodian (Assigned Employee)"
+                        name="custodian"
+                        tooltip="The employee currently responsible for the asset."
+                    >
+                        <Select
+                            placeholder="Search employee name... (min 2 characters)"
+                            showSearch
+                            filterOption={false}
+                            onSearch={handleEmployeeSearch}
+                            loading={employeeSearching}
+                            allowClear
+                            notFoundContent={
+                                employeeSearching
+                                    ? <Spin size="small" />
+                                    : <Empty description="Type 2+ characters to search employees" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                            }
+                            options={[
+                                ...(asset.custodian && !employees.some((employee) => employee.name === asset.custodian)
+                                    ? [{
+                                        value: asset.custodian,
+                                        label: asset.custodian_name || asset.custodian,
+                                    }]
+                                    : []),
+                                ...employees.map((employee) => ({
+                                    value: employee.name,
+                                    label: `${employee.employee_name} (${employee.name})`,
+                                })),
+                            ]}
                         />
                     </Form.Item>
 

@@ -214,7 +214,7 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                 <Empty description="No maintenance schedule" />
             )}
 
-            {maintenanceData?.logs?.length > 0 && (
+            {(maintenanceData?.logs?.length ?? 0) > 0 && (
                 <>
                     <Title level={5}>Maintenance Logs</Title>
                     <Table
@@ -469,6 +469,7 @@ const AssetDetailView: React.FC<Props> = ({ assetId, navigateToRoute }) => {
                 onClose={() => setMovementModalOpen(false)}
                 assetName={assetId}
                 currentLocation={asset.location}
+                currentFacilityId={asset.facility_id}
                 currentLocationName={asset.facility_name || asset.location}
                 currentCustodianName={asset.custodian_name}
                 company={asset.company}
