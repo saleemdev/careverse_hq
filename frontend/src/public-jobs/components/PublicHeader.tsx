@@ -34,13 +34,18 @@ const logoutUser = async (csrfToken?: string): Promise<void> => {
 
 export function PublicHeader({ boot }: Props) {
   const initials = useMemo(() => buildInitials(boot.userFullName, boot.userEmail), [boot.userEmail, boot.userFullName]);
+  const brandInitials = useMemo(() => buildInitials(boot.appName), [boot.appName]);
 
   return (
     <header className="pj-header">
       <div className="pj-shell pj-header-inner">
         <a href="/jobs" className="pj-brand-link" aria-label={boot.appName + ' jobs board'}>
           <span className="pj-brand-mark">
-            <img src={boot.logo} alt={boot.appName} />
+            {boot.logo ? (
+              <img src={boot.logo} alt={boot.appName} />
+            ) : (
+              <span>{brandInitials}</span>
+            )}
           </span>
           <span className="pj-brand-copy">
             <span className="pj-brand-title">{boot.appName}</span>

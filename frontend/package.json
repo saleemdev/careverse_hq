@@ -18,6 +18,8 @@
     "@ant-design/icons": "^5.6.1",
     "@ant-design/pro-components": "^2.8.10",
     "@ant-design/pro-table": "^3.21.0",
+    "@hugeicons/core-free-icons": "^4.1.1",
+    "@hugeicons/react": "^1.1.6",
     "antd": "^5.29.3",
     "dayjs": "^1.11.19",
     "exceljs": "^4.4.0",

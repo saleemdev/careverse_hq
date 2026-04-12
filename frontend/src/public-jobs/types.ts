@@ -65,7 +65,7 @@ export interface PublicRegulatorOption {
 
 export interface PublicJobsBoot {
   appName: string;
-  logo: string;
+  logo?: string | null;
   currentYear: number;
   csrfToken: string;
   isAuthenticated: boolean;

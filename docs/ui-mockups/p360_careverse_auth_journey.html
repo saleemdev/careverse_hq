@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>P360 x CareVerseHQ Auth Journey</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --bg-2: #eef4ff;
+            --surface: rgba(255, 255, 255, 0.82);
+            --surface-strong: #ffffff;
+            --line: rgba(148, 163, 184, 0.25);
+            --text: #102033;
+            --muted: #5f7288;
+            --soft: #8ea0b6;
+            --blue: #1677ff;
+            --blue-strong: #0f5ed2;
+            --indigo: #6366f1;
+            --green: #16a34a;
+            --green-soft: #eaf9ef;
+            --red: #dc2626;
+            --red-soft: #fff0f0;
+            --amber: #b45309;
+            --amber-soft: #fff7e9;
+            --shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+            --phone-shadow: 0 24px 80px rgba(15, 23, 42, 0.14);
+            --radius-xl: 28px;
+            --radius-lg: 22px;
+            --radius-md: 16px;
+            --radius-sm: 12px;
+            --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            font-family: var(--font);
+            color: var(--text);
+            background:
+                radial-gradient(40% 35% at 10% 10%, rgba(99, 102, 241, 0.16) 0%, transparent 100%),
+                radial-gradient(30% 30% at 92% 18%, rgba(22, 119, 255, 0.15) 0%, transparent 100%),
+                radial-gradient(30% 28% at 85% 92%, rgba(16, 185, 129, 0.10) 0%, transparent 100%),
+                linear-gradient(180deg, #f7f9fc 0%, #f3f7fb 100%);
+        }
+
+        body {
+            padding: 48px 28px 72px;
+        }
+
+        .page {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            display: grid;
+            gap: 18px;
+            margin-bottom: 36px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            width: fit-content;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(22, 119, 255, 0.10);
+            color: var(--blue-strong);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .hero h1 {
+            margin: 0;
+            max-width: 900px;
+            font-size: clamp(34px, 4vw, 58px);
+            line-height: 0.98;
+            letter-spacing: -0.04em;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 900px;
+            color: var(--muted);
+            font-size: 17px;
+            line-height: 1.6;
+        }
+
+        .summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .summary-chip {
+            padding: 10px 14px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.58);
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .journey {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(280px, 1fr));
+            gap: 22px;
+            align-items: start;
+        }
+
+        .stage {
+            display: grid;
+            gap: 14px;
+        }
+
+        .stage-meta {
+            display: grid;
+            gap: 8px;
+        }
+
+        .stage-index {
+            display: inline-flex;
+            width: fit-content;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.06);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .stage h2 {
+            margin: 0;
+            font-size: 20px;
+            line-height: 1.1;
+        }
+
+        .stage p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .stage-note {
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.68);
+            border: 1px solid var(--line);
+            color: var(--soft);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .phone {
+            position: relative;
+            min-height: 760px;
+            padding: 14px;
+            border-radius: 34px;
+            background:
+                linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.98) 100%);
+            box-shadow: var(--phone-shadow);
+        }
+
+        .phone::before {
+            content: "";
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 132px;
+            height: 30px;
+            border-radius: 0 0 18px 18px;
+            background: rgba(15, 23, 42, 0.98);
+            z-index: 2;
+        }
+
+        .screen {
+            position: relative;
+            overflow: hidden;
+            min-height: 732px;
+            border-radius: 24px;
+            background: var(--surface-strong);
+        }
+
+        .p360-screen {
+            background:
+                radial-gradient(44% 30% at 18% 8%, rgba(59, 130, 246, 0.18) 0%, transparent 100%),
+                linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
+        }
+
+        .p360-login-screen {
+            background:
+                linear-gradient(180deg, #f4f0ff 0%, #f6f4ff 34%, #f7fbff 100%);
+        }
+
+        .careverse-screen {
+            background:
+                radial-gradient(42% 32% at 12% 12%, rgba(99, 102, 241, 0.18) 0%, transparent 100%),
+                radial-gradient(36% 30% at 85% 18%, rgba(22, 119, 255, 0.14) 0%, transparent 100%),
+                linear-gradient(180deg, #f7f9fc 0%, #f3f7fb 100%);
+        }
+
+        .success-screen {
+            background:
+                radial-gradient(46% 34% at 12% 12%, rgba(22, 163, 74, 0.14) 0%, transparent 100%),
+                linear-gradient(180deg, #f5fbf6 0%, #eff8f1 100%);
+        }
+
+        .screen-inner {
+            display: grid;
+            gap: 18px;
+            padding: 28px 24px 26px;
+            min-height: 100%;
+        }
+
+        .mobile-topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #0f172a;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-mark {
+            width: 48px;
+            height: 48px;
+            display: grid;
+            place-items: center;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(22, 119, 255, 0.18), rgba(99, 102, 241, 0.16));
+            color: var(--blue);
+            font-size: 20px;
+            font-weight: 800;
+            box-shadow: 0 10px 24px rgba(22, 119, 255, 0.12);
+        }
+
+        .brand-copy strong,
+        .brand-copy span {
+            display: block;
+        }
+
+        .brand-copy strong {
+            font-size: 18px;
+            line-height: 1.1;
+        }
+
+        .brand-copy span {
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .auth-card,
+        .consent-card,
+        .status-card,
+        .redirect-card {
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            background: var(--surface);
+            backdrop-filter: blur(18px);
+            box-shadow: var(--shadow);
+        }
+
+        .auth-card,
+        .consent-card,
+        .status-card {
+            padding: 22px;
+        }
+
+        .redirect-card {
+            padding: 22px;
+        }
+
+        .p360-hero {
+            display: grid;
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .p360-hero h3,
+        .auth-card h3,
+        .consent-card h3,
+        .status-card h3,
+        .redirect-card h3 {
+            margin: 0;
+            font-size: 26px;
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+        }
+
+        .p360-hero p,
+        .auth-card p,
+        .consent-card p,
+        .status-card p,
+        .redirect-card p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .device-shot {
+            height: 168px;
+            border-radius: 24px;
+            background:
+                linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.94));
+            padding: 20px;
+            display: grid;
+            align-content: end;
+            gap: 10px;
+            color: white;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .device-shot .mini-bars {
+            display: flex;
+            gap: 8px;
+        }
+
+        .device-shot .mini-bars span {
+            display: block;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .device-shot .mini-bars span:nth-child(1) {
+            width: 42%;
+            height: 10px;
+        }
+
+        .device-shot .mini-bars span:nth-child(2) {
+            width: 28%;
+            height: 10px;
+        }
+
+        .device-shot .mini-bars span:nth-child(3) {
+            width: 18%;
+            height: 10px;
+        }
+
+        .device-shot strong {
+            font-size: 18px;
+            line-height: 1.15;
+        }
+
+        .stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border: 1px solid rgba(148, 163, 184, 0.20);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .info-icon {
+            width: 36px;
+            height: 36px;
+            display: grid;
+            place-items: center;
+            border-radius: 12px;
+            background: rgba(22, 119, 255, 0.10);
+            color: var(--blue);
+            font-weight: 800;
+            flex: none;
+        }
+
+        .info-copy strong,
+        .info-copy span {
+            display: block;
+        }
+
+        .info-copy strong {
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .info-copy span {
+            margin-top: 3px;
+            color: var(--soft);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .primary-btn,
+        .secondary-btn {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 52px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .primary-btn {
+            background: linear-gradient(135deg, var(--blue), var(--blue-strong));
+            color: white;
+            box-shadow: 0 12px 24px rgba(22, 119, 255, 0.24);
+        }
+
+        .secondary-btn {
+            border: 1.5px solid rgba(148, 163, 184, 0.40);
+            color: var(--muted);
+            background: rgba(255, 255, 255, 0.74);
+        }
+
+        .mock-link {
+            display: inline-flex;
+            width: fit-content;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.05);
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .flow-arrow {
+            display: none;
+        }
+
+        .fields {
+            display: grid;
+            gap: 10px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .field label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .field-box {
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.26);
+            background: rgba(255, 255, 255, 0.72);
+            color: var(--soft);
+            font-size: 13px;
+        }
+
+        .callout {
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(22, 119, 255, 0.16);
+            background: rgba(22, 119, 255, 0.07);
+            color: var(--blue-strong);
+            font-size: 12px;
+            line-height: 1.55;
+            font-weight: 600;
+        }
+
+        .scopes {
+            display: grid;
+            gap: 10px;
+        }
+
+        .scope {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .scope-dot {
+            width: 30px;
+            height: 30px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            background: rgba(22, 119, 255, 0.08);
+            color: var(--blue);
+            font-weight: 800;
+            flex: none;
+        }
+
+        .scope strong,
+        .scope span {
+            display: block;
+        }
+
+        .scope strong {
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .scope span {
+            margin-top: 2px;
+            color: var(--soft);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .error-box {
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(220, 38, 38, 0.14);
+            background: var(--red-soft);
+            color: #9f1239;
+            font-size: 12px;
+            line-height: 1.55;
+            display: grid;
+            gap: 6px;
+        }
+
+        .success-box {
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(22, 163, 74, 0.14);
+            background: var(--green-soft);
+            color: #166534;
+            font-size: 12px;
+            line-height: 1.55;
+            display: grid;
+            gap: 6px;
+        }
+
+        .chrome-shell {
+            display: grid;
+            gap: 14px;
+            padding: 10px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.76);
+            border: 1px solid var(--line);
+            box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+        }
+
+        .chrome-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 2px 4px 0;
+        }
+
+        .chrome-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #334155;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .chrome-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: conic-gradient(from 225deg, #ea4335 0deg, #fbbc05 90deg, #34a853 180deg, #4285f4 270deg, #ea4335 360deg);
+            box-shadow: inset 0 0 0 3px white;
+        }
+
+        .chrome-meta {
+            color: var(--soft);
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .chrome-url-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chrome-url-pill {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 40px;
+            padding: 0 14px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.05);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .chrome-url-pill strong {
+            color: #102033;
+            font-size: 12px;
+        }
+
+        .chrome-url-pill span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .chrome-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .chrome-actions i {
+            width: 8px;
+            height: 8px;
+            display: block;
+            border-radius: 50%;
+            background: rgba(148, 163, 184, 0.55);
+        }
+
+        .chrome-content {
+            display: grid;
+            gap: 14px;
+        }
+
+        .login-actions,
+        .consent-actions {
+            display: grid;
+            gap: 10px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .checkbox-row label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: default;
+        }
+
+        .checkbox-row input {
+            width: 14px;
+            height: 14px;
+            accent-color: var(--blue);
+        }
+
+        .text-link {
+            color: var(--blue-strong);
+            font-weight: 600;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 28px;
+            padding: 0 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+
+        .status-chip.ready {
+            background: rgba(22, 119, 255, 0.12);
+            color: #0f5ed2;
+        }
+
+        .status-chip.approved {
+            background: rgba(22, 163, 74, 0.12);
+            color: #166534;
+        }
+
+        .status-chip.review {
+            background: rgba(245, 158, 11, 0.16);
+            color: #9a6700;
+        }
+
+        .status-chip.action {
+            background: rgba(239, 68, 68, 0.12);
+            color: #b42318;
+        }
+
+        .preview-panel,
+        .dashboard-card,
+        .metric-card {
+            border-radius: 20px;
+            border: 1px solid rgba(148, 163, 184, 0.20);
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: var(--shadow);
+        }
+
+        .preview-panel,
+        .dashboard-card {
+            display: grid;
+            gap: 14px;
+            padding: 18px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .section-header-copy {
+            display: grid;
+            gap: 4px;
+        }
+
+        .section-header-copy strong {
+            font-size: 15px;
+            line-height: 1.3;
+        }
+
+        .section-header-copy span {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .mini-list,
+        .preauth-list,
+        .next-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .mini-row,
+        .preauth-row,
+        .next-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            background: rgba(255, 255, 255, 0.72);
+        }
+
+        .mini-copy,
+        .preauth-copy,
+        .next-copy {
+            display: grid;
+            gap: 3px;
+        }
+
+        .mini-copy strong,
+        .preauth-copy strong,
+        .next-copy strong {
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .mini-copy span,
+        .preauth-copy span,
+        .next-copy span {
+            color: var(--soft);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .dashboard-stack {
+            display: grid;
+            gap: 14px;
+        }
+
+        .dashboard-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .welcome-block {
+            display: grid;
+            gap: 4px;
+        }
+
+        .welcome-block strong {
+            font-size: 26px;
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+        }
+
+        .welcome-block span {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .user-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            background: rgba(22, 163, 74, 0.14);
+            color: #166534;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .metric-card {
+            padding: 16px;
+            display: grid;
+            gap: 6px;
+        }
+
+        .metric-card span {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .metric-card strong {
+            font-size: 26px;
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+
+        .dashboard-badge {
+            display: inline-flex;
+            width: fit-content;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(22, 163, 74, 0.10);
+            color: #166534;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .practice-logo {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding-top: 12px;
+        }
+
+        .practice-logo strong {
+            font-size: 28px;
+            line-height: 1;
+            letter-spacing: -0.04em;
+            color: #0f2b6d;
+        }
+
+        .practice-logo strong span {
+            color: #26b3f3;
+        }
+
+        .p360-login-panel {
+            margin-top: 18px;
+            padding: 18px 18px 22px;
+            border-radius: 34px 34px 22px 22px;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+            display: grid;
+            gap: 16px;
+        }
+
+        .back-arrow {
+            display: inline-flex;
+            width: 34px;
+            height: 34px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            color: #2b95d6;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .login-header {
+            display: grid;
+            gap: 8px;
+        }
+
+        .login-header h3 {
+            margin: 0;
+            font-size: 18px;
+            line-height: 1.2;
+        }
+
+        .login-header p {
+            margin: 0;
+            color: var(--soft);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .auth-fields.tight {
+            display: grid;
+            gap: 14px;
+        }
+
+        .field-box.select {
+            justify-content: space-between;
+            color: #9aa8b7;
+        }
+
+        .field-box.select::after {
+            content: "⌄";
+            color: #5f7288;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .pin-row {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .pin-box {
+            height: 58px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.26);
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        .forgot-row {
+            color: #7b8797;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .forgot-row strong {
+            color: #2b95d6;
+            font-weight: 700;
+        }
+
+        .terms-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            color: #7b8797;
+            font-size: 11px;
+            line-height: 1.55;
+        }
+
+        .terms-row input {
+            width: 14px;
+            height: 14px;
+            margin-top: 3px;
+            accent-color: #2b95d6;
+        }
+
+        .terms-row strong {
+            color: #2b95d6;
+            font-weight: 700;
+        }
+
+        .p360-login-panel .primary-btn {
+            min-height: 50px;
+            background: linear-gradient(135deg, #2aa8dc, #1c97cb);
+            box-shadow: 0 12px 24px rgba(42, 168, 220, 0.24);
+            font-size: 13px;
+        }
+
+        .footnote {
+            margin-top: 32px;
+            padding: 18px 20px;
+            border-radius: 20px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.62);
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.65;
+        }
+
+        @media (max-width: 1400px) {
+            .journey {
+                grid-template-columns: repeat(2, minmax(280px, 1fr));
+            }
+        }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 28px 16px 48px;
+            }
+
+            .journey {
+                grid-template-columns: 1fr;
+            }
+
+            .phone {
+                min-height: 700px;
+            }
+
+            .screen {
+                min-height: 672px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <div class="eyebrow">Illustrative auth flow</div>
+            <h1>P360 Mobile sign-in journey using CareVerseHQ Auth.</h1>
+            <p>
+                This board shows the exact handoff you described: a P360 mobile sign-in start screen with
+                <strong>Login with CareVerseHQ Auth</strong>, the CareVerseHQ login page, the consent page,
+                and the redirect-back outcome inside the mobile journey.
+            </p>
+            <div class="summary">
+                <div class="summary-chip">P360 screens are illustrative mobile mocks</div>
+                <div class="summary-chip">CareVerseHQ screens mirror the provider flow already in the repo</div>
+                <div class="summary-chip">Designed for review, product discussion, and future Figma capture</div>
+            </div>
+        </section>
+
+        <section class="journey">
+            <article class="stage">
+                <div class="stage-meta">
+                    <div class="stage-index">01 · P360 Mobile</div>
+                    <h2>P360 login page</h2>
+                    <p>
+                        The user begins on a normal Practice360-style login page and starts the identity handoff from
+                        there.
+                    </p>
+                    <div class="stage-note">
+                        This screen is now aligned to your reference: minimal content, ordinary form inputs, and a
+                        single primary path into CareVerseHQ Auth.
+                    </div>
+                </div>
+                <div class="phone">
+                    <div class="screen p360-screen p360-login-screen">
+                        <div class="screen-inner">
+                            <div class="mobile-topbar">
+                                <span>9:41</span>
+                                <span>5G 100%</span>
+                            </div>
+                            <div class="practice-logo">
+                                <strong>Practice<span>360</span></strong>
+                            </div>
+                            <div class="p360-login-panel">
+                                <div class="back-arrow">←</div>
+                                <div class="login-header">
+                                    <h3>Sign In</h3>
+                                    <p>Please enter your credentials below.</p>
+                                </div>
+                                <div class="auth-fields tight">
+                                    <div class="field">
+                                        <label>Your ID Type</label>
+                                        <div class="field-box select">Select ID Type</div>
+                                    </div>
+                                    <div class="field">
+                                        <label>ID Number</label>
+                                        <div class="field-box">Enter your ID Number</div>
+                                    </div>
+                                    <div class="field">
+                                        <label>Enter your 4-digit PIN</label>
+                                        <div class="pin-row">
+                                            <div class="pin-box"></div>
+                                            <div class="pin-box"></div>
+                                            <div class="pin-box"></div>
+                                            <div class="pin-box"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="forgot-row">Forgot your PIN? <strong>Reset PIN</strong></div>
+                                <div class="terms-row">
+                                    <input type="checkbox" />
+                                    <span>I have read and agree to the <strong>Terms of Use</strong> and <strong>Privacy Policy</strong>.</span>
+                                </div>
+                                <div class="primary-btn">Login with CareVerseHQ Auth</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="stage">
+                <div class="stage-meta">
+                    <div class="stage-index">02 · CareVerseHQ</div>
+                    <h2>Provider login page</h2>
+                    <p>
+                        Chrome opens the CareVerseHQ sign-in page. The provider authenticates the health worker here
+                        before the flow can move to consent.
+                    </p>
+                    <div class="stage-note">
+                        This is still illustrative, but it now reads like a normal mobile browser sign-in page instead
+                        of an internal system card.
+                    </div>
+                </div>
+                <div class="phone">
+                    <div class="screen careverse-screen">
+                        <div class="screen-inner">
+                            <div class="mobile-topbar">
+                                <span>9:42</span>
+                                <span>5G 96%</span>
+                            </div>
+                            <div class="chrome-shell">
+                                <div class="chrome-topbar">
+                                    <div class="chrome-brand">
+                                        <span class="chrome-dot"></span>
+                                        <span>Chrome</span>
+                                    </div>
+                                    <div class="chrome-meta">1 tab</div>
+                                </div>
+                                <div class="chrome-url-row">
+                                    <div class="chrome-url-pill">
+                                        <strong>🔒</strong>
+                                        <span>desk.kns.co.ke:8000/login?redirect-to=authorize...</span>
+                                    </div>
+                                    <div class="chrome-actions"><i></i><i></i><i></i></div>
+                                </div>
+                                <div class="chrome-content">
+                                    <div class="brand-row">
+                                        <div class="brand-mark">C</div>
+                                        <div class="brand-copy">
+                                            <strong>CareVerseHQ</strong>
+                                            <span>Secure sign-in</span>
+                                        </div>
+                                    </div>
+                                    <div class="auth-card stack">
+                                        <h3>Welcome back</h3>
+                                        <p>Sign in to continue to P360 Mobile.</p>
+                                        <div class="fields">
+                                            <div class="field">
+                                                <label>Email address</label>
+                                                <div class="field-box">clinical.worker@kns.co.ke</div>
+                                            </div>
+                                            <div class="field">
+                                                <label>Password</label>
+                                                <div class="field-box">••••••••••••</div>
+                                            </div>
+                                        </div>
+                                        <div class="checkbox-row">
+                                            <label><input type="checkbox" checked /> Remember this browser</label>
+                                            <span class="text-link">Forgot password?</span>
+                                        </div>
+                                        <div class="login-actions">
+                                            <div class="primary-btn">Sign In</div>
+                                            <div class="callout">
+                                                Use the same CareVerseHQ account you use across Admin Central.
+                                            </div>
+                                        </div>
+                                        <p style="font-size:12px;color:var(--soft);">Need help signing in? Contact your administrator.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="stage">
+                <div class="stage-meta">
+                    <div class="stage-index">03 · CareVerseHQ</div>
+                    <h2>Consent screen</h2>
+                    <p>
+                        Still in Chrome, the health worker reviews what P360 is asking to access and either approves or
+                        cancels the request.
+                    </p>
+                    <div class="stage-note">
+                        The content is based on the provider-side consent step, but the browser framing makes the
+                        redirect flow easier to understand at a glance.
+                    </div>
+                </div>
+                <div class="phone">
+                    <div class="screen careverse-screen">
+                        <div class="screen-inner">
+                            <div class="mobile-topbar">
+                                <span>9:42</span>
+                                <span>5G 95%</span>
+                            </div>
+                            <div class="chrome-shell">
+                                <div class="chrome-topbar">
+                                    <div class="chrome-brand">
+                                        <span class="chrome-dot"></span>
+                                        <span>Chrome</span>
+                                    </div>
+                                    <div class="chrome-meta">Secure page</div>
+                                </div>
+                                <div class="chrome-url-row">
+                                    <div class="chrome-url-pill">
+                                        <strong>🔒</strong>
+                                        <span>desk.kns.co.ke:8000/api/method/.../authorize</span>
+                                    </div>
+                                    <div class="chrome-actions"><i></i><i></i><i></i></div>
+                                </div>
+                                <div class="chrome-content">
+                                    <div class="brand-row">
+                                        <div class="brand-mark">C</div>
+                                        <div class="brand-copy">
+                                            <strong>CareVerseHQ</strong>
+                                            <span>Consent required</span>
+                                        </div>
+                                    </div>
+                                    <div class="consent-card stack">
+                                        <div class="mock-link">Allow access?</div>
+                                        <h3>P360 Mobile wants to access your account.</h3>
+                                        <p>Approve this request to return to the app and finish sign-in.</p>
+                                        <div class="scopes">
+                                            <div class="scope">
+                                                <div class="scope-dot">•</div>
+                                                <div>
+                                                    <strong>Basic identity</strong>
+                                                    <span>Confirms who you are during sign-in.</span>
+                                                </div>
+                                            </div>
+                                            <div class="scope">
+                                                <div class="scope-dot">•</div>
+                                                <div>
+                                                    <strong>Name and profile photo</strong>
+                                                    <span>Used to personalize the P360 experience.</span>
+                                                </div>
+                                            </div>
+                                            <div class="scope">
+                                                <div class="scope-dot">•</div>
+                                                <div>
+                                                    <strong>Email address</strong>
+                                                    <span>Used to connect the mobile session to your account.</span>
+                                                </div>
+                                            </div>
+                                            <div class="scope">
+                                                <div class="scope-dot">•</div>
+                                                <div>
+                                                    <strong>Work role and permissions</strong>
+                                                    <span>Allows P360 to show the right tools after sign-in.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="callout">
+                                            CareVerseHQ will not share the user's password with P360.
+                                        </div>
+                                        <div class="consent-actions">
+                                            <div class="primary-btn">Allow access</div>
+                                            <div class="secondary-btn">No, cancel</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="stage">
+                <div class="stage-meta">
+                    <div class="stage-index">04 · Signed in</div>
+                    <h2>P360 home after sign-in</h2>
+                    <p>
+                        After consent, P360 completes the callback in the background and lands the user in a natural
+                        signed-in home screen.
+                    </p>
+                    <div class="stage-note">
+                        This is meant to feel like the first real screen a user sees after authentication, with live
+                        work items and clear preauthorization statuses.
+                    </div>
+                </div>
+                <div class="phone">
+                    <div class="screen success-screen">
+                        <div class="screen-inner">
+                            <div class="mobile-topbar">
+                                <span>9:43</span>
+                                <span>5G 93%</span>
+                            </div>
+                            <div class="brand-row">
+                                <div class="brand-mark">P</div>
+                                <div class="brand-copy">
+                                    <strong>P360 Mobile</strong>
+                                    <span>Signed-in home</span>
+                                </div>
+                            </div>
+                            <div class="redirect-card stack">
+                                <div class="mock-link">Signed in with CareVerseHQ</div>
+                                <div class="dashboard-stack">
+                                    <div class="dashboard-top">
+                                        <div class="welcome-block">
+                                            <strong>Hi, User</strong>
+                                            <span>Nairobi West Facility · Morning shift</span>
+                                        </div>
+                                        <div class="user-chip">U</div>
+                                    </div>
+                                    <div class="dashboard-badge">Verified identity is active</div>
+                                    <div class="metric-grid">
+                                        <div class="metric-card">
+                                            <span>Approved today</span>
+                                            <strong>08</strong>
+                                        </div>
+                                        <div class="metric-card">
+                                            <span>Pending review</span>
+                                            <strong>03</strong>
+                                        </div>
+                                    </div>
+                                    <div class="dashboard-card">
+                                        <div class="section-header">
+                                            <div class="section-header-copy">
+                                                <strong>Preauthorizations</strong>
+                                                <span>Recent requests linked to this user.</span>
+                                            </div>
+                                            <span class="text-link">See all</span>
+                                        </div>
+                                        <div class="preauth-list">
+                                            <div class="preauth-row">
+                                                <div class="preauth-copy">
+                                                    <strong>PA-41023 · Outpatient consult</strong>
+                                                    <span>Member: Jane W. · Updated 2 min ago</span>
+                                                </div>
+                                                <div class="status-chip approved">Approved</div>
+                                            </div>
+                                            <div class="preauth-row">
+                                                <div class="preauth-copy">
+                                                    <strong>PA-41017 · CT scan request</strong>
+                                                    <span>Member: John K. · Waiting for reviewer</span>
+                                                </div>
+                                                <div class="status-chip review">In review</div>
+                                            </div>
+                                            <div class="preauth-row">
+                                                <div class="preauth-copy">
+                                                    <strong>PA-41011 · Lab package</strong>
+                                                    <span>Member: Mercy N. · Supporting file missing</span>
+                                                </div>
+                                                <div class="status-chip action">Action needed</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="error-box">
+                                <strong>Illustrative alternate branch</strong>
+                                <span>If the user cancels consent, P360 would instead receive <code>error=access_denied</code> and show an appropriate retry state.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="footnote">
+            These are review artifacts, not production screens. The first and last screens are intentionally illustrative
+            P360 mobile mocks, while the CareVerseHQ login and consent screens are adapted from the current provider-side
+            auth flow already implemented in this repository.
+        </section>
+    </main>
+</body>
+</html>

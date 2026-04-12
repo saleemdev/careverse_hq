@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout, Typography, Button, Card, Space, theme, Row, Col } from 'antd';
 import {
     LockOutlined,
@@ -22,6 +22,11 @@ interface UnauthorizedPageProps {
     loginUrl?: string;
 }
 
+interface PublicBrand {
+    app_name: string;
+    logo?: string | null;
+}
+
 const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
     isDarkMode,
     onToggleTheme,
@@ -29,6 +34,57 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
 }) => {
     const { token } = theme.useToken();
     const { isMobile } = useResponsive();
+    const [brand, setBrand] = useState<PublicBrand | null>(null);
+
+    useEffect(() => {
+        let isSubscribed = true;
+
+        const loadBrand = async () => {
+            try {
+                const response = await fetch('/api/method/careverse_hq.api.user_context.get_app_branding', {
+                    credentials: 'include',
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json();
+                const apiResponse = data.message || data;
+                const result = apiResponse.data || apiResponse;
+
+                if (!isSubscribed || !result?.app_name) {
+                    return;
+                }
+
+                setBrand({
+                    app_name: result.app_name,
+                    logo: result.logo ?? null,
+                });
+            } catch {
+                // Keep the local fallback branding when guest branding is unavailable.
+            }
+        };
+
+        void loadBrand();
+
+        return () => {
+            isSubscribed = false;
+        };
+    }, []);
+
+    const brandName = (brand?.app_name || 'CareVerse HQ').trim() || 'CareVerse HQ';
+    const brandLogo = brand?.logo?.trim() || null;
+    const brandInitials = brandName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase() || 'CV';
 
     const handleLogin = () => {
         window.location.href = loginUrl;
@@ -127,10 +183,18 @@ const UnauthorizedPage: React.FC<UnauthorizedPageProps> = ({
                                 fontSize: '18px'
                             }}
                         >
-                            H
+                            {brandLogo ? (
+                                <img
+                                    src={brandLogo}
+                                    alt={`${brandName} logo`}
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                />
+                            ) : (
+                                <span>{brandInitials}</span>
+                            )}
                         </div>
                         <Title level={4} style={{ margin: 0, fontWeight: 600, letterSpacing: '-0.01em' }}>
-                            F360 Central
+                            {brandName}
                         </Title>
                     </div>
 

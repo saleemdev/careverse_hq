@@ -8,7 +8,7 @@ All endpoints filter data by Company (via User Permission) and optionally by Fac
 import frappe
 from frappe import _
 from typing import Optional, List, Dict
-from frappe.utils import getdate, today, add_days, add_months, get_first_day, get_last_day
+from frappe.utils import getdate, today, add_days, add_months, get_first_day, get_last_day, flt
 from collections import defaultdict
 from .response import api_response
 from .dashboard_utils import (
@@ -76,6 +76,92 @@ def _build_affiliation_scope_filters(
         filters["requested_date"] = ["<=", getdate(date_to)]
 
     return filters, False
+
+
+def _empty_health_professional_license_overview() -> Dict:
+    """Return the empty response shape for practitioner license dashboard metrics."""
+    return {
+        "total_health_professional_employees": 0,
+        "total_considered": 0,
+        "licensed_not_expired": 0,
+        "licensed_expired": 0,
+        "licenses_expiring_soon": 0,
+        "excluded_missing_license_data": 0,
+        "compliance_rate": 0.0,
+    }
+
+
+def _chunk_list(values: List, chunk_size: int):
+    """Yield stable chunks to avoid very large IN queries."""
+    for i in range(0, len(values), chunk_size):
+        yield values[i:i + chunk_size]
+
+
+def _get_grouped_health_professional_employee_counts() -> List[dict]:
+    """Return active employee counts grouped by linked Health Professional.
+
+    Primary path uses grouped aggregation in `get_list`, which preserves Frappe
+    permissions on `Employee`. A compatibility fallback is retained for
+    deployments where grouped aggregate field syntax is unexpectedly rejected.
+    """
+    employee_filters = {
+        "status": "Active",
+        "custom_health_professional": ["is", "set"],
+    }
+
+    try:
+        return frappe.get_list(
+            "Employee",
+            filters=employee_filters,
+            fields=[
+                "custom_health_professional",
+                {"COUNT": "name", "as": "employee_count"},
+            ],
+            group_by="custom_health_professional",
+            order_by="custom_health_professional asc",
+            page_length=0,
+        )
+    except Exception:
+        # Compatibility fallback for older/stricter aggregate parsing. This is
+        # slower than grouped SQL but preserves correctness and permissions.
+        rows = frappe.get_list(
+            "Employee",
+            filters=employee_filters,
+            fields=["custom_health_professional"],
+            order_by="custom_health_professional asc",
+            page_length=0,
+        )
+        grouped_counts = defaultdict(int)
+        for row in rows:
+            hp_name = row.get("custom_health_professional")
+            if hp_name:
+                grouped_counts[hp_name] += 1
+
+        return [
+            {
+                "custom_health_professional": hp_name,
+                "employee_count": count,
+            }
+            for hp_name, count in grouped_counts.items()
+        ]
+
+
+def _get_permission_safe_sum(doctype: str, fieldname: str) -> float:
+    """Sum a field using permission-aware get_list with a compatibility fallback."""
+    try:
+        rows = frappe.get_list(
+            doctype,
+            fields=[{"SUM": fieldname, "as": "total_value"}],
+            page_length=1,
+        )
+        return flt((rows[0].get("total_value") if rows else 0) or 0)
+    except Exception:
+        rows = frappe.get_list(
+            doctype,
+            fields=[fieldname],
+            page_length=0,
+        )
+        return sum(flt(row.get(fieldname) or 0) for row in rows)
 
 
 @frappe.whitelist()
@@ -840,11 +926,23 @@ def get_company_overview():
             "total_departments": int,
             "total_facilities": int,
             "total_assets": int,
+            "asset_records_total": int,
+            "total_asset_value": float,
             "active_affiliations": int,
             "pending_affiliations": int
         }
     """
     try:
+        asset_records_total = 0
+        total_asset_value = 0.0
+
+        try:
+            if frappe.db.exists("DocType", "Asset"):
+                asset_records_total = _count("Asset")
+                total_asset_value = _get_permission_safe_sum("Asset", "value_after_depreciation")
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Dashboard Asset Portfolio Summary Error")
+
         return api_response(
             success=True,
             data={
@@ -852,6 +950,8 @@ def get_company_overview():
                 "total_departments": _count("Department"),
                 "total_facilities": _count("Health Facility"),
                 "total_assets": _count("Health Automation Device"),
+                "asset_records_total": asset_records_total,
+                "total_asset_value": total_asset_value,
                 "active_affiliations": _count("Facility Affiliation", {"affiliation_status": "Active"}),
                 "pending_affiliations": _count("Facility Affiliation", {"affiliation_status": "Pending"}),
             }
@@ -1569,6 +1669,104 @@ def get_recent_activities(
             message=str(e),
             status_code=500
         )
+
+
+@frappe.whitelist()
+def get_health_professional_license_overview():
+    """Get aggregate practitioner license metrics for accessible active employees.
+
+    Scope rules:
+    - Start from `Employee` using `frappe.get_list`, so RBAC matches the Health
+      Professionals module.
+    - Only employees linked to a Health Professional are considered.
+    - Employees whose linked Health Professional is missing or has no
+      `license_end` are excluded from the statistics.
+
+    Performance notes:
+    - Employee counts are grouped in SQL to avoid loading every row just to
+      count it.
+    - Linked Health Professional records are resolved in batches to avoid
+      N+1 queries and very large `IN (...)` filters.
+    - Only aggregate metrics are returned; practitioner-level detail is not
+      materialized for this executive endpoint.
+    """
+    try:
+        grouped_employee_rows = _get_grouped_health_professional_employee_counts()
+        if not grouped_employee_rows:
+            return api_response(success=True, data=_empty_health_professional_license_overview())
+
+        today_date = getdate(today())
+        expiring_soon_cutoff = getdate(add_days(today_date, 60))
+        total_health_professional_employees = 0
+        total_considered = 0
+        licensed_not_expired = 0
+        licensed_expired = 0
+        licenses_expiring_soon = 0
+
+        for employee_chunk in _chunk_list(grouped_employee_rows, 2000):
+            counts_by_hp = {}
+
+            for row in employee_chunk:
+                hp_name = row.get("custom_health_professional")
+                employee_count = int(row.get("employee_count") or 0)
+                if not hp_name or employee_count <= 0:
+                    continue
+                counts_by_hp[hp_name] = counts_by_hp.get(hp_name, 0) + employee_count
+                total_health_professional_employees += employee_count
+
+            if not counts_by_hp:
+                continue
+
+            hp_rows = frappe.get_list(
+                "Health Professional",
+                filters={
+                    "name": ["in", list(counts_by_hp.keys())],
+                    "license_end": ["is", "set"],
+                },
+                fields=[
+                    "name",
+                    "license_end",
+                ],
+                page_length=len(counts_by_hp),
+            )
+
+            for hp in hp_rows:
+                hp_name = hp.get("name")
+                if not hp_name:
+                    continue
+
+                employee_count = counts_by_hp.get(hp_name, 0)
+                if employee_count <= 0:
+                    continue
+
+                expiry_date = getdate(hp.get("license_end"))
+                if not expiry_date:
+                    continue
+
+                total_considered += employee_count
+
+                if expiry_date < today_date:
+                    licensed_expired += employee_count
+                else:
+                    licensed_not_expired += employee_count
+                    if expiry_date <= expiring_soon_cutoff:
+                        licenses_expiring_soon += employee_count
+
+        excluded_missing_license_data = max(total_health_professional_employees - total_considered, 0)
+        compliance_rate = round((licensed_not_expired / total_considered) * 100, 1) if total_considered else 0.0
+
+        return api_response(success=True, data={
+            "total_health_professional_employees": total_health_professional_employees,
+            "total_considered": total_considered,
+            "licensed_not_expired": licensed_not_expired,
+            "licensed_expired": licensed_expired,
+            "licenses_expiring_soon": licenses_expiring_soon,
+            "excluded_missing_license_data": excluded_missing_license_data,
+            "compliance_rate": compliance_rate,
+        })
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Health Professional License Overview API Error")
+        return api_response(success=False, message=str(e), status_code=500)
 
 
 @frappe.whitelist()

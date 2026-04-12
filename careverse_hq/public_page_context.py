@@ -4,18 +4,22 @@ from urllib.parse import quote
 
 import frappe
 
+from careverse_hq.branding import get_configured_app_brand
+
 
 _PORTAL_ONLY_ROLES = {"Guest", "All", "Website User"}
 
 
 def apply_public_page_context(context, *, title, current_path, page_label="Jobs Board"):
     """Populate shared website context for public-facing jobs pages."""
+    brand = get_configured_app_brand()
     context.no_cache = 1
     context.no_header = True
     context.no_breadcrumbs = True
     context.title = title
-    context.app_name = "CareVerse HQ"
-    context.logo = "/assets/careverse_hq/images/logo.svg"
+    context.app_name = brand["app_name"]
+    context.logo = brand["logo"]
+    context.brand_initials = brand["initials"]
     context.site_url = frappe.utils.get_url()
     context.current_year = frappe.utils.now_datetime().year
     context.csrf_token = frappe.sessions.get_csrf_token()

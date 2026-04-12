@@ -5,6 +5,10 @@ app_description = "Careverse(formerly healthpro) management platform for organiz
 app_email = "salim@tiberbu.com"
 app_license = "mit"
 
+from careverse_hq.libmagic_compat import ensure_magic_compat
+
+ensure_magic_compat()
+
 # Home page (landing page)
 home_page = "index"
 

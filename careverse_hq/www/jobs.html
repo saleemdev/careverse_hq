@@ -18,7 +18,7 @@
       window.csrf_token = {{ (csrf_token or frappe.session.csrf_token) | tojson }};
       window.PUBLIC_JOBS_BOOT = {
         appName: {{ (app_name or "CareVerse HQ") | tojson }},
-        logo: {{ (logo or "/assets/careverse_hq/images/logo.svg") | tojson }},
+        logo: {{ logo | tojson }},
         currentYear: {{ (current_year or 2026) | tojson }},
         csrfToken: {{ (csrf_token or frappe.session.csrf_token) | tojson }},
         isAuthenticated: {{ 1 if is_authenticated else 0 }},

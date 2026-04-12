@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from careverse_hq.api.user_context import get_user_company_context
+from careverse_hq.api.user_context import get_app_branding, get_user_company_context
 
 
 def make_fake_frappe(
@@ -11,6 +11,7 @@ def make_fake_frappe(
     exists_side_effect,
     company_doc,
     facilities,
+    website_settings=None,
     roles=None,
 ):
     fake_db = SimpleNamespace(
@@ -24,6 +25,7 @@ def make_fake_frappe(
         get_all=MagicMock(return_value=company_permissions),
         get_list=MagicMock(return_value=facilities),
         get_roles=MagicMock(return_value=roles or []),
+        get_website_settings=MagicMock(side_effect=lambda key: (website_settings or {}).get(key)),
         log_error=MagicMock(),
         get_traceback=MagicMock(return_value="traceback"),
         PermissionError=Exception,
@@ -59,6 +61,8 @@ class TestUserCompanyContext(unittest.TestCase):
 
         with (
             patch("careverse_hq.api.user_context.frappe", fake_frappe),
+            patch("careverse_hq.branding.frappe", fake_frappe),
+            patch("careverse_hq.branding.get_app_logo", return_value="/files/f360-brand.svg"),
             patch("careverse_hq.api.user_context.api_response", side_effect=lambda **kw: kw) as mock_resp,
             patch(
                 "careverse_hq.careverse_hq.doctype.admin_central_settings.admin_central_settings.AdminCentralSettings.is_oversight_user",
@@ -71,6 +75,8 @@ class TestUserCompanyContext(unittest.TestCase):
         self.assertEqual(response["data"]["access_mode"], "company")
         self.assertTrue(response["data"]["has_company_permission"])
         self.assertEqual(response["data"]["company"]["name"], "ACME")
+        self.assertEqual(response["data"]["brand"]["app_name"], "CareVerse HQ")
+        self.assertEqual(response["data"]["brand"]["logo"], "/files/f360-brand.svg")
 
     def test_oversight_user_without_company_gets_oversight_mode(self):
         fake_frappe = make_fake_frappe(
@@ -82,6 +88,8 @@ class TestUserCompanyContext(unittest.TestCase):
 
         with (
             patch("careverse_hq.api.user_context.frappe", fake_frappe),
+            patch("careverse_hq.branding.frappe", fake_frappe),
+            patch("careverse_hq.branding.get_app_logo", return_value=None),
             patch("careverse_hq.api.user_context.api_response", side_effect=lambda **kw: kw) as mock_resp,
             patch(
                 "careverse_hq.careverse_hq.doctype.admin_central_settings.admin_central_settings.AdminCentralSettings.is_oversight_user",
@@ -113,6 +121,8 @@ class TestUserCompanyContext(unittest.TestCase):
 
         with (
             patch("careverse_hq.api.user_context.frappe", fake_frappe),
+            patch("careverse_hq.branding.frappe", fake_frappe),
+            patch("careverse_hq.branding.get_app_logo", return_value=None),
             patch("careverse_hq.api.user_context.api_response", side_effect=lambda **kw: kw) as mock_resp,
             patch(
                 "careverse_hq.careverse_hq.doctype.admin_central_settings.admin_central_settings.AdminCentralSettings.is_oversight_user",
@@ -136,6 +146,8 @@ class TestUserCompanyContext(unittest.TestCase):
 
         with (
             patch("careverse_hq.api.user_context.frappe", fake_frappe),
+            patch("careverse_hq.branding.frappe", fake_frappe),
+            patch("careverse_hq.branding.get_app_logo", return_value=None),
             patch("careverse_hq.api.user_context.api_response", side_effect=lambda **kw: kw) as mock_resp,
             patch(
                 "careverse_hq.careverse_hq.doctype.admin_central_settings.admin_central_settings.AdminCentralSettings.is_oversight_user",
@@ -149,3 +161,25 @@ class TestUserCompanyContext(unittest.TestCase):
         self.assertFalse(response["data"]["is_oversight_user"])
         self.assertFalse(response["data"]["has_company_permission"])
         self.assertEqual(response["data"]["facilities"], [])
+
+    def test_public_branding_uses_website_settings_and_logo(self):
+        fake_frappe = make_fake_frappe(
+            company_permissions=[],
+            exists_side_effect=lambda doctype, filters=None: False,
+            company_doc=None,
+            facilities=[],
+            website_settings={"app_name": "CareVerse HQ"},
+        )
+
+        with (
+            patch("careverse_hq.api.user_context.frappe", fake_frappe),
+            patch("careverse_hq.branding.frappe", fake_frappe),
+            patch("careverse_hq.branding.get_app_logo", return_value="/files/careverse-logo.svg"),
+            patch("careverse_hq.api.user_context.api_response", side_effect=lambda **kw: kw) as mock_resp,
+        ):
+            result = get_app_branding()
+            response = self.assert_context_response(result, mock_resp)
+
+        self.assertTrue(response["success"])
+        self.assertEqual(response["data"]["app_name"], "CareVerse HQ")
+        self.assertEqual(response["data"]["logo"], "/files/careverse-logo.svg")

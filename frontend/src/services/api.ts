@@ -617,6 +617,11 @@ export const dashboardApi = {
         return frappeCall('careverse_hq.api.dashboard.get_license_compliance_overview', params);
     },
 
+    // Get practitioner license overview based on accessible Employee records
+    getHealthProfessionalLicenseOverview: async (): Promise<ApiResponse> => {
+        return frappeCall('careverse_hq.api.dashboard.get_health_professional_license_overview');
+    },
+
     // Get financial overview
     getFinancialOverview: async (
         facilities?: string[],

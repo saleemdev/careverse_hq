@@ -10,6 +10,7 @@ from frappe import _
 from typing import Optional
 import base64
 from frappe.utils.file_manager import save_file
+from careverse_hq.branding import get_configured_app_brand
 from .utils import api_response
 
 
@@ -34,6 +35,17 @@ def _get_company_scoped_facilities(company_name: Optional[str] = None):
 	}
 
 	return frappe.get_list("Health Facility", **query_kwargs)
+
+
+def _get_app_brand():
+	"""Return the global product brand configured for website/app chrome."""
+	return get_configured_app_brand()
+
+
+@frappe.whitelist(allow_guest=True)
+def get_app_branding():
+	"""Return public-facing brand metadata for login and guest surfaces."""
+	return api_response(success=True, data=_get_app_brand())
 
 
 @frappe.whitelist()
@@ -117,6 +129,7 @@ def get_user_company_context():
 				"is_oversight_user": is_oversight_user,
 				"access_mode": access_mode,
 				"company": company_doc,
+				"brand": _get_app_brand(),
 				"facilities": facilities,
 			},
 		)

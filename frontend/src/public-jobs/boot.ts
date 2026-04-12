@@ -20,10 +20,11 @@ const makeSignInLink = (currentPath: string): string => {
 export const getPublicJobsBoot = (): PublicJobsBoot => {
   const raw = window.PUBLIC_JOBS_BOOT || {};
   const currentPath = ensureLeadingSlash(raw.currentPath || window.location.pathname || '/jobs');
+  const logo = typeof raw.logo === 'string' && raw.logo.trim() ? raw.logo.trim() : null;
 
   return {
     appName: raw.appName || 'CareVerse HQ',
-    logo: raw.logo || '/assets/careverse_hq/images/logo.svg',
+    logo,
     currentYear: Number(raw.currentYear) || new Date().getFullYear(),
     csrfToken: raw.csrfToken || window.csrf_token || '',
     isAuthenticated: Boolean(raw.isAuthenticated),

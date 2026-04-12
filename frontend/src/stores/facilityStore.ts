@@ -34,10 +34,16 @@ export interface Company {
 	default_currency?: string;
 }
 
+export interface AppBrand {
+	app_name: string;
+	logo?: string | null;
+}
+
 export type AccessMode = 'none' | 'company' | 'oversight';
 
 interface FacilityState {
 	// State
+	brand: AppBrand | null;
 	company: Company | null;
 	accessMode: AccessMode;
 	availableFacilities: Facility[];
@@ -63,6 +69,7 @@ const useFacilityStore = create<FacilityState>()(
 		persist(
 			(set, get) => ({
 				// Initial State
+				brand: null,
 				company: null,
 				accessMode: 'none',
 				availableFacilities: [],
@@ -111,6 +118,7 @@ const useFacilityStore = create<FacilityState>()(
 
 						if (accessMode === 'none') {
 							set({
+								brand: result.brand ?? null,
 								accessMode: 'none',
 								company: null,
 								availableFacilities: [],
@@ -126,6 +134,7 @@ const useFacilityStore = create<FacilityState>()(
 						const facilities = result.facilities || [];
 						const allIds = facilities.map((f: Facility) => f.hie_id);
 						set({
+							brand: result.brand ?? null,
 							accessMode: 'company',
 							company: result.company,
 							availableFacilities: facilities,
@@ -230,6 +239,7 @@ const useFacilityStore = create<FacilityState>()(
 				 */
 				reset: () =>
 					set({
+						brand: null,
 						company: null,
 						accessMode: 'none',
 						availableFacilities: [],
@@ -260,6 +270,7 @@ const useFacilityStore = create<FacilityState>()(
 			{
 				name: 'f360-facility-context-store',
 				partialize: (state) => ({
+					brand: state.brand,
 					accessMode: state.accessMode,
 					company: state.company,
 					availableFacilities: state.availableFacilities,

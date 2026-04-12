@@ -47,6 +47,7 @@ const ROUTE_FAVICONS: Record<string, string> = {
 };
 const ENABLE_USER_MGMT_REFACTOR = import.meta.env.VITE_ENABLE_USER_MGMT_REFACTOR !== 'false';
 const ENABLE_FACILITY_ONBOARDING = import.meta.env.VITE_ENABLE_FACILITY_ONBOARDING !== 'false';
+const ENABLE_RAIL_SIDEBAR_V2 = true;
 
 const decodeHashSegment = (segment: string): string => {
   try {
@@ -658,6 +659,7 @@ function App() {
         isDarkMode={isDarkMode}
         onToggleTheme={toggleTheme}
         accessPolicy={accessPolicy}
+        enableRailSidebarV2={ENABLE_RAIL_SIDEBAR_V2}
       >
         {page}
       </AppLayout>

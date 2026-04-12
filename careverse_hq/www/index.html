@@ -115,9 +115,30 @@
             gap: 12px;
         }
 
-        .navbar-logo img { width: 36px; height: 36px; }
+        .navbar-logo-mark {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            background: linear-gradient(145deg, rgba(22, 119, 255, 0.14), rgba(99, 102, 241, 0.12));
+            border: 1px solid rgba(22, 119, 255, 0.16);
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
 
-        .navbar-logo span {
+        .navbar-logo-mark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .navbar-logo-text {
             font-size: 1.125rem;
             font-weight: 600;
             color: var(--text-main);
@@ -490,7 +511,7 @@
             .ft-grid { grid-template-columns: 1fr; }
             .ft-bottom { justify-content: center; text-align: center; }
             .trust-bar { flex-wrap: wrap; gap: 20px; }
-            .navbar-logo span { display: none; }
+            .navbar-logo-text { display: none; }
         }
     </style>
 </head>
@@ -501,10 +522,14 @@
         <nav class="navbar">
             <div class="navbar-content wrap">
                 <div class="navbar-logo">
-                    {% if logo %}
-                    <img src="{{ logo }}" alt="{{ app_name }}">
-                    {% endif %}
-                    <span>{{ app_name }}</span>
+                    <span class="navbar-logo-mark" aria-hidden="true">
+                        {% if logo %}
+                        <img src="{{ logo }}" alt="{{ app_name }}">
+                        {% else %}
+                        {{ brand_initials }}
+                        {% endif %}
+                    </span>
+                    <span class="navbar-logo-text">{{ app_name }}</span>
                 </div>
                 <div class="navbar-actions">
                     <a href="{{ cta_secondary_link }}" class="btn btn-outline">{{ cta_secondary_text }}</a>

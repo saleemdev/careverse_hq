@@ -4,6 +4,8 @@ from frappe import _
 from frappe.utils.oauth import get_oauth2_providers
 from urllib.parse import urlparse
 
+from careverse_hq.branding import get_configured_app_brand
+
 no_cache = True  # CRITICAL: Disable caching for auth pages
 
 
@@ -32,11 +34,13 @@ def get_context(context):
 	context.no_cache = 1
 	context.no_header = True
 	context.no_breadcrumbs = True
-	context.title = _("Sign In - CareVerse HQ")
+	brand = get_configured_app_brand()
+	context.title = _("Sign In - {0}").format(brand["app_name"])
 
 	# Branding
-	context.app_name = "CareVerse HQ"
-	context.logo = "/assets/careverse_hq/images/logo.svg"
+	context.app_name = brand["app_name"]
+	context.logo = brand["logo"]
+	context.brand_initials = brand["initials"]
 
 	# Authentication settings
 	context.disable_signup = frappe.get_website_settings("disable_signup") or 0

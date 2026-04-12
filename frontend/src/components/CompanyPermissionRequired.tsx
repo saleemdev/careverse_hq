@@ -32,9 +32,19 @@ interface CompanyPermissionRequiredProps {
 
 const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ onNavigate }) => {
 	const { user, logout } = useAuthStore();
-	const { company } = useFacilityStore();
+	const { brand, company } = useFacilityStore();
 	const { isMobile, isTablet } = useResponsive();
 	const { token } = theme.useToken();
+	const brandName = (brand?.app_name || 'CareVerse HQ').trim() || 'CareVerse HQ';
+	const brandLogo = brand?.logo?.trim() || null;
+	const brandInitials = brandName
+		.split(/\s+/)
+		.filter(Boolean)
+		.slice(0, 2)
+		.map((part) => part[0])
+		.join('')
+		.toUpperCase() || 'CV';
+	const brandSubtitle = company?.abbr ? `${company.abbr} workspace` : 'Admin Central';
 
 	const handleUserMenuClick = ({ key }: { key: string }) => {
 		if (key === 'logout') {
@@ -166,20 +176,35 @@ const CompanyPermissionRequired: React.FC<CompanyPermissionRequiredProps> = ({ o
 								overflow: 'hidden',
 							}}
 						>
-							{company?.company_logo ? (
+							{brandLogo ? (
 								<img
-									src={company.company_logo}
-									alt={`${company.company_name || company.name} logo`}
-									style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+									src={brandLogo}
+									alt={`${brandName} logo`}
+									style={{ width: '100%', height: '100%', objectFit: 'contain' }}
 								/>
 							) : (
-								<SafetyCertificateOutlined style={{ fontSize: '16px', color: token.colorPrimary }} />
+								<span
+									style={{
+										fontSize: '13px',
+										lineHeight: 1,
+										fontWeight: 800,
+										letterSpacing: '-0.04em',
+										color: token.colorPrimary,
+									}}
+								>
+									{brandInitials}
+								</span>
 							)}
 						</div>
 						{!isMobile && (
-							<Text strong style={{ fontSize: '14px', color: '#1e293b' }}>
-								F360 Central
-							</Text>
+							<div style={{ display: 'grid', gap: '2px' }}>
+								<Text strong style={{ fontSize: '14px', color: '#1e293b', lineHeight: 1.1 }}>
+									{brandName}
+								</Text>
+								<Text style={{ fontSize: '10px', color: '#64748b', lineHeight: 1.1 }}>
+									{brandSubtitle}
+								</Text>
+							</div>
 						)}
 					</div>
 

@@ -10,23 +10,18 @@ import {
     Col,
     Card,
     Typography,
-    Tag,
     Space,
     Spin,
     Badge,
     theme,
     Button,
-    Avatar,
-    List,
     Progress,
-    Tooltip,
     Input,
     Alert,
 } from 'antd';
 import {
     BankOutlined,
     CheckCircleOutlined,
-    UserAddOutlined,
     ReloadOutlined,
     LinkOutlined,
     SafetyCertificateOutlined,
@@ -215,6 +210,8 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                     confirmation_rate: normalizedConfirmationRate,
                     total_assets: overviewResponse.data.total_assets || 0,
                     total_facilities: overviewResponse.data.total_facilities || 0,
+                    asset_records_total: overviewResponse.data.asset_records_total || 0,
+                    total_asset_value: overviewResponse.data.total_asset_value || 0,
                 });
             } else {
                 setCompanyData((prev: any) => ({
@@ -226,23 +223,26 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                     rejected_affiliations: rejectedAffiliations,
                     terminated_affiliations: terminatedAffiliations,
                     confirmation_rate: normalizedConfirmationRate,
+                    asset_records_total: 0,
+                    total_asset_value: 0,
                 }));
             }
 
-            // Fetch license compliance - no facility filtering
-            const licenseResponse = await dashboardApi.getLicenseComplianceOverview();
+            // Fetch practitioner license overview using the same RBAC scope as Health Professionals.
+            const licenseResponse = await dashboardApi.getHealthProfessionalLicenseOverview();
             if (licenseResponse.success && licenseResponse.data) {
                 setLicenseData(licenseResponse.data);
             } else {
-                console.warn('[Dashboard] License compliance data not available:', licenseResponse.error || 'No data returned');
+                console.warn('[Dashboard] Practitioner license data not available:', licenseResponse.error || 'No data returned');
                 // Set empty data structure to prevent UI errors
                 setLicenseData({
-                    compliance_rate: 0,
-                    total_active_licenses: 0,
-                    expired_licenses: 0,
+                    total_health_professional_employees: 0,
+                    total_considered: 0,
+                    licensed_not_expired: 0,
+                    licensed_expired: 0,
                     licenses_expiring_soon: 0,
-                    pending_licenses: 0,
-                    expiring_details: []
+                    excluded_missing_license_data: 0,
+                    compliance_rate: 0,
                 });
             }
 
@@ -252,8 +252,25 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
             setError(errorMessage);
 
             // Fallback to partially empty data if error occurs
-            setCompanyData((prev: any) => prev || { health_professionals_total: 0, pending_affiliations: 0, total_affiliations: 0, terminated_affiliations: 0, total_facilities: 0 });
+            setCompanyData((prev: any) => prev || {
+                health_professionals_total: 0,
+                pending_affiliations: 0,
+                total_affiliations: 0,
+                terminated_affiliations: 0,
+                total_facilities: 0,
+                asset_records_total: 0,
+                total_asset_value: 0,
+            });
             setAffiliationData((prev: any) => prev || { total: 0, confirmed: 0, pending: 0, rejected: 0, terminated: 0, confirmation_rate: 0, rejection_rate: 0, by_employment_type: {}, by_professional_cadre: {}, by_licensing_body: {} });
+            setLicenseData((prev: any) => prev || {
+                total_health_professional_employees: 0,
+                total_considered: 0,
+                licensed_not_expired: 0,
+                licensed_expired: 0,
+                licenses_expiring_soon: 0,
+                excluded_missing_license_data: 0,
+                compliance_rate: 0,
+            });
         } finally {
             setLoading(false);
         }
@@ -268,15 +285,15 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         fetchDashboardData();
     };
 
-    // Format currency
-    const formatCurrency = (value: number): string => {
-        if (value >= 1000000) {
-            return `KES ${(value / 1000000).toFixed(1)}M`;
-        }
-        if (value >= 1000) {
-            return `KES ${(value / 1000).toFixed(0)}K`;
-        }
-        return `KES ${value.toLocaleString()}`;
+    const formatCurrencyCompact = (value: number | null | undefined) => {
+        const amount = Number(value || 0);
+        if (!amount) return 'KES 0';
+        return new Intl.NumberFormat('en-KE', {
+            style: 'currency',
+            currency: 'KES',
+            notation: amount >= 1000000 ? 'compact' : 'standard',
+            maximumFractionDigits: amount >= 1000000 ? 1 : 0,
+        }).format(amount);
     };
 
     // KPI Card Component
@@ -405,6 +422,25 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
         }))
         .sort((a, b) => b.total - a.total);
 
+    const buildAffiliationStatusTileStyle = (accentColor: string) => ({
+        background: `color-mix(in srgb, ${token.colorBgElevated} 84%, ${accentColor} 16%)`,
+        border: `1px solid color-mix(in srgb, ${token.colorBorderSecondary} 68%, ${accentColor} 32%)`,
+        borderRadius: 12,
+        padding: 14,
+        minHeight: 88,
+        display: 'flex',
+        flexDirection: 'column' as const,
+        justifyContent: 'space-between',
+    });
+
+    const affiliationStatusTiles = [
+        { key: 'total', label: 'TOTAL', value: affiliationData?.total || 0, accent: '#1890ff', span: 12 },
+        { key: 'confirmed', label: 'CONFIRMED', value: affiliationData?.confirmed || 0, accent: '#52c41a', span: 12 },
+        { key: 'pending', label: 'PENDING', value: affiliationData?.pending || 0, accent: '#faad14', span: 12 },
+        { key: 'rejected', label: 'REJECTED', value: affiliationData?.rejected || 0, accent: '#ff4d4f', span: 12 },
+        { key: 'terminated', label: 'TERMINATED', value: affiliationData?.terminated || 0, accent: token.colorTextTertiary, span: 24 },
+    ];
+
     if (canUseCompanyContext && !facilityLoading && company && !hasLinkedFacilities) {
         return (
             <div
@@ -491,52 +527,223 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 </Space>
             </div>
 
-            {/* Section 1: Organization Overview */}
-            <SectionHeader title="Facility & Affiliation Overview" icon={<BankOutlined />} />
+            {/* Section 1: Executive Summary */}
+            <SectionHeader title="Executive Summary" icon={<BankOutlined />} />
             <Row gutter={[16, 16]}>
-                <Col xs={24} sm={12} lg={6}>
+                <Col xs={24} sm={12} lg={8} xl={4}>
                     <KPICard
                         title="Health Professionals"
                         value={companyData?.health_professionals_total?.toLocaleString() || '0'}
                         icon={<CheckCircleOutlined />}
                         color="#52c41a"
-                        subtitle="Total records"
+                        subtitle="Accessible active records"
                         onClick={() => navigateToRoute?.('health-professionals')}
                     />
                 </Col>
-                <Col xs={24} sm={12} lg={6}>
+                <Col xs={24} sm={12} lg={8} xl={4}>
+                    <KPICard
+                        title="Licensed"
+                        value={licenseData?.licensed_not_expired?.toLocaleString?.() || licenseData?.licensed_not_expired || '0'}
+                        icon={<SafetyCertificateOutlined />}
+                        color="#1677ff"
+                        subtitle={`${licenseData?.total_considered || 0} with usable license data`}
+                        onClick={() => navigateToRoute?.('health-professionals')}
+                    />
+                </Col>
+                <Col xs={24} sm={12} lg={8} xl={4}>
+                    <KPICard
+                        title="Expired"
+                        value={licenseData?.licensed_expired?.toLocaleString?.() || licenseData?.licensed_expired || '0'}
+                        icon={<SafetyCertificateOutlined />}
+                        color="#ff4d4f"
+                        subtitle="Needs renewal attention"
+                        onClick={() => navigateToRoute?.('health-professionals')}
+                    />
+                </Col>
+                <Col xs={24} sm={12} lg={8} xl={4}>
+                    <KPICard
+                        title="Expiring Soon"
+                        value={licenseData?.licenses_expiring_soon?.toLocaleString?.() || licenseData?.licenses_expiring_soon || '0'}
+                        icon={<SafetyCertificateOutlined />}
+                        color="#faad14"
+                        subtitle="Within 60 days"
+                        onClick={() => navigateToRoute?.('health-professionals')}
+                    />
+                </Col>
+                <Col xs={24} sm={12} lg={8} xl={4}>
                     <KPICard
                         title="Health Facilities"
-                        value={companyData?.total_facilities || '0'}
+                        value={companyData?.total_facilities?.toLocaleString?.() || companyData?.total_facilities || '0'}
                         icon={<BankOutlined />}
                         color="#722ed1"
-                        subtitle="Registered facilities"
+                        subtitle="Health Facility scope"
                         onClick={() => navigateToRoute?.('facilities')}
                     />
                 </Col>
-                <Col xs={24} sm={12} lg={6}>
+                <Col xs={24} sm={12} lg={8} xl={4}>
                     <KPICard
-                        title="Total Affiliations"
-                        value={companyData?.total_affiliations || '0'}
-                        icon={<LinkOutlined />}
-                        color="#1890ff"
-                        subtitle="All affiliation requests"
-                        onClick={() => navigateToRoute?.('affiliations')}
-                    />
-                </Col>
-                <Col xs={24} sm={12} lg={6}>
-                    <KPICard
-                        title="Pending Affiliations"
-                        value={companyData?.pending_affiliations || '0'}
-                        icon={<UserAddOutlined />}
-                        color="#faad14"
-                        subtitle="Awaiting review"
-                        onClick={() => navigateToRoute?.('affiliations')}
+                        title="Asset Portfolio Value"
+                        value={formatCurrencyCompact(companyData?.total_asset_value)}
+                        icon={<BankOutlined />}
+                        color="#13a8a8"
+                        subtitle={`${companyData?.asset_records_total || 0} tracked assets${companyData?.total_assets ? ` • ${companyData.total_assets} devices` : ''}`}
+                        onClick={() => navigateToRoute?.('assets')}
                     />
                 </Col>
             </Row>
 
-            {/* Section 2: Affiliation Insights */}
+            {/* Section 2: License Coverage & Risk */}
+            <SectionHeader
+                title="License Coverage & Risk"
+                icon={<SafetyCertificateOutlined />}
+                action={
+                    <Button
+                        size={isMobile ? 'small' : 'middle'}
+                        icon={<ArrowRightOutlined />}
+                        onClick={() => navigateToRoute?.('health-professionals')}
+                    >
+                        Open Module
+                    </Button>
+                }
+            />
+            <Row gutter={[16, 16]}>
+                <Col xs={24} md={9}>
+                    <Card
+                        style={{
+                            borderRadius: '12px',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                            border: 'none',
+                            height: '100%',
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                            <div>
+                                <Text type="secondary" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.28px' }}>
+                                    Compliance Rate
+                                </Text>
+                                <Title level={2} style={{ margin: '6px 0 4px', color: '#1677ff' }}>
+                                    {(licenseData?.compliance_rate || 0).toFixed(1)}%
+                                </Title>
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    Share of considered health professional employees with a non-expired license.
+                                </Text>
+                            </div>
+                            <div
+                                style={{
+                                    minWidth: 72,
+                                    height: 72,
+                                    borderRadius: 18,
+                                    background: 'rgba(22, 119, 255, 0.10)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#1677ff',
+                                    fontSize: 24,
+                                }}
+                            >
+                                <SafetyCertificateOutlined />
+                            </div>
+                        </div>
+
+                        <Progress
+                            percent={Number((licenseData?.compliance_rate || 0).toFixed(1))}
+                            showInfo={false}
+                            strokeColor="#1677ff"
+                            trailColor={token.colorFillSecondary}
+                            style={{ marginTop: 18, marginBottom: 20 }}
+                        />
+
+                        <Row gutter={[12, 12]}>
+                            <Col span={12}>
+                                <div style={buildAffiliationStatusTileStyle('#1677ff')}>
+                                    <Text style={{ fontSize: 12, color: token.colorTextSecondary }}>CONSIDERED</Text>
+                                    <Title level={4} style={{ margin: 0, color: '#1677ff' }}>
+                                        {licenseData?.total_considered || 0}
+                                    </Title>
+                                </div>
+                            </Col>
+                            <Col span={12}>
+                                <div style={buildAffiliationStatusTileStyle('#faad14')}>
+                                    <Text style={{ fontSize: 12, color: token.colorTextSecondary }}>EXCLUDED</Text>
+                                    <Title level={4} style={{ margin: 0, color: '#faad14' }}>
+                                        {licenseData?.excluded_missing_license_data || 0}
+                                    </Title>
+                                </div>
+                            </Col>
+                        </Row>
+
+                        {(licenseData?.excluded_missing_license_data || 0) > 0 && (
+                            <Alert
+                                type="warning"
+                                showIcon
+                                style={{ marginTop: 16, borderRadius: 10 }}
+                                message={`${licenseData?.excluded_missing_license_data || 0} linked employees are excluded because the Health Professional record has no license expiry date.`}
+                            />
+                        )}
+                    </Card>
+                </Col>
+                <Col xs={24} md={15}>
+                    <Card
+                        style={{ borderRadius: '12px', border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
+                        title="License Risk Snapshot"
+                        extra={
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                Aggregate only
+                            </Text>
+                        }
+                    >
+                        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                This dashboard keeps practitioner licensing at summary level. Employee-level follow-up stays in the Health Professionals module.
+                            </Text>
+                            <Row gutter={[12, 12]}>
+                                <Col xs={24} sm={8}>
+                                    <div style={buildAffiliationStatusTileStyle('#52c41a')}>
+                                        <Text style={{ fontSize: 12, color: token.colorTextSecondary }}>CURRENT</Text>
+                                        <Title level={4} style={{ margin: 0, color: '#52c41a' }}>
+                                            {licenseData?.licensed_not_expired || 0}
+                                        </Title>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>
+                                            Non-expired licenses
+                                        </Text>
+                                    </div>
+                                </Col>
+                                <Col xs={24} sm={8}>
+                                    <div style={buildAffiliationStatusTileStyle('#ff4d4f')}>
+                                        <Text style={{ fontSize: 12, color: token.colorTextSecondary }}>EXPIRED</Text>
+                                        <Title level={4} style={{ margin: 0, color: '#ff4d4f' }}>
+                                            {licenseData?.licensed_expired || 0}
+                                        </Title>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>
+                                            Require renewal action
+                                        </Text>
+                                    </div>
+                                </Col>
+                                <Col xs={24} sm={8}>
+                                    <div style={buildAffiliationStatusTileStyle('#faad14')}>
+                                        <Text style={{ fontSize: 12, color: token.colorTextSecondary }}>DUE IN 60 DAYS</Text>
+                                        <Title level={4} style={{ margin: 0, color: '#faad14' }}>
+                                            {licenseData?.licenses_expiring_soon || 0}
+                                        </Title>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>
+                                            Approaching expiry
+                                        </Text>
+                                    </div>
+                                </Col>
+                            </Row>
+
+                            <Alert
+                                type="info"
+                                showIcon
+                                style={{ borderRadius: 10 }}
+                                message="Open Health Professionals to review individual practitioners and renewal follow-up."
+                            />
+                        </Space>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Section 3: Affiliation Insights */}
             <SectionHeader
                 title="Facility Affiliation Insights"
                 icon={<LinkOutlined />}
@@ -561,50 +768,48 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                         title="Affiliation Status"
                     >
                         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-                            <Col span={12}>
-                                <div style={{ background: '#e6f7ff', borderRadius: 10, padding: 12 }}>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>TOTAL</Text>
-                                    <Title level={4} style={{ margin: 0, color: '#1890ff' }}>{affiliationData?.total || 0}</Title>
-                                </div>
-                            </Col>
-                            <Col span={12}>
-                                <div style={{ background: '#f6ffed', borderRadius: 10, padding: 12 }}>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>CONFIRMED</Text>
-                                    <Title level={4} style={{ margin: 0, color: '#52c41a' }}>{affiliationData?.confirmed || 0}</Title>
-                                </div>
-                            </Col>
-                            <Col span={12}>
-                                <div style={{ background: '#fffbe6', borderRadius: 10, padding: 12 }}>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>PENDING</Text>
-                                    <Title level={4} style={{ margin: 0, color: '#faad14' }}>{affiliationData?.pending || 0}</Title>
-                                </div>
-                            </Col>
-                            <Col span={12}>
-                                <div style={{ background: '#fff1f0', borderRadius: 10, padding: 12 }}>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>REJECTED</Text>
-                                    <Title level={4} style={{ margin: 0, color: '#ff4d4f' }}>{affiliationData?.rejected || 0}</Title>
-                                </div>
-                            </Col>
-                            <Col span={24}>
-                                <div style={{ background: '#fafafa', borderRadius: 10, padding: 12 }}>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>TERMINATED</Text>
-                                    <Title level={4} style={{ margin: 0, color: '#8c8c8c' }}>{affiliationData?.terminated || 0}</Title>
-                                </div>
-                            </Col>
+                            {affiliationStatusTiles.map((tile) => (
+                                <Col key={tile.key} span={tile.span}>
+                                    <div style={buildAffiliationStatusTileStyle(tile.accent)}>
+                                        <Text
+                                            style={{
+                                                fontSize: 12,
+                                                color: token.colorTextSecondary,
+                                                letterSpacing: '0.28px',
+                                            }}
+                                        >
+                                            {tile.label}
+                                        </Text>
+                                        <Title level={4} style={{ margin: 0, color: tile.accent }}>
+                                            {tile.value}
+                                        </Title>
+                                    </div>
+                                </Col>
+                            ))}
                         </Row>
                         <div style={{ marginBottom: 10 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                                 <Text type="secondary">Confirmation Rate</Text>
                                 <Text strong>{(affiliationData?.confirmation_rate || 0).toFixed(1)}%</Text>
                             </div>
-                            <Progress percent={Number((affiliationData?.confirmation_rate || 0).toFixed(1))} showInfo={false} strokeColor="#52c41a" />
+                            <Progress
+                                percent={Number((affiliationData?.confirmation_rate || 0).toFixed(1))}
+                                showInfo={false}
+                                strokeColor="#52c41a"
+                                trailColor={token.colorFillSecondary}
+                            />
                         </div>
                         <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                                 <Text type="secondary">Rejection Rate</Text>
                                 <Text strong>{(affiliationData?.rejection_rate || 0).toFixed(1)}%</Text>
                             </div>
-                            <Progress percent={Number((affiliationData?.rejection_rate || 0).toFixed(1))} showInfo={false} strokeColor="#ff4d4f" />
+                            <Progress
+                                percent={Number((affiliationData?.rejection_rate || 0).toFixed(1))}
+                                showInfo={false}
+                                strokeColor="#ff4d4f"
+                                trailColor={token.colorFillSecondary}
+                            />
                         </div>
                     </Card>
                 </Col>
@@ -642,7 +847,7 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                 </Col>
             </Row>
 
-            {/* Section 3: Affiliation Distribution */}
+            {/* Section 4: Affiliation Distribution */}
             <SectionHeader
                 title="Affiliation Distribution"
                 icon={<LinkOutlined />}
@@ -919,128 +1124,6 @@ const ExecutiveDashboard: React.FC<DashboardProps> = ({ navigateToRoute }) => {
                                     )}
                                 </div>
                             </>
-                        )}
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Section 4: License Compliance & Expiry */}
-            <SectionHeader
-                title="License Compliance & Expiry"
-                icon={<SafetyCertificateOutlined />}
-                action={
-                    <Button
-                        size={isMobile ? 'small' : 'middle'}
-                        icon={<ArrowRightOutlined />}
-                        onClick={() => navigateToRoute?.('licenses')}
-                    >
-                        Open Module
-                    </Button>
-                }
-            />
-            <Row gutter={[16, 16]}>
-                <Col xs={24}>
-                    <Card
-                        style={{ borderRadius: '12px', border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
-                        bodyStyle={{ padding: 0 }}
-                    >
-                        {loading && !licenseData ? (
-                            <div style={{ padding: '40px', textAlign: 'center' }}>
-                                <Spin size="large" />
-                            </div>
-                        ) : !licenseData?.expiring_details || licenseData.expiring_details.length === 0 ? (
-                            <div style={{ padding: '40px', textAlign: 'center' }}>
-                                <Text type="secondary">No license records found for the selected facilities</Text>
-                            </div>
-                        ) : (
-                        <List
-                            itemLayout="horizontal"
-                            dataSource={(licenseData.expiring_details || []).slice(0, 5)}
-                            renderItem={(item: any) => {
-                                const expiry = new Date(item.expiry_date);
-                                const now = new Date();
-                                const daysDiff = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 3600 * 24));
-                                const totalDuration = 365; // Assuming 1 year licenses for visual scale
-                                const percentElapsed = 100 - Math.max(0, Math.min(100, (daysDiff / totalDuration) * 100)); // For progress bar (0% -> 100% means fresh -> expired)
-
-                                let statusColor = '#52c41a';
-
-                                if (daysDiff < 0) {
-                                    statusColor = '#ff4d4f';
-                                } else if (daysDiff < 30) {
-                                    statusColor = '#ff4d4f';
-                                } else if (daysDiff < 60) {
-                                    statusColor = '#faad14';
-                                }
-
-                                return (
-                                    <List.Item
-                                        style={{
-                                            padding: '16px',
-                                            borderBottom: '1px solid #f0f0f0',
-                                            transition: 'background 0.3s',
-                                            cursor: 'default'
-                                        }}
-                                        actions={[
-                                            <div style={{ textAlign: 'right', minWidth: '100px' }}>
-                                                <div style={{ fontWeight: 600, color: token.colorTextHeading }}>
-                                                    {formatCurrency(item.amount || 0)}
-                                                </div>
-                                                <Tag color={daysDiff < 0 ? 'error' : item.status === 'Active' ? 'success' : 'default'} style={{ margin: 0, marginTop: 4 }}>
-                                                    {item.status}
-                                                </Tag>
-                                            </div>
-                                        ]}
-                                    >
-                                        <List.Item.Meta
-                                            avatar={
-                                                <Avatar
-                                                    shape="square"
-                                                    size={48}
-                                                    icon={<SafetyCertificateOutlined />}
-                                                    style={{
-                                                        backgroundColor: daysDiff < 0 ? '#fff1f0' : '#f6ffed',
-                                                        color: daysDiff < 0 ? '#ff4d4f' : '#52c41a',
-                                                        borderRadius: '8px'
-                                                    }}
-                                                />
-                                            }
-                                            title={
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', paddingRight: '16px' }}>
-                                                    <Text strong style={{ fontSize: '13px' }}>{item.facility_name}</Text>
-                                                </div>
-                                            }
-                                            description={
-                                                <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                                                    <div style={{ display: 'flex', gap: '8px', fontSize: '11px' }}>
-                                                        <Text type="secondary">{item.regulator}</Text>
-                                                        <Text type="secondary">•</Text>
-                                                        <Text type="secondary">{item.license_type}</Text>
-                                                    </div>
-
-                                                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                        <Tooltip title={`Expires on ${item.expiry_date}`}>
-                                                            <div style={{ flex: 1, maxWidth: '200px' }}>
-                                                                <Progress
-                                                                    percent={percentElapsed}
-                                                                    showInfo={false}
-                                                                    size="small"
-                                                                    strokeColor={statusColor}
-                                                                    trailColor="#f5f5f5"
-                                                                />
-                                                            </div>
-                                                        </Tooltip>
-                                                        <Text style={{ color: statusColor, fontSize: '11px', fontWeight: 500 }}>
-                                                            {daysDiff < 0 ? `${Math.abs(daysDiff)} days overdue` : `${daysDiff} days left`}
-                                                        </Text>
-                                                    </div>
-                                                </Space>
-                                            }
-                                        />
-                                    </List.Item>
-                                );
-                            }}
-                        />
                         )}
                     </Card>
                 </Col>

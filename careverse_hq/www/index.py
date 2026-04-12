@@ -1,7 +1,8 @@
 """Custom landing page for CareVerse HQ"""
 import frappe
 from frappe import _
-from frappe.core.doctype.navbar_settings.navbar_settings import get_app_logo
+
+from careverse_hq.branding import get_configured_app_brand
 
 no_cache = True
 
@@ -18,11 +19,13 @@ def get_context(context):
 	context.no_cache = 1
 	context.no_header = True
 	context.no_breadcrumbs = True
-	context.title = _("Healthcare Management Platform - F360 Central")
+	brand = get_configured_app_brand()
+	context.title = _("Healthcare Management Platform - {0}").format(brand["app_name"])
 
-	# Branding - F360 Central
-	context.app_name = "F360 Central"
-	context.logo = "/assets/careverse_hq/images/logo.svg"
+	# Branding
+	context.app_name = brand["app_name"]
+	context.logo = brand["logo"]
+	context.brand_initials = brand["initials"]
 
 	# CTA configuration
 	context.cta_text = "Get Started"
